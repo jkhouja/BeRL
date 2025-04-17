@@ -64,6 +64,7 @@ class RLHFDataset(Dataset):
                  parquet_files: Union[str, List[str]],
                  tokenizer: PreTrainedTokenizer,
                  prompt_key='prompt',
+                 prompt_is_text=False,
                  max_prompt_length=1024,
                  filter_prompts=True,
                  cache_dir='~/.cache/verl/rlhf',
@@ -125,8 +126,12 @@ class RLHFDataset(Dataset):
 
         chat = row_dict.pop(self.prompt_key)
 
-        prompt_with_chat_template = chat[0]['content']
-        # prompt_with_chat_template = chat
+        if self.prompt_is_text:
+            prompt_with_chat_template = chat
+        else:
+            prompt_with_chat_template = chat[0]['content']
+
+        
 
         input_ids, attention_mask = verl_F.tokenize_and_postprocess_data(prompt=prompt_with_chat_template,
                                                                          tokenizer=self.tokenizer,
