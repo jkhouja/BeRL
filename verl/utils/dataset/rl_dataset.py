@@ -79,6 +79,7 @@ class RLHFDataset(Dataset):
         self.tokenizer = tokenizer
 
         self.prompt_key = prompt_key
+        self.prompt_is_text = prompt_is_text
         self.max_prompt_length = max_prompt_length
         self.filter_prompts = filter_prompts
 
