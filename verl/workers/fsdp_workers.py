@@ -936,6 +936,9 @@ class RewardModelWorker(Worker):
             # extract raw prompt
             chat: list = data.non_tensor_batch['raw_prompt'][i].tolist()
 
+            # TODO (Jude) replace the following with extracting the model thinking part of the response and adding
++           # to response prefix? (or maybe prompt?)
+
             # extract response
             response_ids = data.batch['responses'][i]
             response_length = response_ids.shape[-1]
