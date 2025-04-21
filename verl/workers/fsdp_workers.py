@@ -21,6 +21,7 @@ import warnings
 
 import torch
 import torch.distributed
+import torch.nn.functional as F
 import verl.utils.hdfs_io as hdfs_io
 import verl.utils.torch_functional as verl_F
 from omegaconf import DictConfig, open_dict
@@ -43,6 +44,41 @@ from codetiming import Timer
 logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv('VERL_PPO_LOGGING_LEVEL', 'WARN'))
 
+
+def logprobs_from_logits_v2(logits: torch.FloatTensor, labels, response_mask):
+    """
+    A memory efficient implementation of logprobs_from_logits (numerically stable softmax)
+    Source: https://github.com/volcengine/verl/utils/torch_functional.py
+
+    Args:
+        logits: torch.FloatTensor [bs, seq_len, vocab_size]
+        labels: torch.Int64 [bs, seq_len]
+    
+    Outputs:
+        torch.FloatTensor [bs, seq_len] of the logprob of the logits at indices in labels
+    """
+    if logits.dtype in [torch.float32, torch.float64]:
+        logits_labels = torch.gather(
+            logits, dim=-1, index=labels.unsqueeze(-1)
+        ).squeeze(-1)
+        # loop to reduce peak mem consumption
+        logsumexp_values = torch.stack([torch.logsumexp(l, dim=-1) for l in logits])
+        logprobs_labels = (
+            logits_labels - logsumexp_values
+        )  # log_softmax(x_i) = x_i - logsumexp(x)
+    else:
+        # logsumexp approach is unstable with bfloat16, fall back to slightly less efficent approach
+        logprobs_labels = []
+        for row_logits, row_labels in zip(
+            logits, labels
+        ):  # loop to reduce peak mem consumption
+            row_logprobs = F.log_softmax(row_logits, dim=-1)
+            row_logprobs_labels = row_logprobs.gather(
+                dim=-1, index=row_labels.unsqueeze(-1)
+            ).squeeze(-1)
+            logprobs_labels.append(row_logprobs_labels)
+        logprobs_labels = torch.stack(logprobs_labels)
+    return logprobs_labels * response_mask
 
 class ActorRolloutRefWorker(Worker):
     """
@@ -773,6 +809,7 @@ class RewardModelWorker(Worker):
         if not torch.distributed.is_initialized():
             torch.distributed.init_process_group(backend="nccl")
         self.config = config
+        self.invalid_penalty = self.config.get("invalid_penalty", -4)
 
         # build device mesh for Ulysses Sequence Parallel
         world_size = torch.distributed.get_world_size()
@@ -792,7 +829,7 @@ class RewardModelWorker(Worker):
 
     def _build_model(self, config):
         # the following line is necessary
-        from transformers import AutoModelForTokenClassification, AutoConfig
+        from transformers import AutoModelForTokenClassification, AutoConfig, AutoModelForCausalLM
         from torch.distributed.fsdp import FullyShardedDataParallel as FSDP, ShardingStrategy, CPUOffload
 
         # download the checkpoint from hdfs
@@ -809,7 +846,7 @@ class RewardModelWorker(Worker):
 
         trust_remote_code = config.model.get('trust_remote_code', False)
         model_config = AutoConfig.from_pretrained(local_path, trust_remote_code=trust_remote_code)
-        model_config.num_labels = 1
+        
 
         use_remove_padding = config.model.get('use_remove_padding', False)
         if use_remove_padding:
@@ -825,12 +862,25 @@ class RewardModelWorker(Worker):
 
         with init_context(), warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            setattr(model_config, 'classifier_dropout', 0.)
-            reward_module = AutoModelForTokenClassification.from_pretrained(pretrained_model_name_or_path=local_path,
-                                                                            config=model_config,
-                                                                            torch_dtype=torch.bfloat16,
-                                                                            attn_implementation='flash_attention_2',
-                                                                            trust_remote_code=trust_remote_code)
+            if config.type == "classifier":
+                model_config.num_labels = 1
+                setattr(model_config, 'classifier_dropout', 0.)
+                reward_module = AutoModelForTokenClassification.from_pretrained(pretrained_model_name_or_path=local_path,
+                                                                                config=model_config,
+                                                                                torch_dtype=torch.bfloat16,
+                                                                                attn_implementation='flash_attention_2',
+                                                                                trust_remote_code=trust_remote_code)
+
+            elif config.type == "lm":
+                reward_module = AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path=local_path,
+                                                                                config=model_config,
+                                                                                torch_dtype=torch.bfloat16,
+                                                                                attn_implementation='flash_attention_2',
+                                                                                trust_remote_code=trust_remote_code)
+
+            else:
+                raise NotImplementedError
+
             reward_module.to(torch.bfloat16)
         auto_wrap_policy = get_fsdp_wrap_policy(module=reward_module, config=self.config.model.fsdp_config)
 
@@ -859,53 +909,48 @@ class RewardModelWorker(Worker):
         from verl.utils.ulysses import ulysses_pad_and_slice_inputs, gather_outpus_and_unpad
 
         with torch.no_grad(), torch.autocast(device_type='cuda', dtype=torch.bfloat16):
-            input_ids = micro_batch['input_ids']
+            input_ids = micro_batch['input_ids'][:,:-1]
+            labels = micro_batch['input_ids'][:,1:]
             batch_size, seqlen = input_ids.shape
-            attention_mask = micro_batch['attention_mask']
-            position_ids = micro_batch['position_ids']
+            attention_mask = micro_batch['attention_mask'][:,:-1]
+            position_ids = micro_batch['position_ids'][:,:-1]
+            response_mask = micro_batch['response_mask'][:,:-1]
+            pp = micro_batch['answer_pp']
+
+            #breakpoint()
 
             if self.use_remove_padding:
-                input_ids_rmpad, indices, *_ = unpad_input(input_ids.unsqueeze(-1),
-                                                           attention_mask)  # input_ids_rmpad (total_nnz, ...)
-                input_ids_rmpad = input_ids_rmpad.transpose(0, 1)  # (1, total_nnz)
-
-                # unpad the position_ids to align the rotary
-                position_ids_rmpad = index_first_axis(rearrange(position_ids.unsqueeze(-1), "b s ... -> (b s) ..."),
-                                                      indices).transpose(0, 1)
-
-                # pad and slice the inputs if sp > 1
-                if self.ulysses_sequence_parallel_size > 1:
-                    input_ids_rmpad, position_ids_rmpad, pad_size = ulysses_pad_and_slice_inputs(input_ids_rmpad, \
-                                                                                                position_ids_rmpad, \
-                                                                                                sp_size=self.ulysses_sequence_parallel_size)
-
-                # only pass input_ids and position_ids to enable flash_attn_varlen
-                output = self.reward_module(input_ids=input_ids_rmpad,
-                                            attention_mask=None,
-                                            position_ids=position_ids_rmpad,
-                                            use_cache=False)  # prevent model thinks we are generating
-                reward_rmpad = output.logits
-                reward_rmpad = reward_rmpad.squeeze(0)  # (total_nnz)
-
-                # gather output if sp > 1
-                if self.ulysses_sequence_parallel_size > 1:
-                    reward_rmpad = gather_outpus_and_unpad(reward_rmpad,
-                                                           gather_dim=0,
-                                                           unpad_dim=0,
-                                                           padding_size=pad_size)
-
-                # pad it back
-                rm_score = pad_input(reward_rmpad, indices=indices, batch=batch_size, seqlen=seqlen).squeeze(-1)
+                raise ValueError("use_remove_padding is not implemented")
             else:
                 output = self.reward_module(input_ids=input_ids,
                                             attention_mask=attention_mask,
                                             position_ids=position_ids)
-                rm_score = output.logits  # (batch_size, seq_len, 1)
-                rm_score = rm_score.squeeze(-1)
+                logits = output.logits  # (batch_size, seq_len, 1)
+                #rm_score = rm_score.squeeze(-1)
 
-            # extract the result of the last valid token
-            eos_mask_idx = torch.argmax(position_ids * attention_mask, dim=-1)  # (bsz,)
-            rm_score = rm_score[torch.arange(batch_size), eos_mask_idx]
+
+                log_prob = logprobs_from_logits_v2(logits, labels, response_mask)
+                #print(log_prob.shape)
+                #print(log_prob)
+                #zero_logprob = log_prob == 0
+                #print(f"Zero tokens logprob: {zero_logprob.sum(-1)}")
+                #print(f"Prompt len: {prompt_len}")
+                
+                log_prob = log_prob.sum(dim=-1)
+                log_prob = log_prob / response_mask.sum(-1) # A more correct way is to divide by words not tokens e.g. (/ num_words)
+                #print(f"Words: {num_words}")
+                #print(log_prob)
+                
+                assert log_prob.shape[0] == batch_size
+                rm_score = torch.exp(-1 * log_prob)
+                
+
+            # compare to origina pp and valid_response
+            rm_score = pp - rm_score 
+            rm_score = rm_score.masked_fill_(micro_batch['invalid_response'], self.invalid_penalty)
+
+            #eos_mask_idx = torch.argmax(position_ids * attention_mask, dim=-1)  # (bsz,)
+            #rm_score = rm_score[torch.arange(batch_size), eos_mask_idx]
             return rm_score
 
     def _expand_to_token_level(self, data: DataProto, scores: torch.Tensor):
@@ -931,13 +976,16 @@ class RewardModelWorker(Worker):
 
         rm_input_ids = []
         rm_attention_mask = []
+        response_masks = []
+        invalid_responses = []
 
         for i in range(data.batch.batch_size[0]):
             # extract raw prompt
+            #breakpoint()
             chat: list = data.non_tensor_batch['raw_prompt'][i].tolist()
 
             # TODO (Jude) replace the following with extracting the model thinking part of the response and adding
-+           # to response prefix? (or maybe prompt?)
+            # # to response prefix? (or maybe prompt?)
 
             # extract response
             response_ids = data.batch['responses'][i]
@@ -947,14 +995,45 @@ class RewardModelWorker(Worker):
 
             # decode
             response = src_tokenizer.decode(valid_response_ids)
-            # remove bos and eos
-            response = response.replace(src_tokenizer.eos_token, '')
 
-            chat.append({'role': 'assistant', 'content': response})
+            # Extract thinking part
+            invalid_response = torch.tensor([False])
+            if "</think>" not in response:
+                invalid_response = torch.tensor([True])
+                # Return 0 for reward?
+
+            # Add the thinking tokens manually (TODO: Jude, move this to data processing)
+            response_tom = "<think>" + response.split("</think>")[0] + "</think>"
+
+            # remove bos and eos
+            response_tom = response_tom.replace(src_tokenizer.eos_token, '')
+            
+            # Add the thinking part of model response to calculate length
+            chat_tom = chat + [{'role': 'assistant', 'content': response_tom}]
+
+            prompt_with_chat_template_tom = target_tokenizer.apply_chat_template(chat_tom,
+                                                                             add_generation_prompt=False,
+                                                                             tokenize=False)
+
+            prompt_thinking_tokens = target_tokenizer(prompt_with_chat_template_tom, return_tensors='pt', add_special_tokens=False) 
+            thinking_length = prompt_thinking_tokens['input_ids'].shape[-1]
+            
+            # Now stich the True next utterance to model thinking
+
+            actual_response = data.non_tensor_batch['reward_model'][i]['ground_truth']
+            # TODO: Move answer tags to data generation
+            actual_response = "<answer>" + actual_response + "</answer>"
+            response = response_tom + actual_response
+            chat = chat + [{'role': 'assistant', 'content': response}]
 
             prompt_with_chat_template = target_tokenizer.apply_chat_template(chat,
                                                                              add_generation_prompt=False,
                                                                              tokenize=False)
+
+            #prompt_tokens = tokenizer(prompt_with_chat_template, return_tensors='pt', add_special_tokens=False) 
+            #full_length = prompt_thinking_tokens['input_ids'].shape[-1]
+
+
             if self.rank == 0 and i == 0:
                 # for debugging purpose
                 print(f'Switch template. chat: {prompt_with_chat_template}')
@@ -971,15 +1050,32 @@ class RewardModelWorker(Worker):
                 left_pad=False,  # right padding
                 truncation=self.config.get('truncation', 'right'))  # truncate from the right
 
+            response_mask = torch.zeros_like(attention_mask)
+            full_len = attention_mask.sum()
+
+            # If answer is truncated due to max len, return all zeros
+            if thinking_length >= full_len:
+                return response_mask
+            
+            # Now get true utterance mask (this only works with right padding and right truncation)
+            if self.config.get('truncation', 'right') != 'right':
+                raise ValueError("Only right padding is allowed")
+            response_mask[:,thinking_length-1:full_len] = 1
+
             rm_input_ids.append(input_ids)
             rm_attention_mask.append(attention_mask)
+            response_masks.append(response_mask)
+            invalid_responses.append(invalid_response)
 
         rm_input_ids = torch.cat(rm_input_ids, dim=0)
         rm_attention_mask = torch.cat(rm_attention_mask, dim=0)
+        response_masks = torch.cat(response_masks, dim=0)
+        invalid_responses = torch.cat(invalid_responses, dim=0)
+        answer_pp = data.batch['answer_pp']
 
         rm_position_ids = compute_position_id_with_mask(rm_attention_mask)
 
-        rm_inputs = {'input_ids': rm_input_ids, 'attention_mask': rm_attention_mask, 'position_ids': rm_position_ids}
+        rm_inputs = {'input_ids': rm_input_ids, 'attention_mask': rm_attention_mask, 'position_ids': rm_position_ids, 'response_mask': response_masks, 'invalid_response': invalid_responses, 'answer_pp': answer_pp}
 
         return DataProto.from_dict(rm_inputs)
 
@@ -992,6 +1088,7 @@ class RewardModelWorker(Worker):
             rm_data = self._switch_chat_template(data)
 
         rm_data.batch = rm_data.batch.cuda()
+        #breakpoint()
 
         # perform forward computation
         with self.ulysses_sharding_manager:

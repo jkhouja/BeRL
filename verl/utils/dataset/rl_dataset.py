@@ -146,6 +146,14 @@ class RLHFDataset(Dataset):
         row_dict['input_ids'] = input_ids[0]
         row_dict['attention_mask'] = attention_mask[0]
         row_dict['position_ids'] = position_ids[0]
+        
+        # Try to cast all numerical values
+        for k, v in row_dict.items():
+            try:
+                row_dict[k] = torch.tensor(v)
+            except:
+                pass
+                #print(f"Cannot cast {k} : {type(v)}")
 
         # encode prompts without chat template
         if self.return_raw_chat:

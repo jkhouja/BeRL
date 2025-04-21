@@ -122,6 +122,7 @@ critic:
 reward_model:
   enable: False
   strategy: fsdp
+  type: classifier
   model:
     input_tokenizer: ${actor_rollout_ref.model.path}  # set this to null if the chat template is identical
     path: ~/models/FsfairX-LLaMA3-RM-v0.1
