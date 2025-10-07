@@ -11,7 +11,7 @@ mkdir -p logs/${TODAY}
 export VLLM_ATTENTION_BACKEND=XFORMERS
 
 #NUM_GPUS=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
-NUM_GPUS=4
+NUM_GPUS=2
 
 train_batch_size=4
 enable_gradient_checkpointing=True
@@ -28,8 +28,8 @@ for model_name in ${model_names[@]}
 do
     for lr in ${lrs[@]}
     do
-        data_train_files=$HOME/repo/BeRL/data/NegotiationToM_Qwen-Qwen2.5-0.5B-Instruct.parquet
-        test_files=$HOME/repo/BeRL/data/NegotiationToM_Qwen-Qwen2.5-0.5B-Instruct.parquet
+        data_train_files=$HOME/repo/BeRL/data/NegotiationToM_Qwen-Qwen2.5-3B-Instruct_limit800.parquet
+        test_files=$HOME/repo/BeRL/data/cleaned_tom/ToM_test_HiExTi_hint.parquet
         
         HYDRA_FULL_ERROR=1 RAY_BACKEND_LOG_LEVEL=debug python3 -m verl.trainer.main_ppo \
             algorithm.adv_estimator=grpo \
@@ -59,7 +59,7 @@ do
             actor_rollout_ref.rollout.log_prob_micro_batch_size=4 \
             actor_rollout_ref.rollout.tensor_model_parallel_size=$NUM_GPUS \
             actor_rollout_ref.rollout.name=vllm \
-            actor_rollout_ref.rollout.gpu_memory_utilization=0.4 \
+            actor_rollout_ref.rollout.gpu_memory_utilization=0.35 \
             actor_rollout_ref.rollout.n=$ROLLOUT_N \
             actor_rollout_ref.ref.log_prob_micro_batch_size=4 \
             actor_rollout_ref.ref.fsdp_config.param_offload=True \
@@ -71,7 +71,7 @@ do
             trainer.n_gpus_per_node=$NUM_GPUS \
             trainer.nnodes=1 \
             trainer.default_hdfs_dir=null \
-            trainer.save_freq=50 \
+            trainer.save_freq=30 \
             trainer.test_freq=10 \
             trainer.total_epochs=$num_epochs $@ 2>&1 | tee logs/${TODAY}/tom_grpo_$(basename $model_name)_${lr}_${ROLLOUT_N}.log
     done

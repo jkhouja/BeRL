@@ -41,6 +41,9 @@ from verl.workers.sharding_manager.fsdp_ulysses import FSDPUlyssesShardingManage
 
 from codetiming import Timer
 
+MIN_REWARD = -10
+MAX_REWARD = 10
+
 logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv('VERL_PPO_LOGGING_LEVEL', 'WARN'))
 
@@ -948,7 +951,7 @@ class RewardModelWorker(Worker):
             # compare to origina pp and valid_response
             rm_score = pp - rm_score 
             rm_score = rm_score.masked_fill_(micro_batch['invalid_response'], self.invalid_penalty)
-
+            rm_score = torch.clamp(rm_score, min=MIN_REWARD, max=MAX_REWARD)
             #eos_mask_idx = torch.argmax(position_ids * attention_mask, dim=-1)  # (bsz,)
             #rm_score = rm_score[torch.arange(batch_size), eos_mask_idx]
             return rm_score
@@ -1003,7 +1006,12 @@ class RewardModelWorker(Worker):
                 # Return 0 for reward?
 
             # Add the thinking tokens manually (TODO: Jude, move this to data processing)
-            response_tom = "<think>" + response.split("</think>")[0] + "</think>"
+            respnose_parts = response.split("</think>")
+            response_tom = "<think>" + respnose_parts[0] + "</think>"
+            response_model = ""
+            
+            if len(respnose_parts) > 1:
+                response_model = response.split("</think>")[1]
 
             # remove bos and eos
             response_tom = response_tom.replace(src_tokenizer.eos_token, '')
@@ -1037,6 +1045,7 @@ class RewardModelWorker(Worker):
             if self.rank == 0 and i == 0:
                 # for debugging purpose
                 print(f'Switch template. chat: {prompt_with_chat_template}')
+                print(f"Model response: {response_model}")
 
             # the maximum length is actually determined by the reward model itself
             max_length = self.config.get('max_length', src_max_length)
