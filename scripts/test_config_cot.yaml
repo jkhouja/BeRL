@@ -1,0 +1,20 @@
+# Test config: Chain-of-thought style with generation prefix
+
+output_dir: "data"
+output_name: "DailyDialog_test_cot"
+
+min_turns: 4
+sample_size: 50
+seed: 42
+split: "train"
+
+# Chain-of-thought configuration
+system_prompt_style: "research"
+prompt_style: "baseline"
+generation_prefix: "<think>"  # CoT prefix
+add_response_tags: true
+response_tag_open: "<answer>"
+response_tag_close: "</answer>"
+
+ability: "conversation_generation"
+data_source: "dailydialog_cot"

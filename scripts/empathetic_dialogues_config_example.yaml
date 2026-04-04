@@ -1,0 +1,43 @@
+# Example configuration for Empathetic Dialogues dataset conversion
+# This configuration file demonstrates how to convert the facebook/empathetic_dialogues dataset
+# to the NegotiationToM format for RL training
+
+# Output settings
+output_dir: "data"
+output_name: "EmpatheticDialogues_train"
+
+# Dataset split
+split: "train"  # Options: train, validation, test
+
+# Filtering options
+min_turns: 4              # Minimum number of turns in a conversation
+max_turns: null           # Maximum number of turns (null = no limit)
+min_response_words: 5     # Minimum words in response
+max_response_words: null  # Maximum words in response (null = no limit)
+limit_turn: null          # Only include turns >= this number (null = all turns)
+
+# Sampling options
+sample_size: null  # Number of examples to sample (null = use all)
+seed: 42          # Random seed for reproducibility
+
+# Prompt configuration
+system_prompt_style: "empathy"  # Options: default, research, empathy
+prompt_style: "empathy"         # Options: simple, detailed, baseline, empathy
+
+# Advanced prompt customization (overrides styles above)
+# system_prompt: "Custom system prompt here"
+# user_template: |
+#   Custom template with {dialogue_history}, {responding_speaker}, and {emotion_label}
+
+generation_prefix: ""                # Prefix to add to generation prompts
+include_system_in_prompt: false      # Include system prompt in the prompt field
+include_emotion_context: true        # Include emotion label in prompts
+
+# Response formatting
+add_response_tags: false           # Wrap responses in tags
+response_tag_open: "<answer>"      # Opening tag for responses
+response_tag_close: "</answer>"    # Closing tag for responses
+
+# Dataset metadata
+ability: "conversation_generation"     # Ability tag for the dataset
+data_source: "empathetic_dialogues"   # Data source identifier

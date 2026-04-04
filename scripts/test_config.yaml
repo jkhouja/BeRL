@@ -1,0 +1,35 @@
+# Test configuration for DailyDialog conversion
+# Small sample size for quick testing
+
+# Output configuration
+output_dir: "data"
+output_name: "DailyDialog_test_run"
+
+# Filtering options
+min_turns: 4
+max_turns: null
+min_response_words: 5
+max_response_words: null
+limit_turn: null
+
+# Sampling options
+sample_size: 100  # Small sample for testing
+seed: 42
+split: "train"
+
+# Prompt configuration - using research style
+system_prompt: null
+system_prompt_style: "research"
+user_template: null
+prompt_style: "detailed"
+generation_prefix: ""
+include_system_in_prompt: false
+
+# Response formatting - enable tags for testing
+add_response_tags: true
+response_tag_open: "<answer>"
+response_tag_close: "</answer>"
+
+# Dataset metadata
+ability: "conversation_generation"
+data_source: "dailydialog"

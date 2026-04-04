@@ -1,0 +1,31 @@
+{
+  "_comment": "Example configuration for Empathetic Dialogues dataset conversion in JSON format",
+
+  "output_dir": "data",
+  "output_name": "EmpatheticDialogues_train",
+
+  "split": "train",
+
+  "min_turns": 4,
+  "max_turns": null,
+  "min_response_words": 5,
+  "max_response_words": null,
+  "limit_turn": null,
+
+  "sample_size": null,
+  "seed": 42,
+
+  "system_prompt_style": "empathy",
+  "prompt_style": "empathy",
+
+  "generation_prefix": "",
+  "include_system_in_prompt": false,
+  "include_emotion_context": true,
+
+  "add_response_tags": false,
+  "response_tag_open": "<answer>",
+  "response_tag_close": "</answer>",
+
+  "ability": "conversation_generation",
+  "data_source": "empathetic_dialogues"
+}

@@ -1,0 +1,48 @@
+{
+  "_comment": "Example JSON configuration for DailyDialog conversion",
+
+  "output_dir": "data",
+  "output_name": "DailyDialog_train_custom",
+
+  "min_turns": 4,
+  "max_turns": null,
+  "min_response_words": 5,
+  "max_response_words": null,
+  "limit_turn": null,
+
+  "sample_size": 1000,
+  "seed": 42,
+  "split": "train",
+
+  "system_prompt": null,
+  "system_prompt_style": "default",
+  "user_template": null,
+  "prompt_style": "simple",
+  "generation_prefix": "",
+  "include_system_in_prompt": false,
+
+  "add_response_tags": false,
+  "response_tag_open": "<answer>",
+  "response_tag_close": "</answer>",
+
+  "ability": "conversation_generation",
+  "data_source": "dailydialog",
+
+  "_examples": {
+    "_research_style": {
+      "system_prompt_style": "research",
+      "prompt_style": "detailed",
+      "add_response_tags": true
+    },
+    "_chain_of_thought": {
+      "generation_prefix": "<think>",
+      "add_response_tags": true,
+      "response_tag_open": "<answer>",
+      "response_tag_close": "</answer>"
+    },
+    "_later_turns": {
+      "limit_turn": 2,
+      "min_turns": 6
+    }
+  }
+}

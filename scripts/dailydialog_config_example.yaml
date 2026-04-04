@@ -1,0 +1,58 @@
+# Example configuration for DailyDialog conversion
+# This file can be used with --config flag to simplify command line usage
+
+# Output configuration
+output_dir: "data"
+output_name: "DailyDialog_train_custom"
+
+# Filtering options
+min_turns: 4
+max_turns: null  # No limit
+min_response_words: 5
+max_response_words: null  # No limit
+limit_turn: null  # Include all turns
+
+# Sampling options
+sample_size: 1000  # Set to null for all examples
+seed: 42
+split: "train"  # Options: train, validation, test
+
+# Prompt configuration
+system_prompt: null  # Set to custom prompt or null to use style
+system_prompt_style: "default"  # Options: default, research
+user_template: null  # Set to custom template or null to use style
+prompt_style: "simple"  # Options: simple, detailed, baseline
+generation_prefix: ""  # e.g., "<think>" for CoT
+include_system_in_prompt: false
+
+# Response formatting
+add_response_tags: false
+response_tag_open: "<answer>"
+response_tag_close: "</answer>"
+
+# Dataset metadata
+ability: "conversation_generation"
+data_source: "dailydialog"
+
+# ----- Example Configurations -----
+
+# Example 1: Research-style prompts with tags
+# system_prompt_style: "research"
+# prompt_style: "detailed"
+# add_response_tags: true
+
+# Example 2: Chain-of-thought style
+# generation_prefix: "<think>"
+# add_response_tags: true
+# response_tag_open: "<answer>"
+# response_tag_close: "</answer>"
+
+# Example 3: Custom prompts
+# system_prompt: "You are an expert conversation analyst."
+# user_template: "Analyze this conversation:\n{dialogue_history}\n\nWhat will {responding_speaker} say?"
+
+# Example 4: Theory of Mind style (matching NegotiationToM)
+# system_prompt_style: "research"
+# prompt_style: "baseline"
+# limit_turn: 2  # Only use later turns
+# min_turns: 6
