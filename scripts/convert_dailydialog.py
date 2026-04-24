@@ -19,48 +19,12 @@ import os
 import yaml
 import json
 
-
-# Default system prompts
-DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant helping with conversation analysis and generation."
-
-RESEARCH_SYSTEM_PROMPT = "You are an expert linguist and communication assistant helping with research on the psychology of interactions."
-
-# Default user templates
-SIMPLE_USER_TEMPLATE = """Below is a real conversation between two people.
-Based on the conversation history, predict what {responding_speaker} will say next.
-
-Dialogue History:
-{dialogue_history}
-
-Now respond with what {responding_speaker} will say next."""
-
-DETAILED_USER_TEMPLATE = """Below is a real conversation between two people. Continue the conversation as realistically as possible.
-
-CONVERSATION:
-{dialogue_history}
-
-Now respond with the following:
-{responding_speaker}: """
-
-BASELINE_USER_TEMPLATE = """Below is a real conversation between two people.
-Respond with the next utterance in the conversation as realistically as possible.
-
-CONVERSATION:
-{dialogue_history}
-
-{responding_speaker}: """
-
-# Prompt style mapping
-PROMPT_STYLES = {
-    'simple': SIMPLE_USER_TEMPLATE,
-    'detailed': DETAILED_USER_TEMPLATE,
-    'baseline': BASELINE_USER_TEMPLATE,
-}
-
-SYSTEM_PROMPT_STYLES = {
-    'default': DEFAULT_SYSTEM_PROMPT,
-    'research': RESEARCH_SYSTEM_PROMPT,
-}
+from scripts.prompt_templates import (
+    DEFAULT_SYSTEM_PROMPT,
+    SYSTEM_PROMPT_STYLES,
+    PROMPT_STYLES,
+    SIMPLE_USER_TEMPLATE,
+)
 
 
 def load_config(config_path: str) -> Dict[str, Any]:
