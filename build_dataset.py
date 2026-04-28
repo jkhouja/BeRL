@@ -24,6 +24,7 @@ import yaml
 CONVERTERS = {
     "dailydialog": ("scripts.convert_dailydialog", "DailyDialogConverter"),
     "empathetic_dialogues": ("scripts.convert_empathetic_dialogues", "EmpatheticDialoguesConverter"),
+    "theory_of_mind": ("scripts.convert_theory_of_mind", "TheoryOfMindConverter"),
 }
 
 # ---------------------------------------------------------------------------
@@ -116,8 +117,36 @@ def compute_perplexity(parquet_path: str, model_name: str, batch_size: int) -> N
     """Load a model and compute answer perplexity for every row in the parquet
     file, updating the ``answer_pp`` column in-place on disk."""
     import torch
+    import torch.nn.functional as F
     import transformers as T
-    from process_data import answer_perplexity
+
+    def _logprobs_from_logits(logits, labels, response_mask):
+        """Compute log-probs at label positions (from process_data.py)."""
+        if logits.dtype in [torch.float32, torch.float64]:
+            logits_labels = torch.gather(
+                logits, dim=-1, index=labels.unsqueeze(-1)
+            ).squeeze(-1)
+            logsumexp_values = torch.stack(
+                [torch.logsumexp(l, dim=-1) for l in logits]
+            )
+            logprobs_labels = logits_labels - logsumexp_values
+        else:
+            logprobs_labels = []
+            for row_logits, row_labels in zip(logits, labels):
+                row_logprobs = F.log_softmax(row_logits, dim=-1)
+                row_logprobs_labels = row_logprobs.gather(
+                    dim=-1, index=row_labels.unsqueeze(-1)
+                ).squeeze(-1)
+                logprobs_labels.append(row_logprobs_labels)
+            logprobs_labels = torch.stack(logprobs_labels)
+        return logprobs_labels * response_mask
+
+    def _answer_avg_log_prob(labels, logits, response_mask):
+        """Compute per-example average log probability (log scale, no exp)."""
+        log_prob = _logprobs_from_logits(logits, labels, response_mask)
+        log_prob = log_prob.sum(dim=-1)
+        log_prob = log_prob / response_mask.sum(-1)
+        return log_prob  # negative values; higher = more likely
 
     print(f"\nComputing perplexity with model: {model_name} (batch_size={batch_size})")
 
@@ -170,15 +199,25 @@ def compute_perplexity(parquet_path: str, model_name: str, batch_size: int) -> N
             ).to(device)
 
             input_ids = encoding["input_ids"]
+            attention_mask = encoding["attention_mask"]
             seq_len = input_ids.shape[1]
 
-            # Build response mask
-            response_mask = torch.zeros_like(input_ids, dtype=torch.int)
-            for i, pl in enumerate(prompt_lens):
-                response_mask[i, pl:] = 1
+            # Apply causal LM shift: predict next token from current
+            shifted_input_ids = input_ids[:, :-1]
+            labels = input_ids[:, 1:]
+            shifted_attention_mask = attention_mask[:, :-1]
 
-            labels = input_ids.clone()
-            model_outputs = model(input_ids)
+            # Build response mask on shifted sequence.
+            # Match the original NegTOMDataset convention:
+            #   response_mask[input_len-1:full_len] = 1  (before shift)
+            #   response_mask = response_mask[1:]         (after shift)
+            # This gives response_mask[input_len-2:full_len-1] = 1 on shifted seq.
+            response_mask = torch.zeros_like(labels, dtype=torch.int)
+            for i, pl in enumerate(prompt_lens):
+                resp_end = shifted_attention_mask[i].sum().item()  # exclude padding
+                response_mask[i, max(pl - 2, 0):resp_end] = 1
+
+            model_outputs = model(shifted_input_ids, attention_mask=shifted_attention_mask)
 
             batch_dict = {
                 "prompt_len": prompt_lens,
@@ -188,7 +227,14 @@ def compute_perplexity(parquet_path: str, model_name: str, batch_size: int) -> N
                 "response_words": torch.tensor(response_word_counts, device=device),
             }
 
-            pp = answer_perplexity(batch_dict)
+            pp = _answer_avg_log_prob(labels, model_outputs.logits, response_mask)
+            if pp.isnan().any() or pp.isinf().any():
+                bad_idx = (pp.isnan() | pp.isinf()).nonzero(as_tuple=True)[0]
+                raise ValueError(
+                    f"answer_pp has NaN/Inf values at batch indices {bad_idx.tolist()} "
+                    f"(global rows {start + bad_idx.cpu().tolist()[0]}+). "
+                    f"Check input data for empty responses or malformed prompts."
+                )
             pp_values.extend(pp.cpu().tolist())
 
             processed = min(start + batch_size, len(df))
@@ -282,7 +328,27 @@ def main():
         )
 
     # ------------------------------------------------------------------
-    # Step 5 – Summary
+    # Step 5 – Validate answer_pp
+    # ------------------------------------------------------------------
+    df = pd.read_parquet(output_path)
+    if "answer_pp" in df.columns:
+        null_count = df["answer_pp"].isna().sum()
+        if null_count > 0:
+            if perplexity_cfg.get("enabled", False):
+                raise ValueError(
+                    f"answer_pp has {null_count}/{len(df)} null values after "
+                    f"perplexity computation. Something went wrong."
+                )
+            else:
+                raise ValueError(
+                    f"answer_pp has {null_count}/{len(df)} null values. "
+                    f"Enable perplexity computation in the config "
+                    f"(perplexity.enabled: true) or pre-compute answer_pp "
+                    f"before training."
+                )
+
+    # ------------------------------------------------------------------
+    # Step 6 – Summary
     # ------------------------------------------------------------------
     elapsed = time.time() - start_time
     df = pd.read_parquet(output_path)

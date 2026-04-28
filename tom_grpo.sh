@@ -37,6 +37,7 @@ do
             data.val_files=$test_files \
             data.train_batch_size=$train_batch_size \
             data.val_batch_size=16 \
+            data.prompt_is_text=False \
             data.max_prompt_length=1024 \
             data.max_response_length=2048 \
             actor_rollout_ref.model.path=$model_name \
@@ -60,7 +61,7 @@ do
             actor_rollout_ref.ref.fsdp_config.param_offload=True \
             algorithm.kl_ctrl.kl_coef=0.001 \
             trainer.critic_warmup=0 \
-            trainer.logger=['console','wandb'] \
+            trainer.logger=['console'] \
             trainer.project_name="GRPO_merge_tom_${TODAY}" \
             trainer.experiment_name="$(basename $model_name)-$lr-$ROLLOUT_N" \
             trainer.n_gpus_per_node=$NUM_GPUS \

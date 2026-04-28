@@ -130,7 +130,10 @@ class RLHFDataset(Dataset):
         if self.prompt_is_text:
             prompt_with_chat_template = chat
         else:
-            prompt_with_chat_template = chat[0]['content']
+            prompt_with_chat_template = self.tokenizer.apply_chat_template(
+                chat.tolist() if hasattr(chat, 'tolist') else list(chat),
+                add_generation_prompt=True,
+                tokenize=False)
 
         
 

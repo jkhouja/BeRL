@@ -41,8 +41,8 @@ from verl.workers.sharding_manager.fsdp_ulysses import FSDPUlyssesShardingManage
 
 from codetiming import Timer
 
-MIN_REWARD = -10
-MAX_REWARD = 10
+MIN_REWARD = -20
+MAX_REWARD = 20
 
 logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv('VERL_PPO_LOGGING_LEVEL', 'WARN'))
@@ -513,6 +513,169 @@ class ActorRolloutRefWorker(Worker):
         torch.cuda.empty_cache()
         return output
 
+    @register(dispatch_mode=Dispatch.DP_COMPUTE_PROTO)
+    def compute_actor_rm_score(self, data: DataProto):
+        """Compute reward scores using the ACTOR model (current weights) instead of the frozen RM.
+
+        This reuses the RM's _switch_chat_template logic to build
+        prompt + <think>model_reasoning</think><answer>ground_truth</answer>,
+        then runs a forward pass through the actor to get log P(ground_truth | reasoning).
+        The actor's weights update each step, so this gives a non-stationary reward signal.
+        """
+        import itertools
+        from verl.utils.seqlen_balancing import rearrange_micro_batches, get_reverse_idx
+
+        assert self._is_actor
+
+        data = data.to('cuda')
+
+        if self._is_offload_param:
+            load_fsdp_param_and_grad(module=self.actor_module_fsdp,
+                                     device_id=torch.cuda.current_device(),
+                                     load_grad=self._is_offload_grad)
+
+        # Build RM-style inputs: prompt + think + ground_truth answer
+        rm_data = self._build_actor_rm_inputs(data)
+        rm_data.batch = rm_data.batch.cuda()
+
+        # Forward pass through actor model (no gradient)
+        micro_batch_size = self.config.ref.log_prob_micro_batch_size
+        micro_batches = rm_data.batch.split(micro_batch_size)
+        output = []
+        with torch.no_grad(), torch.autocast(device_type='cuda', dtype=torch.bfloat16):
+            for micro_batch in micro_batches:
+                rm_score = self._actor_rm_forward(micro_batch)
+                output.append(rm_score)
+        scores = torch.cat(output, dim=0)
+
+        # Expand to token-level (same as RewardModelWorker._expand_to_token_level)
+        batch_size = data.batch.batch_size[0]
+        attention_mask = data.batch['attention_mask']
+        position_ids = data.batch['position_ids']
+        response_length = data.batch['responses'].shape[-1]
+        eos_mask_idx = torch.argmax(position_ids * attention_mask, dim=-1)
+        token_level_scores = torch.zeros_like(attention_mask, dtype=scores.dtype)
+        token_level_scores[torch.arange(batch_size), eos_mask_idx] = scores
+        token_level_scores = token_level_scores[:, -response_length:]
+
+        output = DataProto.from_dict(tensors={'rm_scores': token_level_scores})
+        output = output.to('cpu')
+
+        if self._is_offload_param:
+            offload_fsdp_param_and_grad(module=self.actor_module_fsdp, offload_grad=self._is_offload_grad)
+        torch.cuda.empty_cache()
+        return output
+
+    def _build_actor_rm_inputs(self, data: DataProto):
+        """Build RM-style inputs from data, same as RewardModelWorker._switch_chat_template
+        but using the actor's tokenizer."""
+        from verl.utils.model import compute_position_id_with_mask
+
+        src_max_length = data.batch['attention_mask'].shape[-1]
+        tokenizer = self.tokenizer
+
+        rm_input_ids = []
+        rm_attention_mask = []
+        response_masks = []
+        invalid_responses = []
+        answer_pps = []
+
+        for i in range(data.batch.batch_size[0]):
+            chat = data.non_tensor_batch['raw_prompt'][i].tolist()
+
+            # Decode model response
+            response_ids = data.batch['responses'][i]
+            response_length = response_ids.shape[-1]
+            valid_response_length = data.batch['attention_mask'][i][-response_length:].sum()
+            valid_response_ids = response_ids[:valid_response_length]
+            response = tokenizer.decode(valid_response_ids)
+
+            # Check for valid format
+            invalid_response = torch.tensor([False])
+            if "</think>" not in response:
+                invalid_response = torch.tensor([True])
+
+            # Extract thinking part, stitch with ground truth
+            response_parts = response.split("</think>")
+            response_tom = "<think>" + response_parts[0] + "</think>"
+            response_tom = response_tom.replace(tokenizer.eos_token, '')
+
+            # Get thinking length
+            chat_tom = chat + [{'role': 'assistant', 'content': response_tom}]
+            prompt_with_chat_template_tom = tokenizer.apply_chat_template(
+                chat_tom, add_generation_prompt=False, tokenize=False)
+            prompt_thinking_tokens = tokenizer(prompt_with_chat_template_tom,
+                                               return_tensors='pt', add_special_tokens=False)
+            thinking_length = prompt_thinking_tokens['input_ids'].shape[-1]
+
+            # Stitch ground truth answer
+            actual_response = data.non_tensor_batch['reward_model'][i]['ground_truth']
+            actual_response = "<answer>" + actual_response + "</answer>"
+            full_response = response_tom + actual_response
+            full_chat = chat + [{'role': 'assistant', 'content': full_response}]
+            prompt_with_chat_template = tokenizer.apply_chat_template(
+                full_chat, add_generation_prompt=False, tokenize=False)
+
+            max_length = src_max_length
+            input_ids, attention_mask = verl_F.tokenize_and_postprocess_data(
+                prompt=prompt_with_chat_template,
+                tokenizer=tokenizer,
+                max_length=max_length,
+                pad_token_id=tokenizer.pad_token_id,
+                left_pad=False,
+                truncation='right')
+
+            response_mask = torch.zeros_like(attention_mask)
+            response_mask[0, thinking_length:attention_mask.sum().item()] = 1
+
+            rm_input_ids.append(input_ids)
+            rm_attention_mask.append(attention_mask)
+            response_masks.append(response_mask)
+            invalid_responses.append(invalid_response)
+            answer_pps.append(data.non_tensor_batch.get('answer_pp', [0.0])[i]
+                              if 'answer_pp' in data.non_tensor_batch else 0.0)
+
+        rm_input_ids = torch.cat(rm_input_ids, dim=0)
+        rm_attention_mask = torch.cat(rm_attention_mask, dim=0)
+        response_masks = torch.cat(response_masks, dim=0)
+        invalid_responses = torch.cat(invalid_responses, dim=0)
+        answer_pp = torch.tensor(answer_pps, dtype=torch.float32)
+        rm_position_ids = compute_position_id_with_mask(rm_attention_mask)
+
+        rm_inputs = {
+            'input_ids': rm_input_ids,
+            'attention_mask': rm_attention_mask,
+            'position_ids': rm_position_ids,
+            'response_mask': response_masks,
+            'invalid_response': invalid_responses,
+            'answer_pp': answer_pp,
+        }
+        return DataProto.from_dict(rm_inputs)
+
+    def _actor_rm_forward(self, micro_batch):
+        """Forward pass through actor model to compute RM-style scores."""
+        input_ids = micro_batch['input_ids'][:, :-1]
+        labels = micro_batch['input_ids'][:, 1:]
+        batch_size = input_ids.shape[0]
+        attention_mask = micro_batch['attention_mask'][:, :-1]
+        position_ids = micro_batch['position_ids'][:, :-1]
+        response_mask = micro_batch['response_mask'][:, :-1]
+
+        output = self.actor_module_fsdp(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            position_ids=position_ids)
+        logits = output.logits
+
+        log_prob = logprobs_from_logits_v2(logits, labels, response_mask)
+        log_prob = log_prob.sum(dim=-1)
+        log_prob = log_prob / response_mask.sum(-1)
+
+        rm_score = log_prob
+        rm_score = rm_score.masked_fill_(micro_batch['invalid_response'], MIN_REWARD)
+        rm_score = torch.clamp(rm_score, min=MIN_REWARD, max=MAX_REWARD)
+        return rm_score
+
     @register(dispatch_mode=Dispatch.ONE_TO_ALL)
     def save_checkpoint(self, local_path, hdfs_path=None):
         assert self._is_actor
@@ -812,7 +975,9 @@ class RewardModelWorker(Worker):
         if not torch.distributed.is_initialized():
             torch.distributed.init_process_group(backend="nccl")
         self.config = config
-        self.invalid_penalty = self.config.get("invalid_penalty", -4)
+        self.invalid_penalty = self.config.get("invalid_penalty", MIN_REWARD)
+        self.subtract_baseline = self.config.get("subtract_baseline", True)
+        self.reward_type = self.config.get("reward_type", "log_prob")  # 'log_prob' or 'neg_perplexity'
 
         # build device mesh for Ulysses Sequence Parallel
         world_size = torch.distributed.get_world_size()
@@ -933,23 +1098,26 @@ class RewardModelWorker(Worker):
 
 
                 log_prob = logprobs_from_logits_v2(logits, labels, response_mask)
-                #print(log_prob.shape)
-                #print(log_prob)
-                #zero_logprob = log_prob == 0
-                #print(f"Zero tokens logprob: {zero_logprob.sum(-1)}")
-                #print(f"Prompt len: {prompt_len}")
-                
-                log_prob = log_prob.sum(dim=-1)
-                log_prob = log_prob / response_mask.sum(-1) # A more correct way is to divide by words not tokens e.g. (/ num_words)
-                #print(f"Words: {num_words}")
-                #print(log_prob)
-                
-                assert log_prob.shape[0] == batch_size
-                rm_score = torch.exp(-1 * log_prob)
-                
 
-            # compare to origina pp and valid_response
-            rm_score = pp - rm_score 
+                log_prob = log_prob.sum(dim=-1)
+                log_prob = log_prob / response_mask.sum(-1) # avg log prob per token
+
+                assert log_prob.shape[0] == batch_size
+
+                if self.reward_type == "neg_perplexity":
+                    # reward = -perplexity = -exp(-avg_log_prob)
+                    # Higher (less negative) = better. Range: (-inf, -1]
+                    rm_score = -torch.exp(-log_prob)
+                else:
+                    # reward = avg_log_prob (default)
+                    # Higher (less negative) = better. Range: (-inf, 0]
+                    rm_score = log_prob
+
+
+            # reward = current_log_prob - baseline_log_prob (if subtract_baseline)
+            # or just current_log_prob (GRPO group normalization acts as implicit baseline)
+            if self.subtract_baseline:
+                rm_score = rm_score - pp
             rm_score = rm_score.masked_fill_(micro_batch['invalid_response'], self.invalid_penalty)
             rm_score = torch.clamp(rm_score, min=MIN_REWARD, max=MAX_REWARD)
             #eos_mask_idx = torch.argmax(position_ids * attention_mask, dim=-1)  # (bsz,)
@@ -1065,7 +1233,7 @@ class RewardModelWorker(Worker):
             # If answer is truncated due to max len, return all zeros
             if thinking_length >= full_len:
                 return response_mask
-            
+
             # Now get true utterance mask (this only works with right padding and right truncation)
             if self.config.get('truncation', 'right') != 'right':
                 raise ValueError("Only right padding is allowed")

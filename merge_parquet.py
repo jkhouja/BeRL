@@ -99,30 +99,34 @@ def merge_parquet_files(input_paths: List[str], output_path: str) -> None:
         # Write using pandas with object preservation
         print(f"\nWriting merged parquet to {output_path}...")
 
-        # For parquet files, we need to handle nested structures carefully
-        # Copy the dataframe to avoid modifying the original
-        df_to_write = merged_df.copy()
-
-        # Convert complex nested dict/list columns to strings for parquet compatibility
+        # Normalize dict columns so all rows share the same schema,
+        # allowing pyarrow to write them as proper struct columns (not strings).
+        # This ensures the training code receives dicts, not JSON strings.
         import json
-        complex_cols = []
-        for col in df_to_write.columns:
-            if df_to_write[col].dtype == object and len(df_to_write) > 0:
-                first_val = df_to_write[col].iloc[0]
-                # Check if it contains dicts or complex structures
-                if first_val is not None and (isinstance(first_val, (dict, list)) or hasattr(first_val, 'items')):
-                    complex_cols.append(col)
-                    df_to_write[col] = df_to_write[col].apply(
-                        lambda x: json.dumps(dict(x)) if x is not None and hasattr(x, 'items')
-                        else json.dumps(x) if x is not None and isinstance(x, list)
-                        else x
-                    )
+        for col in merged_df.columns:
+            if merged_df[col].dtype == object and len(merged_df) > 0:
+                first_val = merged_df[col].iloc[0]
+                if first_val is not None and isinstance(first_val, dict):
+                    # Collect all keys across all rows
+                    all_keys = set()
+                    for v in merged_df[col]:
+                        if isinstance(v, dict):
+                            all_keys.update(v.keys())
 
-        if complex_cols:
-            print(f"  Note: Converted {len(complex_cols)} columns with nested structures to JSON strings: {complex_cols}")
+                    # Normalize: add missing keys as None, cast values to
+                    # consistent types (stringify values that have mixed types)
+                    def normalize_dict(d):
+                        if not isinstance(d, dict):
+                            return d
+                        result = {}
+                        for k in all_keys:
+                            result[k] = str(d[k]) if k in d and d[k] is not None else (d.get(k))
+                        return result
 
-        # Now write the parquet file
-        df_to_write.to_parquet(output_path, index=False, engine='pyarrow')
+                    merged_df[col] = merged_df[col].apply(normalize_dict)
+                    print(f"  Normalized struct column '{col}' with keys: {sorted(all_keys)}")
+
+        merged_df.to_parquet(output_path, index=False, engine='pyarrow')
 
         # Verify output file
         output_size = Path(output_path).stat().st_size / (1024 * 1024)

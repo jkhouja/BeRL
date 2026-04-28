@@ -667,7 +667,11 @@ class RayPPOTrainer(object):
                         # the results from reward model and rule-based results.
                         if self.use_rm:
                             # we first compute reward model score
-                            reward_tensor = self.rm_wg.compute_rm_score(batch)
+                            use_actor_as_rm = self.config.reward_model.get('use_actor_as_rm', False)
+                            if use_actor_as_rm:
+                                reward_tensor = self.actor_rollout_wg.compute_actor_rm_score(batch)
+                            else:
+                                reward_tensor = self.rm_wg.compute_rm_score(batch)
                             batch = batch.union(reward_tensor)
 
                         # we combine with rule-based rm

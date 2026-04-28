@@ -77,6 +77,8 @@ class DailyDialogConverter:
         response_tag_open: str = "<answer>",
         response_tag_close: str = "</answer>",
         limit_turn: Optional[int] = None,
+        multi_sample: bool = True,
+        turn_order: str = "random",
         config: Optional[Dict[str, Any]] = None,
     ):
         """
@@ -102,6 +104,12 @@ class DailyDialogConverter:
             response_tag_open: Opening tag for responses
             response_tag_close: Closing tag for responses
             limit_turn: Only include turns >= this turn number
+            multi_sample: If True (default), sample multiple turns per conversation.
+                If False, sample only one random turn per conversation.
+            turn_order: Order of examples by turn position. Options:
+                'random' (default): shuffle randomly
+                'early_first': sort by turn number ascending (early turns first)
+                'late_first': sort by turn number descending (late turns first)
             config: Configuration dictionary (overrides all other args)
         """
         # Use config dict if provided
@@ -123,6 +131,8 @@ class DailyDialogConverter:
             self.response_tag_open = config.get("response_tag_open", response_tag_open)
             self.response_tag_close = config.get("response_tag_close", response_tag_close)
             self.limit_turn = config.get("limit_turn", limit_turn)
+            self.multi_sample = config.get("multi_sample", multi_sample)
+            self.turn_order = config.get("turn_order", turn_order)
 
             # User template and system prompt
             self.user_template = config.get("user_template", user_template)
@@ -145,6 +155,8 @@ class DailyDialogConverter:
             self.response_tag_open = response_tag_open
             self.response_tag_close = response_tag_close
             self.limit_turn = limit_turn
+            self.multi_sample = multi_sample
+            self.turn_order = turn_order
             self.user_template = user_template
             self.system_prompt = system_prompt
 
@@ -311,7 +323,7 @@ class DailyDialogConverter:
                     'responding_speaker': responding_speaker,
                     'dialogue_history': dialogue_history_str,
                 },
-                'answer_pp': None,  # Will be calculated later if needed
+                'answer_pp': None,  # Must be computed via perplexity step before training
                 'raw_prompt': raw_prompt,
             }
 
@@ -353,16 +365,32 @@ class DailyDialogConverter:
 
             # Create training examples
             examples = self.create_training_examples(dialogue, conv_id)
+
+            if not self.multi_sample and examples:
+                # Single sample mode: pick one random turn per conversation
+                examples = [random.choice(examples)]
+
             all_examples.extend(examples)
             conv_id += 1
 
         print(f"Filtered out {filtered_count} conversations")
         print(f"Created {len(all_examples)} training examples from {conv_id} conversations")
+        print(f"  multi_sample={self.multi_sample}, turn_order={self.turn_order}")
 
-        # Sample if requested
+        # Sample if requested (before ordering)
         if self.sample_size and len(all_examples) > self.sample_size:
             print(f"Sampling {self.sample_size} examples from {len(all_examples)}")
             all_examples = random.sample(all_examples, self.sample_size)
+
+        # Apply turn ordering after sampling (controls training order only)
+        if self.turn_order == "early_first":
+            all_examples.sort(key=lambda x: x['metadata']['turn'])
+        elif self.turn_order == "late_first":
+            all_examples.sort(key=lambda x: -x['metadata']['turn'])
+        elif self.turn_order == "random":
+            random.shuffle(all_examples)
+        else:
+            raise ValueError(f"Unknown turn_order: {self.turn_order}. Use 'random', 'early_first', or 'late_first'")
 
         # Convert to DataFrame
         df = pd.DataFrame(all_examples)

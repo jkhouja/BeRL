@@ -1,6 +1,6 @@
 pipeline:
   output_dir: "data"
-  output_name: "merged_dialogue_datasets_2k"
+  output_name: "merged_dialogue_datasets_8k_lt2_mt5"
   seed: 42
   shuffle: true
 
@@ -12,9 +12,10 @@ perplexity:
 datasets:
   - source: "dailydialog"
     split: "train"
-    sample_size: 2000
-    min_turns: 4
+    sample_size: 4000
+    min_turns: 5
     min_response_words: 5
+    limit_turn: 2
     prompt_style: "cot"
     system_prompt_style: "cot"
     generation_prefix: "<think>"
@@ -23,9 +24,10 @@ datasets:
 
   - source: "empathetic_dialogues"
     split: "train"
-    sample_size: 2000
-    min_turns: 4
+    sample_size: 4000
+    min_turns: 5
     min_response_words: 5
+    limit_turn: 2
     prompt_style: "cot"
     system_prompt_style: "cot"
     generation_prefix: "<think>"

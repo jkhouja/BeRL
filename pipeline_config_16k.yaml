@@ -1,6 +1,6 @@
 pipeline:
   output_dir: "data"
-  output_name: "merged_dialogue_datasets_2k"
+  output_name: "merged_dialogue_datasets_16k"
   seed: 42
   shuffle: true
 
@@ -12,7 +12,7 @@ perplexity:
 datasets:
   - source: "dailydialog"
     split: "train"
-    sample_size: 2000
+    sample_size: 8000
     min_turns: 4
     min_response_words: 5
     prompt_style: "cot"
@@ -23,7 +23,7 @@ datasets:
 
   - source: "empathetic_dialogues"
     split: "train"
-    sample_size: 2000
+    sample_size: 8000
     min_turns: 4
     min_response_words: 5
     prompt_style: "cot"
