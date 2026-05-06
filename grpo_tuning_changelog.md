@@ -1294,3 +1294,40 @@ rm_score = torch.pow(shifted, self.power_k)
 - **hi_tom:** Direct ToM slightly ahead (34.7% vs 32.5%) — trains on 2,000 hi_tom examples directly
 - Dialogue experiments achieve ~80% of direct ToM training gains on tomi and ~55% on explore_tom, **without ever seeing a single ToM example** — purely through conversational reasoning transfer
 - The combination of system prompt alignment + dense reward + actor-as-RM enables meaningful cross-domain transfer from dialogue to ToM
+
+### Experiment 17h: Non-Filtered 16k Dataset
+
+**Purpose:** Test whether more data (16k, original filters min_turns=4, min_response_words=5) helps vs the filtered 6k dataset. Same config as 17f otherwise: actor-as-RM, ll_min=-8, clip (-40,40), eval-aligned prompt. Built `merged_dialogue_datasets_16k_eval_prompt.parquet` (16,000 samples). Ran full 2 epochs (1000 steps).
+
+| Step | tomi | explore_tom | hi_tom |
+|------|------|-------------|--------|
+| 0 | 63.4% | 47.5% | 18.9% |
+| 40 | 66.8% | 53.9% | 23.2% |
+| 80 | 67.7% | 53.1% | 25.3% |
+| 110 | 68.0% | 57.8% | 26.3% |
+| 120 | **68.9%** | 50.8% | 23.8% |
+| 150 | 68.4% | 54.6% | 25.8% |
+| 250 | 67.6% | 54.2% | 16.8% |
+| 330 | 62.8% | 39.2% | 8.3% |
+| 390 | 56.8% | 23.7% | 3.7% |
+| 500 | 63.4% | 46.4% | 7.2% |
+| 630 | 68.7% | 58.5% | 14.7% |
+| 780 | 65.2% | 62.2% | 18.5% |
+| 900 | 64.8% | **67.3%** | 18.4% |
+| 1000 (final) | 59.6% | 58.9% | 14.3% |
+
+**Result:** ⚠️ Comparable peaks but much less stable than 17f.
+- Peaks: tomi 68.9%, explore 67.3%, hi_tom 26.3% — similar to 17f
+- **Collapses badly in epoch 1** (steps 270-400): tomi drops to 57%, explore to 24%, hi_tom to 4%
+- Partially recovers but never regains hi_tom stability
+- **More data with noise hurts** — filtered 6k is strictly better: higher/comparable peaks, stable training, 3x fewer steps
+
+**17f vs 17h comparison:**
+
+| Metric | 17f (6k filtered) | 17h (16k non-filtered) |
+|--------|-------------------|------------------------|
+| tomi peak | **69.4%** | 68.9% |
+| explore peak | 66.9% | **67.3%** |
+| hi_tom peak | **29.8%** | 26.3% |
+| Training stability | ✅ Stable | ❌ Collapses in epoch 1 |
+| Steps to peak | ~160-360 | ~110-900 |
