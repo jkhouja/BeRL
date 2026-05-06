@@ -41,8 +41,8 @@ from verl.workers.sharding_manager.fsdp_ulysses import FSDPUlyssesShardingManage
 
 from codetiming import Timer
 
-MIN_REWARD = -20
-MAX_REWARD = 20
+MIN_REWARD = -40
+MAX_REWARD = 40
 
 logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv('VERL_PPO_LOGGING_LEVEL', 'WARN'))
@@ -130,6 +130,11 @@ class ActorRolloutRefWorker(Worker):
         elif self._is_ref:
             # TODO: it seems that manual offload is slowly than FSDP offload
             self._is_offload_param = self.config.ref.fsdp_config.get('param_offload', False)
+
+        # Reward type config (used by actor-as-RM mode)
+        self.reward_type = self.config.get("reward_type", self.config.actor.get("reward_type", "log_prob"))
+        self.power_k = self.config.get("power_k", self.config.actor.get("power_k", 2.0))
+        self.power_ll_min = self.config.get("power_ll_min", self.config.actor.get("power_ll_min", -2.0))
 
         # normalize config
         if self._is_actor:
@@ -671,7 +676,15 @@ class ActorRolloutRefWorker(Worker):
         log_prob = log_prob.sum(dim=-1)
         log_prob = log_prob / response_mask.sum(-1)
 
-        rm_score = log_prob
+        # Apply reward type transformation (same logic as RewardModelWorker._compute_rm_score)
+        if self.reward_type == "neg_perplexity":
+            rm_score = -torch.exp(-log_prob)
+        elif self.reward_type == "power":
+            shifted = torch.clamp(log_prob - self.power_ll_min, min=0.0)
+            rm_score = torch.pow(shifted, self.power_k)
+        else:
+            rm_score = log_prob
+
         rm_score = rm_score.masked_fill_(micro_batch['invalid_response'], MIN_REWARD)
         rm_score = torch.clamp(rm_score, min=MIN_REWARD, max=MAX_REWARD)
         return rm_score
@@ -977,7 +990,10 @@ class RewardModelWorker(Worker):
         self.config = config
         self.invalid_penalty = self.config.get("invalid_penalty", MIN_REWARD)
         self.subtract_baseline = self.config.get("subtract_baseline", True)
-        self.reward_type = self.config.get("reward_type", "log_prob")  # 'log_prob' or 'neg_perplexity'
+        self.reward_type = self.config.get("reward_type", "log_prob")  # 'log_prob', 'neg_perplexity', or 'power'
+        # Power reward parameters: reward = max(ll - ll_min, 0) ^ k
+        self.power_k = self.config.get("power_k", 2.0)
+        self.power_ll_min = self.config.get("power_ll_min", -2.0)
 
         # build device mesh for Ulysses Sequence Parallel
         world_size = torch.distributed.get_world_size()
@@ -1108,6 +1124,11 @@ class RewardModelWorker(Worker):
                     # reward = -perplexity = -exp(-avg_log_prob)
                     # Higher (less negative) = better. Range: (-inf, -1]
                     rm_score = -torch.exp(-log_prob)
+                elif self.reward_type == "power":
+                    # Power reward: shift LL to positive range and apply power transform
+                    # reward = max(ll - ll_min, 0) ^ k  where k > 1 creates convex stretch
+                    shifted = torch.clamp(log_prob - self.power_ll_min, min=0.0)
+                    rm_score = torch.pow(shifted, self.power_k)
                 else:
                     # reward = avg_log_prob (default)
                     # Higher (less negative) = better. Range: (-inf, 0]

@@ -5,15 +5,14 @@ set -x
 TODAY=$(date +%Y%m%d)
 mkdir -p logs/${TODAY}
 
-# source ~/anaconda3/etc/profile.d/conda.sh
-# conda activate tom
+source ~/.bashrc
 
 export VLLM_ATTENTION_BACKEND=XFORMERS
 
 #NUM_GPUS=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
-NUM_GPUS=2
+NUM_GPUS=8
 
-train_batch_size=8
+train_batch_size=32
 enable_gradient_checkpointing=True
 ROLLOUT_N=16
 
@@ -29,7 +28,7 @@ do
     for lr in ${lrs[@]}
     do
         data_train_files=$HOME/repo/BeRL/data/cleaned_tom/ToM_train_HiEx_hint.parquet
-        test_files=$HOME/repo/BeRL/data/cleaned_tom/ToM_test_HiExTi_hint.parquet
+        test_files=$HOME/repo/BeRL/data/cleaned_tom/ToM_test_HiExTi_hint_v3.parquet
         
         python3 -m verl.trainer.main_ppo \
             algorithm.adv_estimator=grpo \
@@ -44,7 +43,7 @@ do
             actor_rollout_ref.actor.optim.lr=$lr \
             actor_rollout_ref.model.use_remove_padding=True \
             actor_rollout_ref.actor.ppo_mini_batch_size=128 \
-            actor_rollout_ref.actor.ppo_micro_batch_size=4 \
+            actor_rollout_ref.actor.ppo_micro_batch_size=8 \
             actor_rollout_ref.actor.use_kl_loss=True \
             actor_rollout_ref.actor.kl_loss_coef=0.001 \
             actor_rollout_ref.actor.kl_loss_type=low_var_kl \
@@ -52,18 +51,18 @@ do
             actor_rollout_ref.actor.fsdp_config.param_offload=True \
             actor_rollout_ref.actor.fsdp_config.grad_offload=True \
             actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
-            actor_rollout_ref.rollout.log_prob_micro_batch_size=80 \
+            actor_rollout_ref.rollout.log_prob_micro_batch_size=8 \
             actor_rollout_ref.rollout.tensor_model_parallel_size=2 \
             actor_rollout_ref.rollout.name=vllm \
-            actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
+            actor_rollout_ref.rollout.gpu_memory_utilization=0.35 \
             actor_rollout_ref.rollout.n=$ROLLOUT_N \
-            actor_rollout_ref.ref.log_prob_micro_batch_size=80 \
+            actor_rollout_ref.ref.log_prob_micro_batch_size=8 \
             actor_rollout_ref.ref.fsdp_config.param_offload=True \
             algorithm.kl_ctrl.kl_coef=0.001 \
             trainer.critic_warmup=0 \
-            trainer.logger=['console'] \
-            trainer.project_name="GRPO_merge_tom_${TODAY}" \
-            trainer.experiment_name="$(basename $model_name)-$lr-$ROLLOUT_N" \
+            trainer.logger=['console','wandb'] \
+            trainer.project_name="EmpathicDialogue_GRPO" \
+            trainer.experiment_name="round17-tom3k-rulebased-v3eval-$(basename $model_name)-$lr-$ROLLOUT_N" \
             trainer.n_gpus_per_node=$NUM_GPUS \
             trainer.nnodes=1 \
             trainer.default_hdfs_dir=null \
