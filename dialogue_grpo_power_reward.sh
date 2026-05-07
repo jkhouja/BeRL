@@ -19,7 +19,7 @@ USE_ACTOR_AS_RM=True
 REWARD_TYPE="power"  # Power reward: max(ll - ll_min, 0) ^ k
 POWER_K=2.0
 POWER_LL_MIN=-8.0
-DATASET_NAME="dialogue_16k_eval_prompt"
+DATASET_NAME="dialogue_filtered_cot_tom2_prompt"
 EXP_DESC="power-reward-k${POWER_K}-llmin${POWER_LL_MIN}"
 
 model_names=("Qwen/Qwen2.5-3B-Instruct")
@@ -31,8 +31,8 @@ for model_name in ${model_names[@]}
 do
     for lr in ${lrs[@]}
     do
-        data_train_files=$HOME/repo/BeRL/data/merged_dialogue_datasets_16k_eval_prompt.parquet
-        test_files=$HOME/repo/BeRL/data/cleaned_tom/ToM_test_HiExTi_hint_v3.parquet
+        data_train_files=$HOME/repo/BeRL/data/merged_dialogue_datasets_filtered_cot_tom2_prompt.parquet
+        test_files=$HOME/repo/BeRL/data/cleaned_tom/ToM_test_HiExTi_hint_v4.parquet
 
         # Build descriptive experiment name
         RM_TYPE=$( [ "$USE_ACTOR_AS_RM" = "True" ] && echo "actorRM" || echo "frozenRM" )

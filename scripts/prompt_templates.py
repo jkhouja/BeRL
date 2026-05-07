@@ -54,6 +54,16 @@ COT_EVAL_SYSTEM_PROMPT = (
     "your answer within <answer> </answer> tags."
 )
 
+COT_TOM2_SYSTEM_PROMPT = (
+    "You are a helpful assistant. The assistant first thinks about the "
+    "reasoning process in the mind and then provides the user with the answer. "
+    "The reasoning process and answer are enclosed within <think> </think> and "
+    "<answer> </answer> tags, respectively, i.e., "
+    "<think> reasoning process here </think><answer> answer here </answer>. "
+    "In your reasoning, ensure you're thinking from all parties perspective "
+    "before making your final reasoning."
+)
+
 SYSTEM_PROMPT_STYLES = {
     "default": DEFAULT_SYSTEM_PROMPT,
     "research": RESEARCH_SYSTEM_PROMPT,
@@ -61,6 +71,7 @@ SYSTEM_PROMPT_STYLES = {
     "cot": COT_SYSTEM_PROMPT,
     "cot_tom": COT_TOM_SYSTEM_PROMPT,
     "cot_eval": COT_EVAL_SYSTEM_PROMPT,
+    "cot_tom2": COT_TOM2_SYSTEM_PROMPT,
 }
 
 # ---------------------------------------------------------------------------

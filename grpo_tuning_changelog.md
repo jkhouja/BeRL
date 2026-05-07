@@ -1331,3 +1331,55 @@ rm_score = torch.pow(shifted, self.power_k)
 | hi_tom peak | **29.8%** | 26.3% |
 | Training stability | ✅ Stable | ❌ Collapses in epoch 1 |
 | Steps to peak | ~160-360 | ~110-900 |
+
+### Experiment 17i: cot_tom System Prompt with v4 Eval
+
+**Purpose:** Test whether the ToM-specific CoT system prompt (`cot_tom` with intents/beliefs/goals framework) transfers better than the generic `cot_eval` prompt. Created v4 eval matching `cot_tom` + hints + key noun instruction. Same config as 17f otherwise. Stopped at step 200.
+
+| Step | tomi | explore_tom | hi_tom |
+|------|------|-------------|--------|
+| 0 (baseline) | 64.4% | 65.0% | 29.0% |
+| 20 | **65.2%** | 64.6% | **31.4%** |
+| 50 | 64.3% | 59.9% | 31.3% |
+| 80 | 63.3% | 59.4% | 25.9% |
+| 120 | 57.6% | 56.8% | 24.2% |
+| 170 | 62.5% | 58.2% | 29.3% |
+| 200 | 60.0% | 52.3% | 28.7% |
+
+**Result:** ❌ Higher baselines (v4 `cot_tom` prompt helps base model) but training **degrades** all metrics.
+- v4 baselines much higher than v3: explore 65.0% vs 47.0%, hi_tom 29.0% vs 19.0%
+- But training pushes scores down — explore drops from 65.0% → 52.3%, tomi 64.4% → 60.0%
+- The rigid 4-step reasoning framework (intents/beliefs/goals) gets overfit to dialogue patterns
+- Generic `cot_eval` (17f) remains better: it allows flexible reasoning transfer to both dialogue and ToM
+
+### Experiment 17j: cot_tom2 System Prompt ("all parties perspective")
+
+**Purpose:** Test a lighter-touch ToM nudge. Created `cot_tom2` system prompt:
+> "You are a helpful assistant. The assistant first thinks about the reasoning process... In your reasoning, ensure you're thinking from all parties perspective before making your final reasoning."
+
+v4 eval uses matching `cot_tom2` + hints + key noun instruction. Same config as 17f otherwise. Stopped at step 270.
+
+| Step | tomi | explore_tom | hi_tom |
+|------|------|-------------|--------|
+| 0 (baseline) | 55.7% | 38.3% | 5.5% |
+| 40 | 63.6% | 38.1% | 6.6% |
+| 80 | 45.6% | 26.7% | 2.6% |
+| 120 | 29.8% | 22.3% | 1.4% |
+| 150 | 17.0% | 12.3% | 0.4% |
+| 220 | 9.8% | 11.5% | 0.2% |
+
+**Result:** ❌ **Catastrophic failure.**
+- Baseline already terrible: tomi 55.7% (vs 63.3% with `cot_eval`), hi_tom 5.5% (vs 19.0%)
+- Complete collapse during training — scores drop to near-zero by step 220
+- The "all parties perspective" phrasing is too vague and confuses the model's ToM reasoning
+- Confirms that system prompt wording matters enormously — `cot_eval` (17f) remains the best
+
+### System Prompt Comparison Summary
+
+| Prompt Style | Baseline tomi | Baseline explore | Baseline hi_tom | Training effect |
+|-------------|--------------|-----------------|-----------------|-----------------|
+| `cot_eval` (17f) | 63.3% | 47.0% | 19.3% | ✅ **Improves** all metrics |
+| `cot_tom` (17i) | 64.4% | 65.0% | 29.0% | ❌ Degrades from higher baseline |
+| `cot_tom2` (17j) | 55.7% | 38.3% | 5.5% | ❌ Catastrophic collapse |
+
+**Key insight:** The `cot_eval` prompt works best because it's (1) generic enough to transfer between dialogue and ToM tasks, (2) includes "theory of mind reasoning problem" framing without prescribing rigid steps, and (3) the base model is already well-calibrated for this prompt style.
