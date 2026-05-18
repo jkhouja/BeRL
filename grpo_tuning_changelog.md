@@ -1383,3 +1383,126 @@ v4 eval uses matching `cot_tom2` + hints + key noun instruction. Same config as 
 | `cot_tom2` (17j) | 55.7% | 38.3% | 5.5% | ❌ Catastrophic collapse |
 
 **Key insight:** The `cot_eval` prompt works best because it's (1) generic enough to transfer between dialogue and ToM tasks, (2) includes "theory of mind reasoning problem" framing without prescribing rigid steps, and (3) the base model is already well-calibrated for this prompt style.
+
+---
+
+## Round 18: Scaling 17f to Qwen2.5-7B-Instruct (2026-05-15)
+
+**Goal:** Test whether the 17f dialogue→ToM transfer recipe scales to a larger model (7B). The 3B model showed strong gains (tomi +6pp, explore +20pp, hi_tom +11pp). Does 7B benefit similarly?
+
+### Experiment 18a: Actor-as-RM, KL=0.05, LR=5e-7 (17f replica on 7B)
+
+**Config:** Exact 17f config but with `Qwen/Qwen2.5-7B-Instruct`. Filtered eval-prompt dataset (6,214 samples), actor-as-RM, ll_min=-8, clip (-40,40), KL=0.05, LR=5e-7. Ran for 280 steps.
+
+| Step | tomi | explore_tom | hi_tom |
+|------|------|-------------|--------|
+| 0 (baseline) | 67.8% | 73.0% | 42.9% |
+| 30 | 67.3% | 74.9% | 41.4% |
+| 50 | 66.9% | 73.9% | 40.6% |
+| 110 | 66.2% | 74.8% | 40.2% |
+| 120 | 65.8% | 75.3% | 38.4% |
+| 140 | 64.0% | 73.2% | 38.6% |
+| 190 | 65.8% | 75.5% | 39.2% |
+| 200 | 66.4% | 74.0% | 40.1% |
+| 210 | 67.2% | 72.9% | 39.6% |
+| 280 | 66.4% | 74.2% | 39.2% |
+
+**Result:** ❌ Flat/slight degradation. tomi and hi_tom drift downward, explore_tom stays within noise. Stopped early.
+
+### Experiment 18b: Frozen RM, KL=0.05, LR=5e-7
+
+**Purpose:** Test whether frozen RM is more stable than actor-as-RM for 7B (actor-as-RM may be too noisy for a model that's already strong). Ran full 2 epochs (388 steps).
+
+| Step | tomi | explore_tom | hi_tom |
+|------|------|-------------|--------|
+| 0 (baseline) | 67.8% | 73.1% | 42.5% |
+| 20 | 67.9% | 74.3% | 43.3% |
+| 40 | 66.3% | 75.6% | 41.8% |
+| 60 | 65.3% | 74.5% | 40.1% |
+| 80 | 64.4% | 74.1% | 39.7% |
+| 100 | 65.5% | 73.8% | 42.3% |
+| 170 | 66.5% | 74.4% | 41.1% |
+| 200 | 67.2% | 75.5% | 38.6% |
+| 240 | 67.0% | 75.0% | 40.2% |
+| 300 | 67.0% | 74.1% | 38.8% |
+| 350 | 66.3% | 75.2% | 40.2% |
+
+**Result:** ❌ Flat. Marginally more stable than 18a but no improvement. Best scores (step 20: 67.9% tomi, 43.3% hi_tom) are within noise of baseline.
+
+### Experiment 18c: Actor-as-RM, KL=0.01, LR=5e-7
+
+**Purpose:** Test whether lower KL allows more exploration from the 7B's strong starting point. Ran full 2 epochs (388 steps).
+
+| Step | tomi | explore_tom | hi_tom |
+|------|------|-------------|--------|
+| 20 | 68.0% | 74.0% | 42.4% |
+| 40 | 66.9% | 72.6% | 41.2% |
+| 60 | 65.7% | 72.7% | 39.8% |
+| 80 | 65.8% | 72.6% | 39.3% |
+| 120 | 66.7% | 70.2% | 39.0% |
+| 160 | 67.1% | 68.4% | 38.3% |
+| 190 | 67.3% | 69.8% | 38.0% |
+| 260 | 64.2% | 68.9% | 36.6% |
+| 300 | 67.6% | 70.8% | 38.3% |
+| 330 | 68.9% | 69.3% | 36.7% |
+| 360 | 67.2% | 69.1% | 36.7% |
+
+**Result:** ❌ Worse than 18a/18b. explore_tom degrades from 74.0% → 69.1%, hi_tom from 42.4% → 36.7%. Lower KL allows too much drift, hurting the already-calibrated 7B model.
+
+### Round 18 Summary
+
+| Experiment | Key Change | tomi best | explore_tom best | hi_tom best | Outcome |
+|-----------|------------|-----------|-----------------|------------|---------|
+| Baseline (step 0) | — | 67.8% | 73.0% | 42.9% | — |
+| 18a | 17f replica (actor-as-RM, KL=0.05) | 67.8% | 75.5% | 42.9% | ❌ Flat |
+| 18b | Frozen RM, KL=0.05 | 67.9% | 75.6% | 43.3% | ❌ Flat |
+| 18c | Actor-as-RM, KL=0.01 | 68.9% | 74.0% | 42.4% | ❌ Degradation |
+
+**Key finding:** The 7B model's baseline (67.8% tomi, 73.0% explore, 42.9% hi_tom) is already close to or exceeding the 3B model's *post-training* peaks (69.4% tomi, 66.9% explore, 29.8% hi_tom). The dialogue→ToM transfer that RL unlocks in 3B appears to already be present in 7B's pretrained representations. This suggests the 17f recipe is most valuable for smaller models where the implicit ToM signal from dialogue hasn't been fully captured during pretraining.
+
+**Files created:**
+- `dialogue_7b_frozenRM.sh` — 18b config
+- `dialogue_7b_lowKL.sh` — 18c config
+
+---
+
+## Appendix: WandB Run Links
+
+All runs tracked at [wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO).
+
+| Round | Experiment | wandb Run |
+|-------|-----------|-----------|
+| 1-4 | empathic_dialogue_grpo (early rounds) | [de8pixgu](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/de8pixgu) |
+| 5 | Full prompt fix | [ina1jjmr](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/ina1jjmr) |
+| 6 | tom_grpo_v2 (direct ToM) | [tsu4tb4s](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/tsu4tb4s) |
+| 7 | Dialogue 8k — no transfer | [kdgscoy3](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/kdgscoy3) |
+| 8 | ToM 11k — all eval sources | [ql55rjfl](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/ql55rjfl) |
+| 8 (2nd run) | ToM 11k (neg perplexity) | [xilr56qy](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/xilr56qy) |
+| 9 | Dialogue as ToM signal | [gz6fim0b](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/gz6fim0b) |
+| 9b | Dialogue late-first turn order | [jt5kpvwz](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/jt5kpvwz) |
+| 10 | Original ToM data with LL reward | [mdf6apaa](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/mdf6apaa) |
+| 12 | LL reward with low KL | [7282s6g7](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/7282s6g7) |
+| 13 | Power reward — rule-based baseline | [v7dzqa5s](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/v7dzqa5s) |
+| 13b | Power LL + frozen RM + v3 eval | [o7tg0gsa](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/o7tg0gsa) |
+| 14 | Dialogue + power reward ll_min=-2 | [mvkfbem9](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/mvkfbem9) |
+| 14b | Dialogue + power reward ll_min=-5 | [uttre876](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/uttre876) |
+| 15 | Dialogue + ToM prompt + power reward | [mvwqabll](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/mvwqabll) |
+| 16 | Actor-as-RM ll_min=-2 | [k6svovv7](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/k6svovv7) |
+| 16b | Actor-as-RM ll_min=-3.5 | [d0mh74ea](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/d0mh74ea) |
+| 16c | Actor-as-RM ll_min=-3.5 + v3 eval | [lag5ciz0](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/lag5ciz0) |
+| 13b | Power LL + frozen RM (tom_orig, ll_min=-5) | [tuynzaar](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/tuynzaar) |
+| 17a | Baseline 16k + v3 eval | [xxhasyfy](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/xxhasyfy) |
+| 17b | Filtered dataset | [vcw8ifbg](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/vcw8ifbg) |
+| 17c | ll_min=-8 | [o0u6wafq](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/o0u6wafq) |
+| 17d/17e | Eval prompt alignment + wider clip (frozenRM) | [rirqgy8w](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/rirqgy8w) |
+| 17f | Actor as RM (eval prompt, wider clip) | [moqajo13](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/moqajo13) |
+| 17f (re-run) | Actor as RM (confirmed best) | [w4pnrcyt](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/w4pnrcyt) |
+| 17g | Direct ToM baseline (rule-based) | [p7k1urig](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/p7k1urig) |
+| 17h | Non-filtered 16k (actorRM) | [4sztpp2w](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/4sztpp2w) |
+| 17i | cot_tom system prompt | [taehrex3](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/taehrex3) |
+| 17j | cot_tom2 system prompt | [c4x83j5q](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/c4x83j5q) |
+| — | 3B actorRM lr=2e-7 (unlabeled) | [t5t9rnjw](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/t5t9rnjw) |
+| 17f (cot_prompt variant) | cot_prompt (not eval_prompt) | [yg9qk1ib](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/yg9qk1ib) |
+| 18a | 7B actorRM KL=0.05 | [13komm0s](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/13komm0s) |
+| 18b | 7B frozenRM KL=0.05 | [eq8n70bp](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/eq8n70bp) |
+| 18c | 7B actorRM KL=0.01 | [jqxu8txp](https://wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO/runs/jqxu8txp) |
