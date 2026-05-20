@@ -255,7 +255,7 @@ def main():
         description="Build a training-ready parquet dataset from a YAML config."
     )
     parser.add_argument(
-        "--config", type=str, default="pipeline_config.yaml",
+        "--config", type=str, default="scripts/configs/pipeline_config.yaml",
         help="Path to the pipeline YAML config file.",
     )
     args = parser.parse_args()

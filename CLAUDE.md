@@ -56,14 +56,14 @@ Dialogue training (17f) **surpasses** direct ToM training on tomi (generalizatio
 ## Important Files
 
 - `grpo_tuning_changelog.md` — full experiment log (17+ rounds)
-- `empathic_dialogue_grpo.sh` — main flexible training script
-- `dialogue_grpo_power_reward.sh` — dialogue GRPO with power reward
-- `dialogue_grpo_power_reward_actorRM.sh` — actor-as-RM variant
-- `tom_grpo_power_reward.sh` — direct ToM training
+- `experiments/empathic_dialogue_grpo.sh` — main flexible training script
+- `experiments/dialogue_grpo_power_reward.sh` — dialogue GRPO with power reward
+- `experiments/dialogue_grpo_power_reward_actorRM.sh` — actor-as-RM variant
+- `experiments/tom_grpo_power_reward.sh` — direct ToM training
 - `scripts/convert_dailydialog.py` — DailyDialog dataset converter
 - `scripts/convert_empathetic_dialogues.py` — Empathetic Dialogues converter
 - `scripts/prompt_templates.py` — system prompt styles (cot_eval, cot_tom, etc.)
-- `pipeline_config_filtered_eval_prompt.yaml` — best dataset config
+- `scripts/configs/pipeline_config_filtered_eval_prompt.yaml` — best dataset config
 
 ## Eval Benchmarks
 

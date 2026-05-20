@@ -1,11 +1,13 @@
 #!/bin/bash
-# 7B Ablation 1: Frozen RM, KL=0.05, LR=5e-7
-# 17f config but with frozen RM and 7B model
+# Round 17d reproduction: Breakthrough config
+# Frozen RM, eval prompt aligned data, ll_min=-8, KL=0.05, 3B
+# This was the first config to show positive dialogue→ToM transfer
 
 set -x
 
+REPO_DIR=$HOME/repo/BeRL
 TODAY=$(date +%Y%m%d)
-mkdir -p logs/${TODAY}
+mkdir -p $REPO_DIR/logs/${TODAY}
 
 source ~/.bashrc
 export VLLM_ATTENTION_BACKEND=XFORMERS
@@ -21,9 +23,9 @@ REWARD_TYPE="power"
 POWER_K=2.0
 POWER_LL_MIN=-8.0
 DATASET_NAME="dialogue_filtered_eval_prompt"
-EXP_DESC="power-reward-k${POWER_K}-llmin${POWER_LL_MIN}"
+EXP_DESC="round17d-repro-power-k${POWER_K}-llmin${POWER_LL_MIN}"
 
-model_name="Qwen/Qwen2.5-7B-Instruct"
+model_name="Qwen/Qwen2.5-3B-Instruct"
 lr=5e-7
 KL_COEF=0.05
 num_epochs=2
@@ -35,6 +37,7 @@ RM_TYPE="frozenRM"
 BASELINE_TAG="nobaseline"
 EXP_NAME="${DATASET_NAME}-$(basename $model_name)-${RM_TYPE}-${BASELINE_TAG}-lr${lr}-kl${KL_COEF}-n${ROLLOUT_N}-${EXP_DESC}"
 
+cd $REPO_DIR
 HYDRA_FULL_ERROR=1 RAY_BACKEND_LOG_LEVEL=debug python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
     data.train_files=$data_train_files \
@@ -87,4 +90,4 @@ HYDRA_FULL_ERROR=1 RAY_BACKEND_LOG_LEVEL=debug python3 -m verl.trainer.main_ppo 
     trainer.default_hdfs_dir=null \
     trainer.save_freq=50 \
     trainer.test_freq=10 \
-    trainer.total_epochs=$num_epochs 2>&1 | tee logs/${TODAY}/${EXP_NAME}.log
+    trainer.total_epochs=$num_epochs 2>&1 | tee $REPO_DIR/logs/${TODAY}/${EXP_NAME}.log

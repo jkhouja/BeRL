@@ -2,11 +2,14 @@
 
 set -x
 
+REPO_DIR=$HOME/repo/BeRL
 TODAY=$(date +%Y%m%d)
-mkdir -p logs/${TODAY}
+mkdir -p $REPO_DIR/logs/${TODAY}
+
+# source ~/anaconda3/etc/profile.d/conda.sh
+# conda activate tom
 
 source ~/.bashrc
-
 export VLLM_ATTENTION_BACKEND=XFORMERS
 
 #NUM_GPUS=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
@@ -15,6 +18,12 @@ NUM_GPUS=8
 train_batch_size=32
 enable_gradient_checkpointing=True
 ROLLOUT_N=16
+SUBTRACT_BASELINE=False  # Set to False to use raw log-likelihood as reward (GRPO normalizes implicitly)
+USE_ACTOR_AS_RM=False  # Set to True to use actor model (current weights) instead of frozen RM for reward
+REWARD_TYPE="log_prob"  # 'log_prob' or 'neg_perplexity' (only used when USE_LM_REWARD=True)
+USE_LM_REWARD=True  # False = rule-based reward (paper's approach), True = LM log-likelihood reward
+DATASET_NAME="tom_orig_3k"  # Short name for the training dataset (for experiment tracking)
+EXP_DESC="ll-frozenRM-v3eval"  # Meaningful description of what we're testing (appended to experiment name)
 
 #model_names=("Qwen/Qwen2.5-7B-Instruct-1M" "Qwen/Qwen2.5-7B-Instruct" "Qwen/Qwen2.5-3B-Instruct" "Qwen/Qwen2.5-1.5B-Instruct" "Qwen/Qwen2.5-0.5B-Instruct")
 model_names=("Qwen/Qwen2.5-3B-Instruct")
@@ -27,18 +36,31 @@ for model_name in ${model_names[@]}
 do
     for lr in ${lrs[@]}
     do
-        data_train_files=$HOME/repo/BeRL/data/cleaned_tom/ToM_train_HiEx_hint.parquet
+        data_train_files=$HOME/repo/BeRL/data/tom_train.parquet
         test_files=$HOME/repo/BeRL/data/cleaned_tom/ToM_test_HiExTi_hint_v3.parquet
-        
-        python3 -m verl.trainer.main_ppo \
+
+        # Build descriptive experiment name
+        RM_TYPE=$( [ "$USE_ACTOR_AS_RM" = "True" ] && echo "actorRM" || echo "frozenRM" )
+        BASELINE_TAG=$( [ "$SUBTRACT_BASELINE" = "True" ] && echo "baseline" || echo "nobaseline" )
+        EXP_NAME="${DATASET_NAME}-$(basename $model_name)-${RM_TYPE}-${BASELINE_TAG}-lr${lr}-n${ROLLOUT_N}${EXP_DESC:+-$EXP_DESC}"
+
+        cd $REPO_DIR
+        HYDRA_FULL_ERROR=1 RAY_BACKEND_LOG_LEVEL=debug python3 -m verl.trainer.main_ppo \
             algorithm.adv_estimator=grpo \
             data.train_files=$data_train_files \
             data.val_files=$test_files \
             data.train_batch_size=$train_batch_size \
+	        data.prompt_is_text=False \
             data.val_batch_size=16 \
-            data.prompt_is_text=False \
             data.max_prompt_length=1024 \
             data.max_response_length=2048 \
+            reward_model.type="lm" \
+            reward_model.enable=$USE_LM_REWARD \
+            reward_model.model.path=$model_name \
+            reward_model.micro_batch_size=8 \
+            +reward_model.subtract_baseline=$SUBTRACT_BASELINE \
+            +reward_model.use_actor_as_rm=$USE_ACTOR_AS_RM \
+            +reward_model.reward_type=$REWARD_TYPE \
             actor_rollout_ref.model.path=$model_name \
             actor_rollout_ref.actor.optim.lr=$lr \
             actor_rollout_ref.model.use_remove_padding=True \
@@ -47,6 +69,8 @@ do
             actor_rollout_ref.actor.use_kl_loss=True \
             actor_rollout_ref.actor.kl_loss_coef=0.001 \
             actor_rollout_ref.actor.kl_loss_type=low_var_kl \
+            actor_rollout_ref.actor.clip_ratio=0.2 \
+            actor_rollout_ref.actor.grad_clip=1.0 \
             actor_rollout_ref.model.enable_gradient_checkpointing=$enable_gradient_checkpointing \
             actor_rollout_ref.actor.fsdp_config.param_offload=True \
             actor_rollout_ref.actor.fsdp_config.grad_offload=True \
@@ -62,12 +86,12 @@ do
             trainer.critic_warmup=0 \
             trainer.logger=['console','wandb'] \
             trainer.project_name="EmpathicDialogue_GRPO" \
-            trainer.experiment_name="round17-tom3k-rulebased-v3eval-$(basename $model_name)-$lr-$ROLLOUT_N" \
+            trainer.experiment_name="$EXP_NAME" \
             trainer.n_gpus_per_node=$NUM_GPUS \
             trainer.nnodes=1 \
             trainer.default_hdfs_dir=null \
-            trainer.save_freq=50 \
+            trainer.save_freq=30 \
             trainer.test_freq=10 \
-            trainer.total_epochs=$num_epochs $@ 2>&1 | tee logs/${TODAY}/tom_grpo_$(basename $model_name)_${lr}_${ROLLOUT_N}.log
+            trainer.total_epochs=$num_epochs $@ 2>&1 | tee $REPO_DIR/logs/${TODAY}/${EXP_NAME}.log
     done
 done
