@@ -1,4 +1,6 @@
 #!/bin/bash
+# Round 17f breakthrough config + FANToM eval benchmark
+# Actor-as-RM, power reward, dialogue→ToM transfer with FANToM scoring
 
 set -x
 
@@ -6,18 +8,20 @@ REPO_DIR=$HOME/repo/BeRL
 TODAY=$(date +%Y%m%d)
 mkdir -p $REPO_DIR/logs/${TODAY}
 
+# Unset env var so wandb falls back to ~/.netrc credentials
+unset WANDB_API_KEY
+
 source ~/.bashrc
 export VLLM_ATTENTION_BACKEND=XFORMERS
 
-#NUM_GPUS=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
 NUM_GPUS=8
 
 train_batch_size=32
 enable_gradient_checkpointing=True
 ROLLOUT_N=16
-SUBTRACT_BASELINE=False  # No baseline subtraction — GRPO normalizes implicitly
+SUBTRACT_BASELINE=False
 USE_ACTOR_AS_RM=True
-REWARD_TYPE="power"  # Power reward: max(ll - ll_min, 0) ^ k
+REWARD_TYPE="power"
 POWER_K=2.0
 POWER_LL_MIN=-8.0
 DATASET_NAME="dialogue_filtered_eval_prompt"
@@ -32,10 +36,9 @@ for model_name in ${model_names[@]}
 do
     for lr in ${lrs[@]}
     do
-        data_train_files=$HOME/repo/BeRL/data/merged_dialogue_datasets_filtered_eval_prompt.parquet
-        test_files="[$HOME/repo/BeRL/data/cleaned_tom/ToM_test_HiExTi_hint_v3.parquet,$HOME/repo/BeRL/data/cleaned_tom/fantom_test.parquet]"
+        data_train_files=$REPO_DIR/data/merged_dialogue_datasets_filtered_eval_prompt.parquet
+        test_files="[$REPO_DIR/data/cleaned_tom/ToM_test_HiExTi_hint_v3.parquet,$REPO_DIR/data/cleaned_tom/fantom_test.parquet]"
 
-        # Build descriptive experiment name
         RM_TYPE=$( [ "$USE_ACTOR_AS_RM" = "True" ] && echo "actorRM" || echo "frozenRM" )
         BASELINE_TAG=$( [ "$SUBTRACT_BASELINE" = "True" ] && echo "baseline" || echo "nobaseline" )
         EXP_NAME="${DATASET_NAME}-$(basename $model_name)-${RM_TYPE}-${BASELINE_TAG}-lr${lr}-n${ROLLOUT_N}-${EXP_DESC}-fantom"
@@ -44,11 +47,11 @@ do
         HYDRA_FULL_ERROR=1 RAY_BACKEND_LOG_LEVEL=debug python3 -m verl.trainer.main_ppo \
             algorithm.adv_estimator=grpo \
             data.train_files=$data_train_files \
-            data.val_files=$test_files \
+            data.val_files="$test_files" \
             data.train_batch_size=$train_batch_size \
             data.prompt_is_text=False \
             data.val_batch_size=16 \
-            data.max_prompt_length=1024 \
+            data.max_prompt_length=2048 \
             data.max_response_length=2048 \
             reward_model.type="lm" \
             reward_model.enable=True \
