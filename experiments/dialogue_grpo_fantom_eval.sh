@@ -11,7 +11,10 @@ mkdir -p $REPO_DIR/logs/${TODAY}
 # Unset env var so wandb falls back to ~/.netrc credentials
 unset WANDB_API_KEY
 
-source ~/.bashrc
+# Activate conda environment
+eval "$($HOME/miniconda3/bin/conda shell.bash hook 2>/dev/null)"
+conda activate tom
+
 export VLLM_ATTENTION_BACKEND=XFORMERS
 
 NUM_GPUS=8
@@ -68,7 +71,7 @@ do
             actor_rollout_ref.actor.ppo_mini_batch_size=128 \
             actor_rollout_ref.actor.ppo_micro_batch_size=8 \
             actor_rollout_ref.actor.use_kl_loss=True \
-            actor_rollout_ref.actor.kl_loss_coef=0.001 \
+            actor_rollout_ref.actor.kl_loss_coef=0.05 \
             actor_rollout_ref.actor.kl_loss_type=low_var_kl \
             actor_rollout_ref.actor.clip_ratio=0.2 \
             actor_rollout_ref.actor.grad_clip=1.0 \
@@ -83,7 +86,7 @@ do
             actor_rollout_ref.rollout.n=$ROLLOUT_N \
             actor_rollout_ref.ref.log_prob_micro_batch_size=8 \
             actor_rollout_ref.ref.fsdp_config.param_offload=True \
-            algorithm.kl_ctrl.kl_coef=0.001 \
+            algorithm.kl_ctrl.kl_coef=0.05 \
             trainer.critic_warmup=0 \
             trainer.logger=['console','wandb'] \
             trainer.project_name="EmpathicDialogue_GRPO" \
