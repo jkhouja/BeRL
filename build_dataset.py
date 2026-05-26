@@ -25,6 +25,7 @@ CONVERTERS = {
     "dailydialog": ("scripts.convert_dailydialog", "DailyDialogConverter"),
     "empathetic_dialogues": ("scripts.convert_empathetic_dialogues", "EmpatheticDialoguesConverter"),
     "theory_of_mind": ("scripts.convert_theory_of_mind", "TheoryOfMindConverter"),
+    "conversations_gone_awry": ("scripts.convert_conversations_gone_awry", "ConversationsGoneAwryConverter"),
 }
 
 # ---------------------------------------------------------------------------
