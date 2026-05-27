@@ -116,20 +116,34 @@ FANToM tests ToM reasoning in multi-party conversations — 5 question types:
 | fantom_info_binary | 29.3% | **63.5%** | +34.2pp |
 | fantom_info_list | **32.4%** | 27.8% | -4.6pp |
 
+### 7B: Direct ToM vs Combined (Dialogue+CGA)
+
+| Benchmark | 7B Baseline | 7B Direct ToM Peak | 7B Combined Peak |
+|-----------|-------------|-------------------|-----------------|
+| tomi | 67.8% | 67.8% (no gain) | **69.4%** |
+| explore_tom | 72.8% | **80.8%** | 76.8% |
+| hi_tom | 42.5% | **72.6%** | 44.0% |
+| fantom_belief_mc | 60.4% | 60.5% | **62.3%** |
+| fantom_answ_binary | 20.1% | 21.8% | **23.6%** |
+| fantom_answ_list | 14.5% | 14.5% (no gain) | **17.8%** |
+| fantom_info_binary | 58.6% | 63.3% | **63.5%** |
+| fantom_info_list | 26.7% | **28.0%** | 27.8% |
+
 7B key results:
-- **fantom_info_binary 63.5%** surpasses 3B direct ToM training (51.8%) — purely from dialogue+CGA
-- **fantom_belief_mc 62.3%** approaches direct ToM (49.7% at 3B), achieved without any ToM examples
-- **hi_tom 44.0%** — best result across all experiments
-- **tomi 69.4%** matches 3B direct ToM training
-- List question types (answ_list, info_list) degraded at 7B — possible formatting issue
+- **Direct ToM fails to improve tomi at 7B** — stays at 67.8% baseline, while combined achieves 69.4%. Dialogue transfer generalizes better at scale.
+- **hi_tom: direct ToM dominates** — 72.6% vs 44.0%. Direct training produces massive hi_tom gains at 7B.
+- **Combined wins on FANToM** — belief_mc 62.3% vs 60.5%, answ_binary 23.6% vs 21.8%, info_binary 63.5% vs 63.3%. Dialogue+CGA outperforms direct ToM on multi-party reasoning.
+- **7B baselines are much stronger** — fantom_belief_mc starts at 60.4% (vs 7.2% at 3B), leaving less room for improvement.
+- List question types (answ_list, info_list) degraded at 7B — possible formatting issue.
 
 ### Key Findings
 
 1. **CGA outperforms dialogue on FANToM** — conflict/adversarial conversations transfer more strongly to multi-party ToM. belief_mc: 39% vs 31%.
 2. **Combined data achieves best explore_tom** — 74.8% at 3B, 76.8% at 7B.
 3. **7B scaling dramatically improves FANToM** — belief_mc 62.3% (+23pp), info_binary 63.5% (+34pp) over 3B.
-4. **No collapse** — scores remain stable through 750 steps at both scales.
-5. **CGA characteristics**: Wikipedia Talk page debates, avg 85 words/response (vs 22 for dialogue), richer argumentation and perspective-taking.
+4. **Dialogue transfer generalizes better at scale** — at 7B, direct ToM fails to improve tomi while combined dialogue+CGA achieves +1.6pp.
+5. **No collapse** — scores remain stable through 750 steps at both scales.
+6. **CGA characteristics**: Wikipedia Talk page debates, avg 85 words/response (vs 22 for dialogue), richer argumentation and perspective-taking.
 
 ### Wandb Runs
 
@@ -138,6 +152,7 @@ FANToM tests ToM reasoning in multi-party conversations — 5 question types:
 - Combined (3B): `dialogue_cga_combined-...-fantom`
 - Direct ToM (3B): `round19-tom3k-rulebased-fantom-...` (run `qhnoz5kh`)
 - Combined (7B): `dialogue_cga_combined-Qwen2.5-7B-...-fantom` (run `nxg8ii0w`)
+- Direct ToM (7B): `round19-tom3k-rulebased-fantom-Qwen2.5-7B-...` (run `1h44li3k`)
 
 ## Branch & Workflow
 
