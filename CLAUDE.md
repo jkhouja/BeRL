@@ -90,31 +90,54 @@ FANToM tests ToM reasoning in multi-party conversations — 5 question types:
 - **answerability_binary/list**: who can answer a question (3,571 / 870 samples)
 - **info_binary/list**: who has access to information (3,571 / 870 samples)
 
-### Dialogue vs CGA vs Combined Training
+### Dialogue vs CGA vs Combined Training (3B)
 
-| Benchmark | Baseline | Dialogue Peak | CGA Peak | Combined Peak |
-|-----------|----------|--------------|----------|---------------|
-| tomi | 63.2% | **68.7%** | 66.2% | 67.4% |
-| explore_tom | 47.0% | 61.6% | 63.0% | **74.8%** |
-| hi_tom | 19.0% | 28.8% | 29.9% | **31.4%** |
-| fantom_belief_mc | 7.2% | 31.2% | 39.0% | **39.2%** |
-| fantom_answ_binary | 6.2% | 17.6% | **18.3%** | 18.3% |
-| fantom_answ_list | 14.6% | 26.4% | **33.2%** | 31.1% |
-| fantom_info_binary | 4.6% | 18.2% | 25.3% | **29.3%** |
-| fantom_info_list | 14.8% | 28.9% | **34.3%** | 32.4% |
+| Benchmark | Baseline | Dialogue Peak | CGA Peak | Combined Peak | Direct ToM Peak |
+|-----------|----------|--------------|----------|---------------|-----------------|
+| tomi | 63.2% | **68.7%** | 66.2% | 67.4% | 69.0% |
+| explore_tom | 47.0% | 61.6% | 63.0% | 74.8% | **85.5%** |
+| hi_tom | 19.0% | 28.8% | 29.9% | 31.4% | **36.3%** |
+| fantom_belief_mc | 7.2% | 31.2% | 39.0% | 39.2% | **49.7%** |
+| fantom_answ_binary | 6.2% | 17.6% | 18.3% | 18.3% | **27.7%** |
+| fantom_answ_list | 14.6% | 26.4% | **33.2%** | 31.1% | 34.1% |
+| fantom_info_binary | 4.6% | 18.2% | 25.3% | 29.3% | **51.8%** |
+| fantom_info_list | 14.8% | 28.9% | **34.3%** | 32.4% | 35.7% |
+
+### 7B Scaling — Combined Data (Dialogue + CGA)
+
+| Benchmark | 3B Combined Peak | **7B Combined Peak** | 7B vs 3B |
+|-----------|-----------------|---------------------|----------|
+| tomi | 67.4% | **69.4%** | +2.0pp |
+| explore_tom | 74.8% | **76.8%** | +2.0pp |
+| hi_tom | 31.4% | **44.0%** | +12.6pp |
+| fantom_belief_mc | 39.2% | **62.3%** | +23.1pp |
+| fantom_answ_binary | 18.3% | **23.6%** | +5.3pp |
+| fantom_answ_list | **31.1%** | 17.8% | -13.3pp |
+| fantom_info_binary | 29.3% | **63.5%** | +34.2pp |
+| fantom_info_list | **32.4%** | 27.8% | -4.6pp |
+
+7B key results:
+- **fantom_info_binary 63.5%** surpasses 3B direct ToM training (51.8%) — purely from dialogue+CGA
+- **fantom_belief_mc 62.3%** approaches direct ToM (49.7% at 3B), achieved without any ToM examples
+- **hi_tom 44.0%** — best result across all experiments
+- **tomi 69.4%** matches 3B direct ToM training
+- List question types (answ_list, info_list) degraded at 7B — possible formatting issue
 
 ### Key Findings
 
 1. **CGA outperforms dialogue on FANToM** — conflict/adversarial conversations transfer more strongly to multi-party ToM. belief_mc: 39% vs 31%.
-2. **Combined data achieves best explore_tom** — 74.8% (+27.8pp), far exceeding either source alone.
-3. **No collapse with combined data** — explore_tom holds at 73.8% through 750 steps.
-4. **CGA characteristics**: Wikipedia Talk page debates, avg 85 words/response (vs 22 for dialogue), richer argumentation and perspective-taking.
+2. **Combined data achieves best explore_tom** — 74.8% at 3B, 76.8% at 7B.
+3. **7B scaling dramatically improves FANToM** — belief_mc 62.3% (+23pp), info_binary 63.5% (+34pp) over 3B.
+4. **No collapse** — scores remain stable through 750 steps at both scales.
+5. **CGA characteristics**: Wikipedia Talk page debates, avg 85 words/response (vs 22 for dialogue), richer argumentation and perspective-taking.
 
 ### Wandb Runs
 
-- Dialogue + FANToM: `dialogue_filtered_eval_prompt-...-fantom` (run `m8vcmg1u`)
-- CGA only: `conversations_gone_awry-...-fantom` (run `c0w80kpt`)
-- Combined: `dialogue_cga_combined-...-fantom` (run project `EmpathicDialogue_GRPO`)
+- Dialogue + FANToM (3B): `dialogue_filtered_eval_prompt-...-fantom` (run `m8vcmg1u`)
+- CGA only (3B): `conversations_gone_awry-...-fantom` (run `c0w80kpt`)
+- Combined (3B): `dialogue_cga_combined-...-fantom`
+- Direct ToM (3B): `round19-tom3k-rulebased-fantom-...` (run `qhnoz5kh`)
+- Combined (7B): `dialogue_cga_combined-Qwen2.5-7B-...-fantom` (run `nxg8ii0w`)
 
 ## Branch & Workflow
 
