@@ -135,6 +135,7 @@ class ActorRolloutRefWorker(Worker):
         self.reward_type = self.config.get("reward_type", self.config.actor.get("reward_type", "log_prob"))
         self.power_k = self.config.get("power_k", self.config.actor.get("power_k", 2.0))
         self.power_ll_min = self.config.get("power_ll_min", self.config.actor.get("power_ll_min", -2.0))
+        self.require_answer_tags = self.config.get("require_answer_tags", True)
 
         # normalize config
         if self._is_actor:
@@ -615,7 +616,8 @@ class ActorRolloutRefWorker(Worker):
 
             # Stitch ground truth answer
             actual_response = data.non_tensor_batch['reward_model'][i]['ground_truth']
-            actual_response = "<answer>" + actual_response + "</answer>"
+            if self.require_answer_tags or "<answer>" in response:
+                actual_response = "<answer>" + actual_response + "</answer>"
             full_response = response_tom + actual_response
             full_chat = chat + [{'role': 'assistant', 'content': full_response}]
             prompt_with_chat_template = tokenizer.apply_chat_template(
@@ -1219,7 +1221,8 @@ class RewardModelWorker(Worker):
 
             actual_response = data.non_tensor_batch['reward_model'][i]['ground_truth']
             # TODO: Move answer tags to data generation
-            actual_response = "<answer>" + actual_response + "</answer>"
+            if self.config.get('require_answer_tags', True) or "<answer>" in response_model:
+                actual_response = "<answer>" + actual_response + "</answer>"
             response = response_tom + actual_response
             chat = chat + [{'role': 'assistant', 'content': response}]
 

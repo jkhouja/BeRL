@@ -22,18 +22,19 @@ from verl.trainer.ppo.ray_trainer import RayPPOTrainer
 
 
 def _select_rm_score_fn(data_source):
+    """Returns (score_fn, supports_answer_tags) tuple."""
     if data_source == 'openai/gsm8k':
-        return gsm8k.compute_score
+        return gsm8k.compute_score, False
     elif data_source == 'lighteval/MATH':
-        return math.compute_score
+        return math.compute_score, False
     elif "multiply" in data_source or "arithmetic" in data_source:
-        return multiply.compute_score
+        return multiply.compute_score, False
     elif "countdown" in data_source:
-        return countdown.compute_score
+        return countdown.compute_score, False
     elif "fantom" in data_source:
-        return fantom.compute_score
+        return fantom.compute_score, True
     elif "explore_tom" in data_source or "hi_tom" in data_source or 'tomi' in data_source:
-        return explore_tom.compute_score
+        return explore_tom.compute_score, True
     else:
         raise NotImplementedError
 
@@ -42,10 +43,11 @@ class RewardManager():
     """The reward manager.
     """
 
-    def __init__(self, tokenizer, num_examine, phase='train') -> None:
+    def __init__(self, tokenizer, num_examine, phase='train', require_answer_tags=True) -> None:
         self.tokenizer = tokenizer
         self.num_examine = num_examine  # the number of batches of decoded responses to print to the console
         self.phase = phase
+        self.require_answer_tags = require_answer_tags
 
     def __call__(self, data: DataProto, step=None):
         """We will expand this function gradually based on the available datasets"""
@@ -80,9 +82,13 @@ class RewardManager():
 
             # select rm_score
             data_source = data_item.non_tensor_batch['data_source']
-            compute_score_fn = _select_rm_score_fn(data_source)
+            compute_score_fn, supports_answer_tags = _select_rm_score_fn(data_source)
 
-            score = compute_score_fn(solution_str=sequences_str, ground_truth=ground_truth)
+            if supports_answer_tags:
+                score = compute_score_fn(solution_str=sequences_str, ground_truth=ground_truth,
+                                         require_answer_tags=self.require_answer_tags)
+            else:
+                score = compute_score_fn(solution_str=sequences_str, ground_truth=ground_truth)
             reward_tensor[i, valid_response_length - 1] = score
 
             if data_source not in already_print_data_sources:
@@ -186,10 +192,12 @@ def main_task(config):
         role_worker_mapping[Role.RewardModel] = ray.remote(RewardModelWorker)
         mapping[Role.RewardModel] = global_pool_id
 
-    reward_fn = RewardManager(tokenizer=tokenizer, num_examine=1, phase='train')
+    reward_fn = RewardManager(tokenizer=tokenizer, num_examine=1, phase='train',
+                              require_answer_tags=config.reward_model.get('require_answer_tags', True))
 
     # Note that we always use function-based RM for validation
-    val_reward_fn = RewardManager(tokenizer=tokenizer, num_examine=1, phase='val')
+    val_reward_fn = RewardManager(tokenizer=tokenizer, num_examine=1, phase='val',
+                                  require_answer_tags=config.reward_model.get('require_answer_tags', True))
 
     resource_pool_manager = ResourcePoolManager(resource_pool_spec=resource_pool_spec, mapping=mapping)
 

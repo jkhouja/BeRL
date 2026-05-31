@@ -1638,3 +1638,103 @@ All runs tracked at [wandb.ai/jkhouja-oxford/EmpathicDialogue_GRPO](https://wand
 - `scripts/configs/pipeline_config_conversations_gone_awry.yaml` — CGA pipeline config
 - `experiments/dialogue_grpo_fantom_eval.sh` — experiment script with FANToM eval
 - `docs/skill_adding_dataset.md` — guide for adding new training datasets
+
+---
+
+## Round 20: Qwen3 Compatibility — `require_answer_tags=False` (2026-05-30)
+
+**Problem:** Qwen3 models use native `<think>...</think>` format but output answers as plain text after `</think>` — they never produce `<answer>...</answer>` tags. This caused `format_error_ratio:1.000` and `reward/mean:-3.000` in training, blocking all learning signal.
+
+**Root causes identified & fixed:**
+1. **Missing `<answer>` tag extraction** — scoring required `<answer>` tags that Qwen3 never produces. Added `require_answer_tags=False` config flag.
+2. **Double `<think>` tag** — Qwen3's native thinking mode outputs `<think><|im_end|><|im_start|>assistant<think>...`, creating two `<think>` tags. Fixed by using `rsplit` on `<|im_start|>assistant` to get the last occurrence.
+3. **Eval answer extraction** — when `require_answer_tags=False`, text after `</think>` included `<answer>` wrappers (since the system prompt instructs the model to use them). Fixed by checking for `<answer>` tags inside the extracted text.
+4. **Actor-as-RM stitching** — when `require_answer_tags=False` but the model still produces `<answer>` tags, the stitched ground truth must match the model's actual format. Fixed by checking the model's response for `<answer>` tags per-sample.
+
+**Changes:**
+- `verl/utils/reward_score/explore_tom.py`: `extract_solution()`, `validate_response_structure()`, `compute_score()` — added `require_answer_tags` parameter
+- `verl/utils/reward_score/fantom.py`: `compute_score()` — pass-through `require_answer_tags`
+- `verl/trainer/main_ppo.py`: `RewardManager` accepts and passes `require_answer_tags`; `_select_rm_score_fn` returns capability flag
+- `verl/workers/fsdp_workers.py`: `ActorRolloutRefWorker` and `RewardModelWorker` — adaptive `<answer>` tag wrapping based on model output
+- `experiments/qwen3_tom_grpo_rulebased.sh`, `experiments/qwen3_dialogue_cga_combined.sh` — added `+reward_model.require_answer_tags=False +actor_rollout_ref.require_answer_tags=False`
+
+### Round 20a: Qwen3-1.7B Direct ToM — Rule-Based Reward
+
+**Config:** Qwen3-1.7B, tom3k dataset, rule-based reward, KL=0.001, LR=5e-7, batch=32, mini_batch=128, rollout_n=16, 2 epochs (~200 steps)
+
+**Wandb:** `round20-tom3k-rulebased-fantom-Qwen3-1.7B-5e-7-16`
+
+| Step | tomi | explore_tom | hi_tom | belief_mc | answ_bin | answ_list | info_bin | info_list |
+|------|------|-------------|--------|-----------|---------|-----------|----------|-----------|
+| 0 | 66.0% | 48.4% | 35.4% | 46.2% | 43.7% | 26.0% | 65.2% | 26.2% |
+| 10 | 68.4% | 53.8% | 36.6% | 46.8% | 43.4% | 28.6% | 65.3% | 25.9% |
+| 20 | 70.2% | 57.7% | 34.6% | 49.2% | 44.3% | 27.7% | 65.7% | 25.9% |
+| 40 | 73.7% | 66.7% | 36.0% | 51.7% | 43.3% | 27.7% | 65.4% | 25.4% |
+| 60 | 74.7% | 65.9% | 37.4% | 53.2% | 42.5% | 26.9% | 65.5% | 25.6% |
+| 80 | 76.3% | 71.8% | 38.2% | 51.2% | 40.5% | 26.9% | 64.9% | 25.5% |
+| 100 | 76.2% | 72.7% | 40.1% | 51.4% | 44.5% | 28.7% | 65.0% | 25.4% |
+| 120 | 76.8% | 72.0% | **43.1%** | 52.8% | 43.3% | 27.4% | 65.2% | 25.6% |
+| 140 | 77.0% | 72.6% | 42.2% | 52.2% | 44.1% | 27.6% | 65.4% | 25.6% |
+| 160 | 76.8% | 75.0% | 42.5% | 50.7% | 43.8% | 28.7% | 65.4% | 25.9% |
+| 170 | **77.1%** | 75.8% | 42.0% | 53.7% | 43.0% | 28.5% | 64.9% | 25.6% |
+| 190 | 77.2% | 75.4% | 40.7% | 53.4% | 43.4% | 28.5% | 65.6% | 25.6% |
+| 200 | 76.9% | **76.5%** | 42.1% | **54.0%** | 42.3% | 28.5% | 65.2% | 26.0% |
+
+### Qwen3-1.7B vs Qwen2.5 Comparison (Direct ToM)
+
+| Benchmark | 2.5-3B Baseline | 2.5-3B Peak | **Qwen3-1.7B Baseline** | **Qwen3-1.7B Peak** |
+|-----------|----------------|-------------|------------------------|---------------------|
+| tomi | 63.3% | 69.0% | 66.0% | **77.2%** |
+| explore_tom | 47.0% | 85.5% | 48.4% | 76.5% |
+| hi_tom | 19.3% | 36.3% | 35.4% | **43.1%** |
+| belief_mc | 7.2% | 49.7% | 46.2% | **54.0%** |
+| answ_binary | 6.2% | 27.7% | **43.7%** | **44.5%** |
+| info_binary | 4.6% | 51.8% | **65.2%** | **65.7%** |
+
+### Key Findings
+
+1. **Qwen3-1.7B baselines are dramatically stronger** — tomi 66.0% (vs 63.3%), hi_tom 35.4% (vs 19.3%), belief_mc 46.2% (vs 7.2%), info_binary 65.2% (vs 4.6%). Qwen3's native thinking produces much better zero-shot ToM.
+2. **tomi peak: 77.2%** — surpasses both Qwen2.5-3B (69.0%) and Qwen2.5-7B (67.8%) peaks despite being 1.7B parameters.
+3. **Training signal works** — format_error_ratio dropped from 0.178 (step 1) to 0.000 (step 110), reward/mean rose from -1.3 to 2.2.
+4. **Longer responses** — Qwen3 generates ~750 tokens/response vs ~290 for Qwen2.5-3B (2.6x), making steps ~1.6x slower despite faster per-token generation.
+5. **FANToM baselines already high** — info_binary starts at 65.2%, answ_binary at 43.7%, leaving little room for improvement. These barely move during training.
+6. **No collapse** — stable through 200 steps, all metrics plateau rather than degrade.
+
+### Round 20b: Qwen3-1.7B Combined (Dialogue+CGA) — Actor-as-RM, Power Reward
+
+**Config:** Qwen3-1.7B, merged_dialogue_cga_eval_prompt.parquet, actor-as-RM, power reward (k=2.0, ll_min=-8.0), KL=0.05, LR=5e-7, batch=32, mini_batch=128, rollout_n=16, 2 epochs
+
+**Wandb:** `dialogue_cga_combined-Qwen3-1.7B-actorRM-nobaseline-lr5e-7-n16-power-reward-k2.0-llmin-8.0-fantom`
+
+| Step | tomi | explore_tom | hi_tom | belief_mc | answ_bin | answ_list | info_bin | info_list |
+|------|------|-------------|--------|-----------|---------|-----------|----------|-----------|
+| 0 | 66.0% | 48.5% | 35.4% | 46.4% | 43.7% | 26.0% | 65.2% | 26.2% |
+| 10 | **75.4%** | **69.3%** | 28.4% | 48.2% | 43.4% | 28.6% | 65.3% | 25.9% |
+| 30 | 75.9% | 67.2% | 26.2% | **49.1%** | 42.3% | 26.3% | 64.8% | 25.6% |
+| 50 | 76.3% | 69.1% | 25.6% | 47.7% | 43.9% | 26.6% | 65.4% | 25.6% |
+| 80 | 76.0% | 68.3% | 25.6% | 49.1% | 40.5% | 26.9% | 64.9% | 25.5% |
+| 100 | 75.8% | 67.0% | 25.1% | 48.9% | 44.5% | 28.7% | 65.0% | 25.4% |
+| 120 | **76.6%** | 66.8% | 25.1% | 46.8% | 43.3% | 27.4% | 65.2% | 25.6% |
+| 150 | 76.1% | 68.6% | 25.7% | 47.5% | 43.2% | 26.4% | 65.1% | 25.9% |
+| 180 | **76.6%** | 68.3% | **29.0%** | 47.5% | 42.6% | 28.7% | 65.8% | 25.6% |
+| 190 | 76.1% | 68.2% | 27.4% | 47.2% | 43.7% | 26.0% | 65.4% | 25.4% |
+
+### Qwen3-1.7B: Direct ToM vs Combined (Dialogue+CGA)
+
+| Benchmark | Baseline | Direct ToM Peak (20a) | Combined Peak (20b) |
+|-----------|----------|----------------------|---------------------|
+| tomi | 66.0% | **77.2%** | 76.6% |
+| explore_tom | 48.5% | **76.5%** | 69.3% |
+| hi_tom | 35.4% | **43.1%** | 29.0% |
+| belief_mc | 46.4% | **54.0%** | 49.1% |
+| answ_binary | 43.7% | **44.5%** | 44.5% |
+| info_binary | 65.2% | 65.7% | **65.8%** |
+
+### Round 20 Key Findings
+
+1. **Qwen3-1.7B outperforms Qwen2.5-3B on tomi** — 77.2% vs 69.0% with half the parameters. Native thinking mode provides stronger reasoning.
+2. **Direct ToM dominates combined on Qwen3** — unlike Qwen2.5 where combined was competitive, Qwen3 combined underperforms on all ToM metrics.
+3. **hi_tom degrades with combined training** — drops from 35.4% baseline to 24-29%, while direct ToM improves to 43.1%. Dialogue LL reward may not teach higher-order belief reasoning.
+4. **Combined tomi still strong** — 76.6% (+10.6pp from baseline), just below direct ToM's 77.2%.
+5. **FANToM baselines already saturated** — info_binary ~65%, answ_binary ~44% at baseline leave little room for improvement from either approach.
+6. **Qwen3 generates 2.6x longer responses** — ~750 tokens vs ~290 for Qwen2.5-3B, making steps 1.6x slower despite faster per-token generation.

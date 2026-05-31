@@ -154,9 +154,31 @@ FANToM tests ToM reasoning in multi-party conversations — 5 question types:
 - Combined (7B): `dialogue_cga_combined-Qwen2.5-7B-...-fantom` (run `nxg8ii0w`)
 - Direct ToM (7B): `round19-tom3k-rulebased-fantom-Qwen2.5-7B-...` (run `1h44li3k`)
 
+## Round 20: Qwen3 Compatibility + Scaling (2026-05-30)
+
+Made `<answer>` tag extraction optional (`require_answer_tags=False`) for Qwen3 models that use native `<think>` mode without `<answer>` tags. Fixed double `<think>` tag parsing, eval answer extraction, and actor-as-RM stitching.
+
+### Qwen3-1.7B Results
+
+| Benchmark | Baseline | Direct ToM Peak (20a) | Combined Peak (20b) | Qwen2.5-3B Peak |
+|-----------|----------|----------------------|---------------------|-----------------|
+| tomi | 66.0% | **77.2%** | 76.6% | 69.0% |
+| explore_tom | 48.5% | **76.5%** | 69.3% | 85.5% |
+| hi_tom | 35.4% | **43.1%** | 29.0% | 36.3% |
+| belief_mc | 46.4% | **54.0%** | 49.1% | 49.7% |
+| answ_binary | 43.7% | 44.5% | 44.5% | 27.7% |
+| info_binary | 65.2% | 65.7% | 65.8% | 51.8% |
+
+Key: Qwen3-1.7B surpasses Qwen2.5-3B on tomi (77.2% vs 69.0%) with half the parameters. Native thinking mode provides much stronger baselines and training gains. Combined dialogue training underperforms direct ToM on Qwen3, unlike Qwen2.5 where they were competitive.
+
+### Wandb Runs (Round 20)
+
+- Direct ToM (1.7B): `round20-tom3k-rulebased-fantom-Qwen3-1.7B-5e-7-16`
+- Combined (1.7B): `dialogue_cga_combined-Qwen3-1.7B-actorRM-nobaseline-lr5e-7-n16-power-reward-k2.0-llmin-8.0-fantom`
+
 ## Branch & Workflow
 
 - Working branch: `jude/dev`
-- Base model: Qwen2.5-3B-Instruct (also tested 0.5B, 7B)
+- Base model: Qwen2.5-3B-Instruct (also tested 0.5B, 7B), Qwen3-1.7B
 - Training framework: verl (FSDP workers)
 - Reward clipping constants in `verl/workers/fsdp_workers.py`

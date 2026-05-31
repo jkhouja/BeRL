@@ -30,34 +30,51 @@ from typing import Dict, Tuple, Optional, Union, Any
 #     return final_answer, processed_str
 
 # for qwen
-def extract_solution(solution_str: str) -> Tuple[Optional[str], str]:
+def extract_solution(solution_str: str, require_answer_tags: bool = True) -> Tuple[Optional[str], str]:
     """Extracts the final answer from the model's response string.
-    
+
     Args:
         solution_str: Raw response string from the language model
-        
+        require_answer_tags: If True, extract from <answer> tags. If False, extract text after </think>.
+
     Returns:
         Tuple containing (extracted_answer, processed_string)
     """
-    # Split response to isolate assistant output
+    # Split response to isolate assistant output (use last occurrence to handle
+    # Qwen3's double assistant turn: <|im_start|>assistant\n<think><|im_end|>\n<|im_start|>assistant\n<think>...)
     if "Assistant:" in solution_str:
-        processed_str = solution_str.split("Assistant:", 1)[1]
+        processed_str = solution_str.rsplit("Assistant:", 1)[1]
     elif "<|im_start|>assistant" in solution_str:
-        processed_str = solution_str.split("<|im_start|>assistant", 1)[1]
+        processed_str = solution_str.rsplit("<|im_start|>assistant", 1)[1]
     else:
         print("[Error] Failed to locate model response header")
         return None, solution_str
 
-    # Extract final answer using XML-style tags
-    answer_pattern = r'<answer>(.*?)</answer>'
-    matches = list(re.finditer(answer_pattern, processed_str, re.DOTALL))
-    
-    if not matches:
-        print("[Error] No valid answer tags found")
-        return None, processed_str
-        
-    final_answer = matches[-1].group(1).strip()
-    return final_answer, processed_str
+    if require_answer_tags:
+        # Extract final answer using XML-style tags
+        answer_pattern = r'<answer>(.*?)</answer>'
+        matches = list(re.finditer(answer_pattern, processed_str, re.DOTALL))
+
+        if not matches:
+            print("[Error] No valid answer tags found")
+            return None, processed_str
+
+        final_answer = matches[-1].group(1).strip()
+        return final_answer, processed_str
+    else:
+        # Extract text after </think> as the answer
+        if "</think>" in processed_str:
+            answer_text = processed_str.split("</think>", 1)[1].strip()
+            for token in ['<|im_end|>', '<|endoftext|>']:
+                answer_text = answer_text.replace(token, '').strip()
+            # If <answer> tags are present in the extracted text, use them
+            answer_match = re.search(r'<answer>(.*?)</answer>', answer_text, re.DOTALL)
+            if answer_match:
+                answer_text = answer_match.group(1).strip()
+            return answer_text if answer_text else None, processed_str
+        else:
+            print("[Error] No </think> tag found")
+            return None, processed_str
 
 
 def normalize_answer(answer: str) -> str:
@@ -82,12 +99,13 @@ def normalize_answer(answer: str) -> str:
     normalized = re.sub(r'_', ' ', normalized)
     return normalized
 
-def validate_response_structure(processed_str: str) -> bool:
+def validate_response_structure(processed_str: str, require_answer_tags: bool = True) -> bool:
     """Performs comprehensive validation of response structure.
-    
+
     Args:
         processed_str: Processed response string from the model
-        
+        require_answer_tags: If True, require <answer> tags. If False, only require <think> tags.
+
     Returns:
         Boolean indicating whether all formatting requirements are met
     """
@@ -98,9 +116,10 @@ def validate_response_structure(processed_str: str) -> bool:
     tags = {
         'think_start': ('<think>', 1),
         'think_end': ('</think>', 1),
-        'answer_start': ('<answer>', 1),
-        'answer_end': ('</answer>', 1)
     }
+    if require_answer_tags:
+        tags['answer_start'] = ('<answer>', 1)
+        tags['answer_end'] = ('</answer>', 1)
 
     positions = {}
     for tag_name, (tag_str, expected_count) in tags.items():
@@ -114,13 +133,20 @@ def validate_response_structure(processed_str: str) -> bool:
             validation_passed = False
 
     # Verify tag order
-    if (positions['think_start'] > positions['think_end'] or
-        positions['think_end'] > positions['answer_start'] or
-        positions['answer_start'] > positions['answer_end']):
-        print("  [Error] Incorrect tag order: Expected <think>...</think><answer>...</answer>")
-        validation_passed = False
+    if require_answer_tags:
+        if (positions['think_start'] > positions['think_end'] or
+            positions['think_end'] > positions['answer_start'] or
+            positions['answer_start'] > positions['answer_end']):
+            print("  [Error] Incorrect tag order: Expected <think>...</think><answer>...</answer>")
+            validation_passed = False
+        else:
+            print("  Tag sequence validation passed")
     else:
-        print("  Tag sequence validation passed")
+        if positions['think_start'] > positions['think_end']:
+            print("  [Error] Incorrect tag order: Expected <think>...</think>")
+            validation_passed = False
+        else:
+            print("  Tag sequence validation passed")
 
     return validation_passed
 
@@ -209,10 +235,11 @@ def check_answer_correctness(predicted_answer: str, ground_truth: str) -> Tuple[
     print("  Answer validation: MISMATCH")
     return False, -2.0
 
-def compute_score(solution_str: str, 
+def compute_score(solution_str: str,
                  ground_truth: Union[Dict[str, Any], str],
                  format_reward: int = 1,
-                 answer_reward: float = 2.0) -> float:
+                 answer_reward: float = 2.0,
+                 require_answer_tags: bool = True) -> float:
     """Computes comprehensive score for model response.
     
     Args:
@@ -236,11 +263,11 @@ def compute_score(solution_str: str,
     print(f"[Ground Truth] Expected answer: {gt_answer}")
 
     # Extract model answer
-    answer_text, processed_str = extract_solution(solution_str)
+    answer_text, processed_str = extract_solution(solution_str, require_answer_tags=require_answer_tags)
     print(f"\n[Model Response]\n{processed_str}")
 
     # Validate response structure
-    format_correct = validate_response_structure(processed_str)
+    format_correct = validate_response_structure(processed_str, require_answer_tags=require_answer_tags)
     format_score = format_reward if format_correct else -abs(format_reward)
     print(f"\n  Format validation: {'PASS' if format_correct else 'FAIL'}")
     print(f"  Format score: {format_score}")
