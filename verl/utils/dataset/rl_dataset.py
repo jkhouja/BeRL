@@ -70,7 +70,9 @@ class RLHFDataset(Dataset):
                  cache_dir='~/.cache/verl/rlhf',
                  chat_template_func=None,
                  return_raw_chat=False,
-                 truncation='error'):
+                 truncation='error',
+                 system_prompt: str = None,
+                 fold_system_prompt: bool = False):
         if not isinstance(parquet_files, (List, ListConfig)):
             parquet_files = [parquet_files]
 
@@ -86,6 +88,8 @@ class RLHFDataset(Dataset):
         self.return_raw_chat = return_raw_chat
         self.chat_template_func = chat_template_func
         self.truncation = truncation
+        self.system_prompt = system_prompt
+        self.fold_system_prompt = fold_system_prompt
 
         self._download()
         self._read_files_and_tokenize()
@@ -116,6 +120,29 @@ class RLHFDataset(Dataset):
 
         print(f'filter dataset len: {len(self.dataframe)}')
 
+    def _process_system_prompt(self, chat: list) -> list:
+        """Process system prompt: replace/inject and optionally fold into first user message."""
+        chat = [dict(msg) for msg in chat]  # shallow copy each message
+
+        if self.system_prompt is not None:
+            # Find existing system message and replace, or prepend one
+            sys_idx = next((i for i, m in enumerate(chat) if m['role'] == 'system'), None)
+            if sys_idx is not None:
+                chat[sys_idx]['content'] = self.system_prompt
+            else:
+                chat.insert(0, {'role': 'system', 'content': self.system_prompt})
+
+        if self.fold_system_prompt:
+            sys_idx = next((i for i, m in enumerate(chat) if m['role'] == 'system'), None)
+            if sys_idx is not None:
+                sys_content = chat.pop(sys_idx)['content']
+                # Find first user message and prepend system content
+                user_idx = next((i for i, m in enumerate(chat) if m['role'] == 'user'), None)
+                if user_idx is not None:
+                    chat[user_idx]['content'] = f"{sys_content}\n\n{chat[user_idx]['content']}"
+
+        return chat
+
     def __len__(self):
         return len(self.dataframe)
 
@@ -130,8 +157,10 @@ class RLHFDataset(Dataset):
         if self.prompt_is_text:
             prompt_with_chat_template = chat
         else:
+            chat = chat.tolist() if hasattr(chat, 'tolist') else list(chat)
+            chat = self._process_system_prompt(chat)
             prompt_with_chat_template = self.tokenizer.apply_chat_template(
-                chat.tolist() if hasattr(chat, 'tolist') else list(chat),
+                chat,
                 add_generation_prompt=True,
                 tokenize=False)
 
@@ -160,7 +189,12 @@ class RLHFDataset(Dataset):
 
         # encode prompts without chat template
         if self.return_raw_chat:
-            row_dict['raw_prompt'] = chat.tolist()
+            row_dict['raw_prompt'] = chat if isinstance(chat, list) else chat.tolist()
+        elif 'raw_prompt' in row_dict and (self.system_prompt is not None or self.fold_system_prompt):
+            # Process raw_prompt from parquet to match system prompt changes
+            raw = row_dict['raw_prompt']
+            raw = raw.tolist() if hasattr(raw, 'tolist') else list(raw)
+            row_dict['raw_prompt'] = self._process_system_prompt(raw)
 
         # add index for each prompt
         index = row_dict.get("extra_info", {}).get("index", 0)
