@@ -18,11 +18,12 @@ Note that we don't combine the main with ray_trainer as ray_trainer is used by o
 from verl import DataProto
 import torch
 from verl.utils.reward_score import gsm8k, math, multiply, countdown, explore_tom, fantom
+from verl.utils.reward_score.response_parser import get_parser, ModelResponseParser
 from verl.trainer.ppo.ray_trainer import RayPPOTrainer
 
 
 def _select_rm_score_fn(data_source):
-    """Returns (score_fn, supports_answer_tags) tuple."""
+    """Returns (score_fn, supports_parser) tuple."""
     if data_source == 'openai/gsm8k':
         return gsm8k.compute_score, False
     elif data_source == 'lighteval/MATH':
@@ -43,11 +44,13 @@ class RewardManager():
     """The reward manager.
     """
 
-    def __init__(self, tokenizer, num_examine, phase='train', require_answer_tags=True) -> None:
+    def __init__(self, tokenizer, num_examine, phase='train', require_answer_tags=True,
+                 parser: ModelResponseParser = None) -> None:
         self.tokenizer = tokenizer
-        self.num_examine = num_examine  # the number of batches of decoded responses to print to the console
+        self.num_examine = num_examine
         self.phase = phase
         self.require_answer_tags = require_answer_tags
+        self.parser = parser
 
     def __call__(self, data: DataProto, step=None):
         """We will expand this function gradually based on the available datasets"""
@@ -82,9 +85,12 @@ class RewardManager():
 
             # select rm_score
             data_source = data_item.non_tensor_batch['data_source']
-            compute_score_fn, supports_answer_tags = _select_rm_score_fn(data_source)
+            compute_score_fn, supports_parser = _select_rm_score_fn(data_source)
 
-            if supports_answer_tags:
+            if supports_parser and self.parser is not None:
+                score = compute_score_fn(solution_str=sequences_str, ground_truth=ground_truth,
+                                         parser=self.parser)
+            elif supports_parser:
                 score = compute_score_fn(solution_str=sequences_str, ground_truth=ground_truth,
                                          require_answer_tags=self.require_answer_tags)
             else:
@@ -142,6 +148,32 @@ def main_task(config):
     from verl.utils import hf_tokenizer
     tokenizer = hf_tokenizer(local_path)
 
+    # Auto-detect model type and create parser
+    from transformers import AutoConfig
+    model_type = None
+    try:
+        model_config = AutoConfig.from_pretrained(local_path, trust_remote_code=True)
+        model_type = model_config.model_type
+    except Exception:
+        pass
+
+    if model_type is None:
+        # Fallback: detect from model path name
+        model_path_lower = config.actor_rollout_ref.model.path.lower()
+        if 'qwen3' in model_path_lower:
+            model_type = 'qwen3'
+        elif 'gemma-2' in model_path_lower or 'gemma2' in model_path_lower:
+            model_type = 'gemma2'
+        elif 'gemma' in model_path_lower:
+            model_type = 'gemma'
+        elif 'qwen' in model_path_lower:
+            model_type = 'qwen2'
+        else:
+            model_type = 'qwen2'
+        print(f"Auto-detected model type from path: {model_type}")
+
+    parser = get_parser(model_type)
+
     # define worker classes
     if config.actor_rollout_ref.actor.strategy == 'fsdp':
         assert config.actor_rollout_ref.actor.strategy == config.critic.strategy
@@ -193,11 +225,13 @@ def main_task(config):
         mapping[Role.RewardModel] = global_pool_id
 
     reward_fn = RewardManager(tokenizer=tokenizer, num_examine=1, phase='train',
-                              require_answer_tags=config.reward_model.get('require_answer_tags', True))
+                              require_answer_tags=config.reward_model.get('require_answer_tags', True),
+                              parser=parser)
 
     # Note that we always use function-based RM for validation
     val_reward_fn = RewardManager(tokenizer=tokenizer, num_examine=1, phase='val',
-                                  require_answer_tags=config.reward_model.get('require_answer_tags', True))
+                                  require_answer_tags=config.reward_model.get('require_answer_tags', True),
+                                  parser=parser)
 
     resource_pool_manager = ResourcePoolManager(resource_pool_spec=resource_pool_spec, mapping=mapping)
 

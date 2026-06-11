@@ -18,6 +18,7 @@ from verl.utils.reward_score.explore_tom import (
     validate_response_structure,
     normalize_answer,
 )
+from verl.utils.reward_score.response_parser import ModelResponseParser
 
 
 def _check_mc(predicted: str, correct_letter: str) -> bool:
@@ -80,7 +81,8 @@ def compute_score(solution_str: str,
                   ground_truth: Union[Dict[str, Any], str],
                   format_reward: int = 1,
                   answer_reward: float = 2.0,
-                  require_answer_tags: bool = True) -> float:
+                  require_answer_tags: bool = True,
+                  parser: ModelResponseParser = None) -> float:
     """Compute score for a FANToM sample.
 
     Args:
@@ -123,11 +125,11 @@ def compute_score(solution_str: str,
     print(f"[Ground Truth] {gt_answer}  (type={question_type})")
 
     # Extract model answer
-    answer_text, processed_str = extract_solution(solution_str, require_answer_tags=require_answer_tags)
+    answer_text, processed_str = extract_solution(solution_str, require_answer_tags=require_answer_tags, parser=parser)
     print(f"\n[Model Response]\n{processed_str[:500]}")
 
     # Format validation
-    format_correct = validate_response_structure(processed_str, require_answer_tags=require_answer_tags)
+    format_correct = validate_response_structure(processed_str, require_answer_tags=require_answer_tags, parser=parser)
     format_score = format_reward if format_correct else -abs(format_reward)
     print(f"\n  Format score: {format_score}")
 

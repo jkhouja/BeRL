@@ -2,8 +2,22 @@ import re
 import random
 
 
-def extract_solution(solution_str):
-    # Remove everything before the first "Assistant:"
+def extract_solution(solution_str, parser=None):
+    if parser is not None:
+        processed = parser.extract_assistant_response(solution_str)
+        if processed is None:
+            return None
+        answer_pattern = r'<answer>(.*?)</answer>'
+        matches = list(re.finditer(answer_pattern, processed))
+        if matches:
+            final_answer = matches[-1].group(1).strip()
+            try:
+                return int(final_answer)
+            except ValueError:
+                return None
+        return None
+
+    # Legacy path
     if "Assistant:" in solution_str:
         solution_str = solution_str.split("Assistant:", 1)[1]
     else:

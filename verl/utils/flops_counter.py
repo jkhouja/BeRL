@@ -13,9 +13,22 @@
 # limitations under the License.
 
 import torch
-from transformers import PretrainedConfig, Qwen2Config, LlamaConfig
+from transformers import PretrainedConfig, Qwen2Config, LlamaConfig, GemmaConfig
+try:
+    from transformers import Gemma2Config as _Gemma2Config
+except ImportError:
+    _Gemma2Config = None
+try:
+    from transformers import Qwen3Config
+except ImportError:
+    Qwen3Config = None
 
-VALID_CONFIG_TYPE = (Qwen2Config, LlamaConfig)
+_valid_configs = [Qwen2Config, LlamaConfig, GemmaConfig]
+if _Gemma2Config is not None:
+    _valid_configs.append(_Gemma2Config)
+if Qwen3Config is not None:
+    _valid_configs.append(Qwen3Config)
+VALID_CONFIG_TYPE = tuple(_valid_configs)
 
 
 def get_device_flops(unit="T"):
@@ -63,14 +76,14 @@ class FlopsCounter:
             print(f"Only support config type of {VALID_CONFIG_TYPE}, but got {type(config)}. "
                   f"MFU will always be zero.")
 
-        self.estimate_func = {"qwen2": self._estimate_qwen2_flops, 'llama': self._estimate_qwen2_flops}
+        self.estimate_func = {"qwen2": self._estimate_qwen2_flops, 'llama': self._estimate_qwen2_flops, 'qwen3': self._estimate_qwen2_flops, 'gemma': self._estimate_qwen2_flops, 'gemma2': self._estimate_qwen2_flops}
         self.config = config
 
     def _estimate_unknown_flops(self, tokens_sum, batch_seqlens, delta_time):
         return 0
 
     def _estimate_qwen2_flops(self, tokens_sum, batch_seqlens, delta_time):
-        assert isinstance(self.config, (Qwen2Config, LlamaConfig))
+        assert isinstance(self.config, VALID_CONFIG_TYPE)
         hidden_size = self.config.hidden_size
         vocab_size = self.config.vocab_size
         num_hidden_layers = self.config.num_hidden_layers

@@ -185,6 +185,53 @@ def qwen2_dtensor_weight_loader(actor_weights: Dict, vllm_model: nn.Module) -> n
             weight_loader(param, local_loaded_weight.to(dtype=param.dtype))
 
 
+def qwen3_dtensor_weight_loader(actor_weights: Dict, vllm_model: nn.Module) -> nn.Module:
+    """Qwen3 weight loader — same as Qwen2 but skips q_norm/k_norm layers
+    that exist in Qwen3 but not in vllm 0.6.3's Qwen2 model."""
+    stacked_params_mapping = [
+        # (param_name, shard_name, shard_id)
+        ("qkv_proj", "q_proj", "q"),
+        ("qkv_proj", "k_proj", "k"),
+        ("qkv_proj", "v_proj", "v"),
+        ("gate_up_proj", "gate_proj", 0),
+        ("gate_up_proj", "up_proj", 1),
+    ]
+    params_dict = dict(vllm_model.named_parameters(remove_duplicate=False))
+    for name, loaded_weight in actor_weights.items():
+        if "rotary_emb.inv_freq" in name:
+            continue
+        if vllm_model.config.tie_word_embeddings and "lm_head.weight" in name:
+            continue
+        # Qwen3 q_norm/k_norm: load into vllm model if present, skip otherwise
+        if "q_norm" in name or "k_norm" in name:
+            if name in params_dict:
+                param = params_dict[name]
+                local_loaded_weight = redistribute_dtensor(param_name=name, loaded_weights=loaded_weight)
+                weight_loader = getattr(param, "weight_loader", default_weight_loader)
+                weight_loader(param, local_loaded_weight.to(dtype=param.dtype))
+            continue
+        for param_name, weight_name, shard_id in stacked_params_mapping:
+            if weight_name not in name:
+                continue
+            name = name.replace(weight_name, param_name)
+            # Skip loading extra bias for GPTQ models.
+            if name.endswith(".bias") and name not in params_dict:
+                continue
+            local_loaded_weight = redistribute_dtensor(param_name=name, loaded_weights=loaded_weight)
+            param = params_dict[name]
+            weight_loader = param.weight_loader
+            weight_loader(param, local_loaded_weight.to(dtype=param.dtype), shard_id)
+            break
+        else:
+            # Skip loading extra bias for GPTQ models.
+            if name.endswith(".bias") and name not in params_dict:
+                continue
+            param = params_dict[name]
+            local_loaded_weight = redistribute_dtensor(param_name=name, loaded_weights=loaded_weight)
+            weight_loader = getattr(param, "weight_loader", default_weight_loader)
+            weight_loader(param, local_loaded_weight.to(dtype=param.dtype))
+
+
 def qwen2vl_dtensor_weight_loader(actor_weights: Dict, vllm_model: nn.Module) -> nn.Module:
     stacked_params_mapping = [
         # (param_name, shard_name, shard_id)
@@ -353,6 +400,7 @@ __MODEL_DTENSOR_WEIGHT_LOADER_REGISTRY__ = {
     "GPTBigCodeForCausalLM": gptbigcode_dtensor_load_weights,
     "Starcoder2ForCausalLM": starcoder2_dtensor_load_weights,
     "Qwen2ForCausalLM": qwen2_dtensor_weight_loader,
+    "Qwen3ForCausalLM": qwen3_dtensor_weight_loader,
     "DeepseekV2ForCausalLM": deepseekv2_dtensor_weight_loader,
     "Qwen2VLForConditionalGeneration": qwen2vl_dtensor_weight_loader,
 }
@@ -361,8 +409,20 @@ __MODEL_DTENSOR_WEIGHT_LOADER_REGISTRY__ = {
 # the actor model is .state_dict()
 # Load dtensor weights
 def load_dtensor_weights(actor_weights: Dict, vllm_model: nn.Module):
-    weight_loader = _get_model_weight_loader(vllm_model.__class__.__name__)
+    # Use HF config architectures if available (handles Qwen3->Qwen2 model mapping)
+    arch = vllm_model.__class__.__name__
+    if hasattr(vllm_model, 'config') and hasattr(vllm_model.config, 'architectures') and vllm_model.config.architectures:
+        hf_arch = vllm_model.config.architectures[0]
+        if hf_arch in __MODEL_DTENSOR_WEIGHT_LOADER_REGISTRY__:
+            arch = hf_arch
+    weight_loader = _get_model_weight_loader(arch)
     weight_loader(actor_weights, vllm_model)
+    # DEBUG: verify QK-norm loaded for Qwen3
+    if hasattr(vllm_model, 'config') and getattr(vllm_model.config, 'model_type', '') == 'qwen3':
+        first_attn = vllm_model.model.layers[0].self_attn
+        print(f"[DEBUG QK-norm] q_norm={first_attn.q_norm}, k_norm={first_attn.k_norm}")
+        if first_attn.q_norm is not None:
+            print(f"[DEBUG QK-norm] q_norm.weight mean={first_attn.q_norm.weight.mean().item():.6f} std={first_attn.q_norm.weight.std().item():.6f}")
     # NOTE(sgm) to reduce peak memory usage, we offload vllm model to cpu
     # after init, and we need this after sync model weights for in first iter.
     vllm_model = vllm_model.cuda()

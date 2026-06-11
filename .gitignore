@@ -115,3 +115,7 @@ tests/e2e/toy_examples/deepspeed/synchronous/output.txt
 */baseline/
 global_step_500/
 ckpts/
+# Local environment, logs, and generated data
+.venv/
+logs/
+data/

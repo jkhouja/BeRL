@@ -137,6 +137,9 @@ class ActorRolloutRefWorker(Worker):
         self.power_ll_min = self.config.get("power_ll_min", self.config.actor.get("power_ll_min", -2.0))
         self.require_answer_tags = self.config.get("require_answer_tags", True)
 
+        # Response parser (will be initialized after model config is loaded)
+        self._parser = None
+
         # normalize config
         if self._is_actor:
             self.config.actor.ppo_mini_batch_size //= (self.device_mesh.shape[0] // self.ulysses_sequence_parallel_size)
@@ -394,6 +397,9 @@ class ActorRolloutRefWorker(Worker):
 
         if self._is_actor:
             self.flops_counter = FlopsCounter(self.actor_model_config)
+            # Initialize response parser from model config
+            from verl.utils.reward_score.response_parser import get_parser
+            self._parser = get_parser(self.actor_model_config.model_type)
 
         torch.cuda.empty_cache()
 
@@ -598,16 +604,15 @@ class ActorRolloutRefWorker(Worker):
 
             # Check for valid format
             invalid_response = torch.tensor([False])
-            if "</think>" not in response:
+            if self._parser.THINK_CLOSE not in response:
                 invalid_response = torch.tensor([True])
 
             # Extract thinking part, stitch with ground truth
-            response_parts = response.split("</think>")
-            response_tom = "<think>" + response_parts[0] + "</think>"
-            response_tom = response_tom.replace(tokenizer.eos_token, '')
+            thinking, answer_part = self._parser.split_thinking(response)
+            thinking = thinking.replace(tokenizer.eos_token, '')
 
             # Get thinking length
-            chat_tom = chat + [{'role': 'assistant', 'content': response_tom}]
+            chat_tom = chat + [{'role': 'assistant', 'content': thinking}]
             prompt_with_chat_template_tom = tokenizer.apply_chat_template(
                 chat_tom, add_generation_prompt=False, tokenize=False)
             prompt_thinking_tokens = tokenizer(prompt_with_chat_template_tom,
@@ -616,9 +621,8 @@ class ActorRolloutRefWorker(Worker):
 
             # Stitch ground truth answer
             actual_response = data.non_tensor_batch['reward_model'][i]['ground_truth']
-            if self.require_answer_tags or "<answer>" in response:
-                actual_response = "<answer>" + actual_response + "</answer>"
-            full_response = response_tom + actual_response
+            model_used_answer_tags = "<answer>" in response
+            full_response = self._parser.build_stitched_response(thinking, actual_response, model_used_answer_tags)
             full_chat = chat + [{'role': 'assistant', 'content': full_response}]
             prompt_with_chat_template = tokenizer.apply_chat_template(
                 full_chat, add_generation_prompt=False, tokenize=False)
@@ -671,7 +675,8 @@ class ActorRolloutRefWorker(Worker):
         output = self.actor_module_fsdp(
             input_ids=input_ids,
             attention_mask=attention_mask,
-            position_ids=position_ids)
+            position_ids=position_ids,
+            use_cache=False)
         logits = output.logits
 
         log_prob = logprobs_from_logits_v2(logits, labels, response_mask)
@@ -1012,6 +1017,7 @@ class RewardModelWorker(Worker):
 
         self.use_remove_padding = self.config.model.get('use_remove_padding', False)
         self.config.micro_batch_size //= torch.distributed.get_world_size()
+        self._parser = None  # initialized in _build_model
 
     def _build_model(self, config):
         # the following line is necessary
@@ -1032,7 +1038,10 @@ class RewardModelWorker(Worker):
 
         trust_remote_code = config.model.get('trust_remote_code', False)
         model_config = AutoConfig.from_pretrained(local_path, trust_remote_code=trust_remote_code)
-        
+
+        # Initialize response parser from model config
+        from verl.utils.reward_score.response_parser import get_parser
+        self._parser = get_parser(model_config.model_type)
 
         use_remove_padding = config.model.get('use_remove_padding', False)
         if use_remove_padding:
@@ -1110,7 +1119,8 @@ class RewardModelWorker(Worker):
             else:
                 output = self.reward_module(input_ids=input_ids,
                                             attention_mask=attention_mask,
-                                            position_ids=position_ids)
+                                            position_ids=position_ids,
+                                            use_cache=False)
                 logits = output.logits  # (batch_size, seq_len, 1)
                 #rm_score = rm_score.squeeze(-1)
 
@@ -1192,23 +1202,17 @@ class RewardModelWorker(Worker):
 
             # Extract thinking part
             invalid_response = torch.tensor([False])
-            if "</think>" not in response:
+            if self._parser.THINK_CLOSE not in response:
                 invalid_response = torch.tensor([True])
-                # Return 0 for reward?
 
-            # Add the thinking tokens manually (TODO: Jude, move this to data processing)
-            respnose_parts = response.split("</think>")
-            response_tom = "<think>" + respnose_parts[0] + "</think>"
-            response_model = ""
-            
-            if len(respnose_parts) > 1:
-                response_model = response.split("</think>")[1]
+            # Split into thinking and answer parts
+            thinking, response_model = self._parser.split_thinking(response)
 
             # remove bos and eos
-            response_tom = response_tom.replace(src_tokenizer.eos_token, '')
+            thinking = thinking.replace(src_tokenizer.eos_token, '')
             
             # Add the thinking part of model response to calculate length
-            chat_tom = chat + [{'role': 'assistant', 'content': response_tom}]
+            chat_tom = chat + [{'role': 'assistant', 'content': thinking}]
 
             prompt_with_chat_template_tom = target_tokenizer.apply_chat_template(chat_tom,
                                                                              add_generation_prompt=False,
@@ -1217,13 +1221,10 @@ class RewardModelWorker(Worker):
             prompt_thinking_tokens = target_tokenizer(prompt_with_chat_template_tom, return_tensors='pt', add_special_tokens=False) 
             thinking_length = prompt_thinking_tokens['input_ids'].shape[-1]
             
-            # Now stich the True next utterance to model thinking
-
+            # Now stitch the True next utterance to model thinking
             actual_response = data.non_tensor_batch['reward_model'][i]['ground_truth']
-            # TODO: Move answer tags to data generation
-            if self.config.get('require_answer_tags', True) or "<answer>" in response_model:
-                actual_response = "<answer>" + actual_response + "</answer>"
-            response = response_tom + actual_response
+            model_used_answer_tags = "<answer>" in response_model
+            response = self._parser.build_stitched_response(thinking, actual_response, model_used_answer_tags)
             chat = chat + [{'role': 'assistant', 'content': response}]
 
             prompt_with_chat_template = target_tokenizer.apply_chat_template(chat,

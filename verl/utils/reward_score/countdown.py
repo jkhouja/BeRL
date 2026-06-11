@@ -4,9 +4,20 @@ import ast
 import operator
 
 
-def extract_solution(solution_str):
+def extract_solution(solution_str, parser=None):
     """Extract the equation from the solution string."""
-    # Remove everything before the first "Assistant:"
+    if parser is not None:
+        processed = parser.extract_assistant_response(solution_str)
+        if processed is None:
+            return None
+        processed = processed.split('\n')[-1]
+        answer_pattern = r'<answer>(.*?)</answer>'
+        matches = list(re.finditer(answer_pattern, processed))
+        if matches:
+            return matches[-1].group(1).strip()
+        return None
+
+    # Legacy path
     if "Assistant:" in solution_str:
         solution_str = solution_str.split("Assistant:", 1)[1]
     elif "<|im_start|>assistant" in solution_str:

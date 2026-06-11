@@ -1,47 +1,31 @@
 import re
 from typing import Dict, Tuple, Optional, Union, Any
 
-# for dpsk
-# def extract_solution(solution_str: str) -> Tuple[Optional[str], str]:
-#     """Extracts the final answer from the model's response string.
-    
-#     Args:
-#         solution_str: Raw response string from the language model
-        
-#     Returns:
-#         Tuple containing (extracted_answer, processed_string)
-#     """
-#     # Split response to isolate assistant output
-#     if "<｜Assistant｜>" in solution_str:
-#         processed_str = solution_str.split("<｜Assistant｜>", 1)[1]
-#     else:
-#         print("[Error] Failed to locate model response header")
-#         return None, solution_str
+from verl.utils.reward_score.response_parser import ModelResponseParser, get_parser
 
-#     # Extract final answer using XML-style tags
-#     answer_pattern = r'<answer>(.*?)</answer>'
-#     matches = list(re.finditer(answer_pattern, processed_str, re.DOTALL))
-    
-#     if not matches:
-#         print("[Error] No valid answer tags found")
-#         return None, processed_str
-        
-#     final_answer = matches[-1].group(1).strip()
-#     return final_answer, processed_str
 
-# for qwen
-def extract_solution(solution_str: str, require_answer_tags: bool = True) -> Tuple[Optional[str], str]:
+def extract_solution(solution_str: str, require_answer_tags: bool = True,
+                     parser: ModelResponseParser = None) -> Tuple[Optional[str], str]:
     """Extracts the final answer from the model's response string.
 
     Args:
         solution_str: Raw response string from the language model
         require_answer_tags: If True, extract from <answer> tags. If False, extract text after </think>.
+            Ignored if parser is provided (parser.REQUIRE_ANSWER_TAGS is used instead).
+        parser: Optional ModelResponseParser instance. If None, uses legacy behavior.
 
     Returns:
         Tuple containing (extracted_answer, processed_string)
     """
-    # Split response to isolate assistant output (use last occurrence to handle
-    # Qwen3's double assistant turn: <|im_start|>assistant\n<think><|im_end|>\n<|im_start|>assistant\n<think>...)
+    if parser is not None:
+        processed_str = parser.extract_assistant_response(solution_str)
+        if processed_str is None:
+            print("[Error] Failed to locate model response header")
+            return None, solution_str
+        answer = parser.extract_answer(processed_str)
+        return answer, processed_str
+
+    # Legacy path (no parser provided) — keep for backward compatibility
     if "Assistant:" in solution_str:
         processed_str = solution_str.rsplit("Assistant:", 1)[1]
     elif "<|im_start|>assistant" in solution_str:
@@ -51,23 +35,18 @@ def extract_solution(solution_str: str, require_answer_tags: bool = True) -> Tup
         return None, solution_str
 
     if require_answer_tags:
-        # Extract final answer using XML-style tags
         answer_pattern = r'<answer>(.*?)</answer>'
         matches = list(re.finditer(answer_pattern, processed_str, re.DOTALL))
-
         if not matches:
             print("[Error] No valid answer tags found")
             return None, processed_str
-
         final_answer = matches[-1].group(1).strip()
         return final_answer, processed_str
     else:
-        # Extract text after </think> as the answer
         if "</think>" in processed_str:
             answer_text = processed_str.split("</think>", 1)[1].strip()
             for token in ['<|im_end|>', '<|endoftext|>']:
                 answer_text = answer_text.replace(token, '').strip()
-            # If <answer> tags are present in the extracted text, use them
             answer_match = re.search(r'<answer>(.*?)</answer>', answer_text, re.DOTALL)
             if answer_match:
                 answer_text = answer_match.group(1).strip()
@@ -99,20 +78,26 @@ def normalize_answer(answer: str) -> str:
     normalized = re.sub(r'_', ' ', normalized)
     return normalized
 
-def validate_response_structure(processed_str: str, require_answer_tags: bool = True) -> bool:
+def validate_response_structure(processed_str: str, require_answer_tags: bool = True,
+                                parser: ModelResponseParser = None) -> bool:
     """Performs comprehensive validation of response structure.
 
     Args:
         processed_str: Processed response string from the model
         require_answer_tags: If True, require <answer> tags. If False, only require <think> tags.
+            Ignored if parser is provided.
+        parser: Optional ModelResponseParser instance. If provided, delegates to parser.
 
     Returns:
         Boolean indicating whether all formatting requirements are met
     """
+    if parser is not None:
+        return parser.validate_structure(processed_str)
+
+    # Legacy path
     print("\n[Structure Validation]")
     validation_passed = True
 
-    # Check required tags
     tags = {
         'think_start': ('<think>', 1),
         'think_end': ('</think>', 1),
@@ -125,14 +110,13 @@ def validate_response_structure(processed_str: str, require_answer_tags: bool = 
     for tag_name, (tag_str, expected_count) in tags.items():
         count = processed_str.count(tag_str)
         positions[tag_name] = pos = processed_str.find(tag_str)
-        
+
         print(f"  {tag_str}: count={count}, position={pos}")
-        
+
         if count != expected_count:
             print(f"  [Error] {tag_str} appears {count} times (expected {expected_count})")
             validation_passed = False
 
-    # Verify tag order
     if require_answer_tags:
         if (positions['think_start'] > positions['think_end'] or
             positions['think_end'] > positions['answer_start'] or
@@ -239,7 +223,8 @@ def compute_score(solution_str: str,
                  ground_truth: Union[Dict[str, Any], str],
                  format_reward: int = 1,
                  answer_reward: float = 2.0,
-                 require_answer_tags: bool = True) -> float:
+                 require_answer_tags: bool = True,
+                 parser: ModelResponseParser = None) -> float:
     """Computes comprehensive score for model response.
     
     Args:
@@ -263,11 +248,11 @@ def compute_score(solution_str: str,
     print(f"[Ground Truth] Expected answer: {gt_answer}")
 
     # Extract model answer
-    answer_text, processed_str = extract_solution(solution_str, require_answer_tags=require_answer_tags)
+    answer_text, processed_str = extract_solution(solution_str, require_answer_tags=require_answer_tags, parser=parser)
     print(f"\n[Model Response]\n{processed_str}")
 
     # Validate response structure
-    format_correct = validate_response_structure(processed_str, require_answer_tags=require_answer_tags)
+    format_correct = validate_response_structure(processed_str, require_answer_tags=require_answer_tags, parser=parser)
     format_score = format_reward if format_correct else -abs(format_reward)
     print(f"\n  Format validation: {'PASS' if format_correct else 'FAIL'}")
     print(f"  Format score: {format_score}")

@@ -198,6 +198,43 @@ def qwen2_dtensor_weight_loader(actor_weights: Dict, vllm_model: nn.Module) -> n
             weight_loader(param, local_loaded_weight.to(dtype=param.dtype))
 
 
+def qwen3_dtensor_weight_loader(actor_weights: Dict, vllm_model: nn.Module) -> nn.Module:
+    """Qwen3 weight loader — same as Qwen2 but skips q_norm/k_norm layers."""
+    stacked_params_mapping = [
+        ("qkv_proj", "q_proj", "q"),
+        ("qkv_proj", "k_proj", "k"),
+        ("qkv_proj", "v_proj", "v"),
+        ("gate_up_proj", "gate_proj", 0),
+        ("gate_up_proj", "up_proj", 1),
+    ]
+    params_dict = dict(vllm_model.named_parameters(remove_duplicate=False))
+    for name, loaded_weight in actor_weights.items():
+        if "rotary_emb.inv_freq" in name:
+            continue
+        if vllm_model.config.tie_word_embeddings and "lm_head.weight" in name:
+            continue
+        if "q_norm" in name or "k_norm" in name:
+            continue
+        for (param_name, weight_name, shard_id) in stacked_params_mapping:
+            if weight_name not in name:
+                continue
+            name = name.replace(weight_name, param_name)
+            if name.endswith(".bias") and name not in params_dict:
+                continue
+            local_loaded_weight = redistribute_dtensor(param_name=name, loaded_weights=loaded_weight)
+            param = params_dict[name]
+            weight_loader = param.weight_loader
+            weight_loader(param, local_loaded_weight.to(dtype=param.dtype), shard_id)
+            break
+        else:
+            if name.endswith(".bias") and name not in params_dict:
+                continue
+            param = params_dict[name]
+            local_loaded_weight = redistribute_dtensor(param_name=name, loaded_weights=loaded_weight)
+            weight_loader = getattr(param, "weight_loader", default_weight_loader)
+            weight_loader(param, local_loaded_weight.to(dtype=param.dtype))
+
+
 def gpt2_dtensor_weight_loader(actor_weights: Dict, vllm_model: nn.Module) -> nn.Module:
     pass
 
@@ -243,7 +280,8 @@ __MODEL_DTENSOR_WEIGHT_LOADER_REGISTRY__ = {
     'GemmaForCausalLM': gemma_dtensor_weight_loader,
     'GPTBigCodeForCausalLM': gptbigcode_dtensor_load_weights,
     'Starcoder2ForCausalLM': starcoder2_dtensor_load_weights,
-    'Qwen2ForCausalLM': qwen2_dtensor_weight_loader
+    'Qwen2ForCausalLM': qwen2_dtensor_weight_loader,
+    'Qwen3ForCausalLM': qwen3_dtensor_weight_loader
 }
 
 
