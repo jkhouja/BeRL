@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parquet Viewer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f1117;
+    color: #e1e4e8;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  header h1 { font-size: 17px; font-weight: 600; color: #f0f6fc; letter-spacing: -0.3px; }
+  .badge {
+    background: #21262d;
+    border: 1px solid #30363d;
+    border-radius: 20px;
+    padding: 2px 10px;
+    font-size: 12px;
+    color: #8b949e;
+  }
+
+  .btn {
+    background: #238636;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .btn:hover { background: #2ea043; }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.secondary { background: #21262d; border: 1px solid #30363d; color: #c9d1d9; }
+  .btn.secondary:hover { background: #30363d; }
+  .btn.ghost { background: transparent; border: 1px solid #30363d; color: #8b949e; }
+  .btn.ghost:hover { background: #21262d; color: #c9d1d9; }
+
+  #upload-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+  }
+  .drop-zone {
+    border: 2px dashed #30363d;
+    border-radius: 12px;
+    padding: 60px 80px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #161b22;
+    max-width: 480px;
+    width: 100%;
+  }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: #58a6ff; background: #1c2333; }
+  .drop-zone svg { width: 44px; height: 44px; color: #8b949e; margin-bottom: 14px; }
+  .drop-zone h2 { font-size: 15px; color: #f0f6fc; margin-bottom: 6px; }
+  .drop-zone p { font-size: 13px; color: #8b949e; }
+
+  #app { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+
+  .toolbar {
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    padding: 9px 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .toolbar .file-name { font-size: 13px; color: #8b949e; margin-right: auto; }
+  .toolbar .file-name strong { color: #f0f6fc; }
+  .nav-controls { display: flex; align-items: center; gap: 8px; }
+  .nav-input {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    color: #f0f6fc;
+    padding: 5px 10px;
+    font-size: 13px;
+    width: 74px;
+    text-align: center;
+  }
+  .nav-input:focus { outline: none; border-color: #58a6ff; }
+  .nav-sep { font-size: 12px; color: #8b949e; }
+
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  .sidebar {
+    width: 210px;
+    min-width: 150px;
+    background: #161b22;
+    border-right: 1px solid #30363d;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .sidebar-header {
+    padding: 11px 14px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #8b949e;
+    border-bottom: 1px solid #21262d;
+    flex-shrink: 0;
+  }
+  .column-list { overflow-y: auto; flex: 1; }
+  .column-item {
+    padding: 9px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    color: #c9d1d9;
+    transition: all 0.1s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .column-item:hover { background: #1c2333; color: #f0f6fc; }
+  .column-item.active { background: #1c2333; border-left-color: #58a6ff; color: #58a6ff; font-weight: 500; }
+  .col-type {
+    display: inline-block;
+    font-size: 10px;
+    color: #8b949e;
+    background: #21262d;
+    border-radius: 3px;
+    padding: 1px 5px;
+    flex-shrink: 0;
+  }
+
+  .detail-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #0d1117; }
+  .detail-header {
+    padding: 12px 20px 10px;
+    border-bottom: 1px solid #21262d;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .detail-header h2 { font-size: 15px; font-weight: 600; color: #f0f6fc; }
+  .type-badge {
+    font-size: 11px;
+    color: #8b949e;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    padding: 2px 8px;
+  }
+  .detail-content { flex: 1; overflow-y: auto; padding: 18px 20px; }
+
+  .value-box {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 16px 18px;
+    font-size: 13.5px;
+    line-height: 1.75;
+    color: #e1e4e8;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: 'SF Mono','Fira Code','Cascadia Code',Consolas,monospace;
+    min-height: 100px;
+  }
+  .value-box.prose {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14.5px;
+    line-height: 1.8;
+  }
+  .value-null { color: #6e7681; font-style: italic; }
+
+  .overview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
+  .overview-card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 13px 15px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .overview-card:hover { border-color: #58a6ff; }
+  .card-col {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #58a6ff;
+    margin-bottom: 6px;
+  }
+  .card-val {
+    font-size: 12.5px;
+    color: #c9d1d9;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 90px;
+    overflow: hidden;
+    position: relative;
+    font-family: 'SF Mono','Fira Code',Consolas,monospace;
+    line-height: 1.6;
+  }
+  .card-val.prose { font-family: inherit; }
+  .card-val::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 28px;
+    background: linear-gradient(transparent, #161b22);
+  }
+
+  .stats-bar {
+    background: #161b22;
+    border-top: 1px solid #30363d;
+    padding: 7px 20px;
+    display: flex;
+    gap: 20px;
+    font-size: 12px;
+    color: #8b949e;
+    flex-shrink: 0;
+  }
+  .stats-bar span strong { color: #c9d1d9; }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+  #file-input { display: none; }
+
+  .loading {
+    display: flex; align-items: center; justify-content: center;
+    gap: 10px; color: #8b949e; font-size: 14px; padding: 48px;
+  }
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid #30363d;
+    border-top-color: #58a6ff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-msg {
+    background: #2d1117;
+    border: 1px solid #f85149;
+    border-radius: 8px;
+    padding: 14px 18px;
+    color: #f85149;
+    font-size: 13px;
+    margin: 20px;
+    white-space: pre-wrap;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Parquet Viewer</h1>
+  <span class="badge" id="row-count-badge" style="display:none"></span>
+  <label for="file-input" class="btn secondary" style="margin-left:auto">Open file</label>
+  <input type="file" id="file-input" accept=".parquet">
+</header>
+
+<div id="upload-area">
+  <div class="drop-zone" id="drop-zone">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+    </svg>
+    <h2>Drop a Parquet file here</h2>
+    <p>or click "Open file" to browse</p>
+  </div>
+</div>
+
+<div id="app">
+  <div class="toolbar">
+    <span class="file-name"><strong id="tb-filename"></strong></span>
+    <div class="nav-controls">
+      <button class="btn ghost" id="btn-sample">&#9860; Random</button>
+      <button class="btn ghost" id="btn-prev">&#8592; Prev</button>
+      <input type="number" class="nav-input" id="nav-idx" min="1" value="1">
+      <span class="nav-sep">/ <span id="nav-total">&#8212;</span></span>
+      <button class="btn ghost" id="btn-next">Next &#8594;</button>
+    </div>
+    <button class="btn secondary" id="btn-overview">All columns</button>
+  </div>
+
+  <div class="main">
+    <div class="sidebar">
+      <div class="sidebar-header">Columns</div>
+      <div class="column-list" id="column-list"></div>
+    </div>
+    <div class="detail-panel">
+      <div class="detail-header">
+        <h2 id="detail-col-name">Overview</h2>
+        <span class="type-badge" id="detail-col-type"></span>
+      </div>
+      <div class="detail-content" id="detail-content">
+        <div class="loading"><div class="spinner"></div> Loading&#8230;</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stats-bar">
+    <span>Row <strong id="stat-row">&#8212;</strong></span>
+    <span>Columns <strong id="stat-cols">&#8212;</strong></span>
+    <span>Total rows <strong id="stat-total">&#8212;</strong></span>
+  </div>
+</div>
+
+<script type="module">
+import { parquetRead, parquetMetadata } from 'https://esm.sh/hyparquet@1';
+
+// ── State ──────────────────────────────────────────────────────────────────
+let rows = [];
+let columns = [];
+let currentRow = 0;
+let currentCol = null;
+
+// ── DOM refs ───────────────────────────────────────────────────────────────
+const uploadArea    = document.getElementById('upload-area');
+const app           = document.getElementById('app');
+const dropZone      = document.getElementById('drop-zone');
+const fileInput     = document.getElementById('file-input');
+const columnList    = document.getElementById('column-list');
+const detailContent = document.getElementById('detail-content');
+const detailColName = document.getElementById('detail-col-name');
+const detailColType = document.getElementById('detail-col-type');
+const navIdx        = document.getElementById('nav-idx');
+const navTotal      = document.getElementById('nav-total');
+const statRow       = document.getElementById('stat-row');
+const statCols      = document.getElementById('stat-cols');
+const statTotal     = document.getElementById('stat-total');
+const rowCountBadge = document.getElementById('row-count-badge');
+const tbFilename    = document.getElementById('tb-filename');
+
+// ── File loading ───────────────────────────────────────────────────────────
+fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+
+async function loadFile(file) {
+  uploadArea.style.display = 'none';
+  app.style.display = 'flex';
+  tbFilename.textContent = file.name;
+  detailContent.innerHTML = '<div class="loading"><div class="spinner"></div> Parsing...</div>';
+  columnList.innerHTML = '';
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const asyncBuffer = {
+      byteLength: arrayBuffer.byteLength,
+      slice: (start, end) => arrayBuffer.slice(start, end),
+    };
+
+    const meta = await parquetMetadata(arrayBuffer);
+    const schemaFields = meta.schema.slice(1);
+
+    const loadedRows = [];
+    await parquetRead({
+      file: asyncBuffer,
+      onComplete: data => {
+        if (Array.isArray(data)) loadedRows.push(...data);
+      },
+    });
+
+    rows = loadedRows;
+
+    if (rows.length > 0) {
+      const firstRow = rows[0];
+      columns = Object.keys(firstRow).map(name => {
+        const field = schemaFields.find(f => f.name === name);
+        return { name, type: inferType(firstRow[name], field) };
+      });
+    } else {
+      columns = schemaFields.map(f => ({ name: f.name, type: 'unknown' }));
+    }
+
+    currentRow = 0;
+    currentCol = null;
+    buildColumnList();
+    updateStats();
+    renderOverview();
+
+  } catch (err) {
+    detailContent.innerHTML = '<div class="error-msg">Failed to load: ' + escHtml(err.message) + '\n\n' + escHtml(err.stack || '') + '</div>';
+  }
+}
+
+// ── Column sidebar ─────────────────────────────────────────────────────────
+function buildColumnList() {
+  columnList.innerHTML = '';
+  const allItem = makeColItem('All columns', null, null);
+  allItem.classList.add('active');
+  columnList.appendChild(allItem);
+  columns.forEach(col => columnList.appendChild(makeColItem(col.name, col.name, col.type)));
+}
+
+function makeColItem(label, colName, type) {
+  const el = document.createElement('div');
+  el.className = 'column-item';
+  el.dataset.col = colName != null ? colName : '__overview__';
+  el.innerHTML = '<span style="overflow:hidden;text-overflow:ellipsis">' + escHtml(label) + '</span>'
+    + (type ? '<span class="col-type">' + escHtml(type) + '</span>' : '');
+  el.addEventListener('click', () => selectCol(colName));
+  return el;
+}
+
+function selectCol(name) {
+  currentCol = name;
+  document.querySelectorAll('.column-item').forEach(el => {
+    el.classList.toggle('active',
+      name === null ? el.dataset.col === '__overview__' : el.dataset.col === name);
+  });
+  if (name === null) renderOverview();
+  else renderDetail(name);
+}
+
+// ── Rendering ──────────────────────────────────────────────────────────────
+function renderOverview() {
+  detailColName.textContent = 'Overview';
+  detailColType.textContent = 'row ' + (currentRow + 1) + ' of ' + rows.length;
+
+  const grid = document.createElement('div');
+  grid.className = 'overview-grid';
+
+  columns.forEach(col => {
+    const row = rows[currentRow];
+    const val = row ? row[col.name] : undefined;
+    const formatted = formatValue(val);
+    const isProse = detectProse(val);
+
+    const card = document.createElement('div');
+    card.className = 'overview-card';
+    card.innerHTML = '<div class="card-col">' + escHtml(col.name) + '</div>'
+      + '<div class="card-val' + (isProse ? ' prose' : '') + '">' + escHtml(formatted) + '</div>';
+    card.addEventListener('click', () => selectCol(col.name));
+    grid.appendChild(card);
+  });
+
+  detailContent.innerHTML = '';
+  detailContent.appendChild(grid);
+}
+
+function renderDetail(colName) {
+  const col = columns.find(c => c.name === colName);
+  detailColName.textContent = colName;
+  detailColType.textContent = col ? col.type : '';
+
+  const row = rows[currentRow];
+  const val = row ? row[colName] : undefined;
+  const formatted = formatValue(val);
+  const isProse = detectProse(val);
+
+  detailContent.innerHTML = '';
+  const box = document.createElement('div');
+  box.className = 'value-box' + (isProse ? ' prose' : '');
+  if (val === null || val === undefined) box.classList.add('value-null');
+  box.textContent = formatted;
+  detailContent.appendChild(box);
+}
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+function goTo(row) {
+  row = Math.max(0, Math.min(rows.length - 1, row));
+  currentRow = row;
+  updateStats();
+  if (currentCol === null) renderOverview();
+  else renderDetail(currentCol);
+}
+
+function updateStats() {
+  navTotal.textContent = rows.length;
+  navIdx.max = rows.length;
+  navIdx.value = currentRow + 1;
+  statRow.textContent = currentRow + 1;
+  statCols.textContent = columns.length;
+  statTotal.textContent = rows.length;
+  rowCountBadge.textContent = rows.length.toLocaleString() + ' rows';
+  rowCountBadge.style.display = '';
+}
+
+document.getElementById('btn-prev').addEventListener('click', () => goTo(currentRow - 1));
+document.getElementById('btn-next').addEventListener('click', () => goTo(currentRow + 1));
+document.getElementById('btn-sample').addEventListener('click', () => {
+  if (rows.length) goTo(Math.floor(Math.random() * rows.length));
+});
+document.getElementById('btn-overview').addEventListener('click', () => selectCol(null));
+
+navIdx.addEventListener('change', () => {
+  const v = parseInt(navIdx.value, 10);
+  if (!isNaN(v)) goTo(v - 1);
+});
+
+document.addEventListener('keydown', e => {
+  if (e.target === navIdx || e.target.tagName === 'INPUT') return;
+  if (e.key === 'ArrowLeft'  || e.key === 'h') goTo(currentRow - 1);
+  if (e.key === 'ArrowRight' || e.key === 'l') goTo(currentRow + 1);
+  if (e.key === 's') document.getElementById('btn-sample').click();
+});
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function formatValue(val) {
+  if (val === null || val === undefined) return '(null)';
+  if (typeof val === 'bigint') return val.toString();
+  if (val instanceof Date) return val.toISOString();
+  if (val instanceof Uint8Array || val instanceof Int8Array) return '<binary ' + val.byteLength + ' bytes>';
+  if (Array.isArray(val) || (typeof val === 'object' && val !== null)) {
+    try { return JSON.stringify(val, bigintReplacer, 2); } catch { return String(val); }
+  }
+  return String(val);
+}
+
+function bigintReplacer(_key, val) {
+  return typeof val === 'bigint' ? val.toString() : val;
+}
+
+function detectProse(val) {
+  return typeof val === 'string' && val.length > 80
+    && !val.trimStart().startsWith('{') && !val.trimStart().startsWith('[');
+}
+
+function inferType(val, field) {
+  if (field) {
+    const pt = field.physical_type || field.type;
+    if (pt) {
+      const s = String(pt).toLowerCase();
+      if (s.includes('byte_array') || s.includes('fixed_len')) return 'str';
+      if (s.includes('int') || s.includes('float') || s.includes('double')) return 'num';
+      if (s.includes('boolean')) return 'bool';
+      return s.slice(0, 8);
+    }
+  }
+  if (val === null || val === undefined) return 'null';
+  if (typeof val === 'bigint') return 'int64';
+  if (typeof val === 'number') return Number.isInteger(val) ? 'int' : 'float';
+  if (typeof val === 'boolean') return 'bool';
+  if (typeof val === 'string') return 'str';
+  if (val instanceof Date) return 'date';
+  if (Array.isArray(val)) return 'list';
+  if (typeof val === 'object') return 'struct';
+  return typeof val;
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+</script>
+</body>
+</html>
