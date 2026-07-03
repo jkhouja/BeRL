@@ -1,0 +1,77 @@
+--- a/vllm/model_executor/models/registry.py
++++ b/vllm/model_executor/models/registry.py
+@@ -73,6 +73,7 @@
+     "PhiMoEForCausalLM": ("phimoe", "PhiMoEForCausalLM"),
+     # QWenLMHeadModel supports multimodal
+     "Qwen2ForCausalLM": ("qwen2", "Qwen2ForCausalLM"),
++    "Qwen3ForCausalLM": ("qwen2", "Qwen2ForCausalLM"),
+     "Qwen2MoeForCausalLM": ("qwen2_moe", "Qwen2MoeForCausalLM"),
+     "RWForCausalLM": ("falcon", "FalconForCausalLM"),
+     "StableLMEpochForCausalLM": ("stablelm", "StablelmForCausalLM"),
+--- a/vllm/model_executor/models/qwen2.py
++++ b/vllm/model_executor/models/qwen2.py
+@@ -92,7 +92,8 @@
+                  rope_theta: float = 10000,
+                  cache_config: Optional[CacheConfig] = None,
+                  quant_config: Optional[QuantizationConfig] = None,
+-                 rope_scaling: Optional[Tuple] = None) -> None:
++                 rope_scaling: Optional[Tuple] = None,
++                 attention_bias: bool = True) -> None:
+         super().__init__()
+         self.hidden_size = hidden_size
+         tp_size = get_tensor_model_parallel_world_size()
+@@ -120,7 +121,7 @@
+             self.head_dim,
+             self.total_num_heads,
+             self.total_num_kv_heads,
+-            bias=True,
++            bias=attention_bias,
+             quant_config=quant_config,
+         )
+         self.o_proj = RowParallelLinear(
+@@ -144,6 +145,11 @@
+                               cache_config=cache_config,
+                               quant_config=quant_config)
+ 
++        # Qwen3 uses QK-norm (RMSNorm on q/k per-head before RoPE).
++        # For Qwen2 these stay None and forward is unchanged.
++        self.q_norm: Optional[RMSNorm] = None
++        self.k_norm: Optional[RMSNorm] = None
++
+     def forward(
+         self,
+         positions: torch.Tensor,
+@@ -153,6 +159,9 @@
+     ) -> torch.Tensor:
+         qkv, _ = self.qkv_proj(hidden_states)
+         q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
++        if self.q_norm is not None:
++            q = self.q_norm(q.reshape(-1, self.head_dim)).reshape(-1, self.q_size)
++            k = self.k_norm(k.reshape(-1, self.head_dim)).reshape(-1, self.kv_size)
+         q, k = self.rotary_emb(positions, q, k)
+         attn_output = self.attn(q, k, v, kv_cache, attn_metadata)
+         output, _ = self.o_proj(attn_output)
+@@ -172,6 +181,7 @@
+         # Requires transformers > 4.32.0
+         rope_theta = getattr(config, "rope_theta", 1000000)
+         rope_scaling = getattr(config, "rope_scaling", None)
++        attention_bias = getattr(config, "attention_bias", True)
+         self.self_attn = Qwen2Attention(
+             hidden_size=self.hidden_size,
+             num_heads=config.num_attention_heads,
+@@ -180,7 +190,14 @@
+             rope_theta=rope_theta,
+             cache_config=cache_config,
+             quant_config=quant_config,
+-            rope_scaling=rope_scaling)
++            rope_scaling=rope_scaling,
++            attention_bias=attention_bias)
++        # Qwen3: initialize QK-norm layers. Qwen2 configs won't match.
++        if getattr(config, 'model_type', '') == 'qwen3':
++            self.self_attn.q_norm = RMSNorm(self.self_attn.head_dim,
++                                            eps=config.rms_norm_eps)
++            self.self_attn.k_norm = RMSNorm(self.self_attn.head_dim,
++                                            eps=config.rms_norm_eps)
+         self.mlp = Qwen2MLP(
+             hidden_size=self.hidden_size,
+             intermediate_size=config.intermediate_size,

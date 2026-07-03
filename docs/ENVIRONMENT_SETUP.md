@@ -29,6 +29,10 @@ pip install "transformers==4.51.3"
 pip install wandb IPython matplotlib
 ```
 
+> **Running Qwen3?** You also need to patch the installed vllm (it predates
+> Qwen3). See [Qwen3 requires an extra vllm patch](#️-qwen3-requires-an-extra-vllm-patch)
+> below. Qwen2.5 / Gemma2 do not need it.
+
 After installing, sanity-check the env:
 
 ```bash
@@ -57,6 +61,41 @@ pip install "transformers==4.51.3"
 
 (If you only ever use Qwen2.5 you can stay on the pinned `transformers<4.48`, but
 4.51.3 is backward-compatible and is what current scripts expect.)
+
+## ⚠️ Qwen3 requires an extra vllm patch
+
+vllm 0.6.3 predates Qwen3 and has **no `Qwen3ForCausalLM` in its `ModelRegistry`**.
+A fresh `pip install vllm==0.6.3` will therefore **crash at model-build time** for
+Qwen3 models, before any weight loading:
+
+```
+ValueError: Model architectures ['Qwen3ForCausalLM'] are not supported for now.
+```
+
+The repo code (`verl/third_party/vllm/vllm_v_0_6_3/dtensor_weight_loaders.py`,
+`verl/models/transformers/qwen3.py`, the response parser, etc.) handles the
+weight-sync / attention / parsing half of Qwen3 support, but the **build-time
+architecture remap and QK-norm layer creation must be patched into the installed
+vllm package itself**. Those patches are *not* installed by pip and are *not* part
+of `verl`; they live in `patches/`:
+
+```bash
+conda activate tom
+bash patches/apply_vllm_qwen3.sh
+```
+
+This patches the installed vllm site-packages to (1) remap
+`Qwen3ForCausalLM → Qwen2ForCausalLM` in the registry, and (2) add per-head
+QK-norm (`q_norm`/`k_norm`) plus configurable `attention_bias` to vllm's Qwen2
+model, activated when `config.model_type == 'qwen3'`. The script is idempotent
+and verifies the remap afterward.
+
+**Qwen2.5 and Gemma2 do NOT need this patch** — only Qwen3. Run it once per
+environment, after installing `vllm==0.6.3`.
+
+> History note: on the original machine these patches existed only inside the
+> `tom3` conda env's vllm site-packages (uncommitted). `patches/vllm_0_6_3_qwen3.patch`
+> captures that exact diff so Qwen3 is reproducible on any machine.
 
 ## Why there are multiple environments (history)
 
