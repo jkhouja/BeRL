@@ -49,6 +49,7 @@ This document tracks notable **features** and **bug fixes** across the BeRL / To
 
 | Commit | Date | Update |
 |--------|------|--------|
+| _pending_ | 2026-07-05 | Paper-branch cleanup (Phase 1): deleted 11 obsolete round-specific experiment scripts, 11 obsolete `pipeline_config_*` variants, and 17 stale one-off docs (DAILYDIALOG_*/EMPATHETIC_*/summaries); archived Round 1–20 narrative to `project_planning/HISTORY_rounds_1-20.md`; slimmed `CLAUDE.md` to point at `project_planning/` as source of truth |
 | `057ebaf` | 2026-05-28 | Round 19 results in changelog |
 | `c20b729` | 2026-05-27 | 7B direct ToM baseline in CLAUDE.md |
 | `9543672` | 2026-05-27 | 7B scaling results |
