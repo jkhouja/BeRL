@@ -25,7 +25,7 @@ lr=5e-7
 num_epochs=2
 
 data_train_files=$REPO_DIR/data/cleaned_tom/ToM_train_HiEx_hint.parquet
-test_files="[$REPO_DIR/data/cleaned_tom/ToM_test_HiExTi_hint_v3.parquet,$REPO_DIR/data/cleaned_tom/fantom_test.parquet]"
+test_files="[$REPO_DIR/data/cleaned_tom/ToM_test_HiExTi_hint_v3.parquet,$REPO_DIR/data/cleaned_tom/fantom_test_50pct.parquet]"
 
 EXP_NAME="round20-tom3k-rulebased-fantom-Qwen3-1.7B-${lr}-${ROLLOUT_N}"
 
@@ -69,7 +69,7 @@ HYDRA_FULL_ERROR=1 RAY_BACKEND_LOG_LEVEL=debug python3 -m verl.trainer.main_ppo 
     trainer.nnodes=1 \
     trainer.default_hdfs_dir=null \
     trainer.save_freq=50 \
-    trainer.test_freq=10 \
+    trainer.test_freq=30 \
     +reward_model.require_answer_tags=False \
     +actor_rollout_ref.require_answer_tags=False \
     trainer.total_epochs=$num_epochs $@ 2>&1 | tee $REPO_DIR/logs/${TODAY}/${EXP_NAME}.log

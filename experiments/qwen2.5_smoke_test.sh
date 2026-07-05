@@ -22,7 +22,7 @@ ROLLOUT_N=16
 EXP_NAME="qwen2.5-3B-smoke-test-parser-refactor"
 
 data_train_files=$REPO_DIR/data/merged_dialogue_cga_eval_prompt.parquet
-test_files="[$REPO_DIR/data/cleaned_tom/ToM_test_HiExTi_hint_v3.parquet,$REPO_DIR/data/cleaned_tom/fantom_test.parquet]"
+test_files="[$REPO_DIR/data/cleaned_tom/ToM_test_HiExTi_hint_v3.parquet,$REPO_DIR/data/cleaned_tom/fantom_test_50pct.parquet]"
 
 cd $REPO_DIR
 HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \

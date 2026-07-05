@@ -1,11 +1,16 @@
 #!/bin/bash
-# Qwen3-4B combined (dialogue + CGA) training — actor-as-RM, power reward
-# Matches dialogue_grpo_fantom_eval.sh config but with Qwen3-4B on tom3 env
+# Qwen3-1.7B combined (dialogue + CGA) training — actor-as-RM, power reward
+# Matches dialogue_grpo_fantom_eval.sh config but with Qwen3-1.7B on tom3 env
 # Uses merged_dialogue_cga_eval_prompt.parquet (combined dataset)
 
 set -x
 
 REPO_DIR=$HOME/repo/BeRL
+
+# Activate conda environment
+eval "$($HOME/miniconda3/bin/conda shell.bash hook 2>/dev/null)"
+conda activate tom
+
 TODAY=$(date +%Y%m%d)
 mkdir -p $REPO_DIR/logs/${TODAY}
 
@@ -27,7 +32,7 @@ POWER_LL_MIN=-8.0
 DATASET_NAME="dialogue_cga_combined"
 EXP_DESC="power-reward-k${POWER_K}-llmin${POWER_LL_MIN}"
 
-model_name="Qwen/Qwen3-8B"
+model_name="Qwen/Qwen3-1.7B"
 lr=5e-7
 
 num_epochs=2
@@ -37,7 +42,7 @@ test_files="[$REPO_DIR/data/cleaned_tom/ToM_test_HiExTi_hint_v3.parquet,$REPO_DI
 
 RM_TYPE=$( [ "$USE_ACTOR_AS_RM" = "True" ] && echo "actorRM" || echo "frozenRM" )
 BASELINE_TAG=$( [ "$SUBTRACT_BASELINE" = "True" ] && echo "baseline" || echo "nobaseline" )
-EXP_NAME="${DATASET_NAME}-Qwen3-8B-${RM_TYPE}-${BASELINE_TAG}-lr${lr}-n${ROLLOUT_N}-${EXP_DESC}-fantom"
+EXP_NAME="${DATASET_NAME}-Qwen3-1.7B-${RM_TYPE}-${BASELINE_TAG}-lr${lr}-n${ROLLOUT_N}-${EXP_DESC}-fantom"
 
 cd $REPO_DIR
 HYDRA_FULL_ERROR=1 RAY_BACKEND_LOG_LEVEL=debug python3 -m verl.trainer.main_ppo \
@@ -73,7 +78,7 @@ HYDRA_FULL_ERROR=1 RAY_BACKEND_LOG_LEVEL=debug python3 -m verl.trainer.main_ppo 
     actor_rollout_ref.actor.fsdp_config.grad_offload=True \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
     actor_rollout_ref.rollout.log_prob_micro_batch_size=8 \
-    actor_rollout_ref.rollout.tensor_model_parallel_size=2 \
+    actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=vllm \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.35 \
     actor_rollout_ref.rollout.n=$ROLLOUT_N \

@@ -40,7 +40,7 @@ do
     for lr in ${lrs[@]}
     do
         data_train_files=$REPO_DIR/data/merged_dialogue_datasets_filtered_eval_prompt.parquet
-        test_files="[$REPO_DIR/data/cleaned_tom/ToM_test_HiExTi_hint_v3.parquet,$REPO_DIR/data/cleaned_tom/fantom_test.parquet]"
+        test_files="[$REPO_DIR/data/cleaned_tom/ToM_test_HiExTi_hint_v3.parquet,$REPO_DIR/data/cleaned_tom/fantom_test_50pct.parquet]"
 
         RM_TYPE=$( [ "$USE_ACTOR_AS_RM" = "True" ] && echo "actorRM" || echo "frozenRM" )
         BASELINE_TAG=$( [ "$SUBTRACT_BASELINE" = "True" ] && echo "baseline" || echo "nobaseline" )
@@ -95,7 +95,7 @@ do
             trainer.nnodes=1 \
             trainer.default_hdfs_dir=null \
             trainer.save_freq=50 \
-            trainer.test_freq=10 \
+            trainer.test_freq=30 \
             trainer.total_epochs=$num_epochs $@ 2>&1 | tee $REPO_DIR/logs/${TODAY}/${EXP_NAME}.log
     done
 done
