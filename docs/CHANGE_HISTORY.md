@@ -49,7 +49,8 @@ This document tracks notable **features** and **bug fixes** across the BeRL / To
 
 | Commit | Date | Update |
 |--------|------|--------|
-| _pending_ | 2026-07-05 | Paper-branch cleanup (Phase 1): deleted 11 obsolete round-specific experiment scripts, 11 obsolete `pipeline_config_*` variants, and 17 stale one-off docs (DAILYDIALOG_*/EMPATHETIC_*/summaries); archived Round 1–20 narrative to `project_planning/HISTORY_rounds_1-20.md`; slimmed `CLAUDE.md` to point at `project_planning/` as source of truth |
+| _pending_ | 2026-07-05 | Paper-branch cleanup (Phase 2): rewrote the 3 Claude skills (`launch-experiment`, `check-training`, `log-results`) from the retired 17f/round-changelog format to the tracker-driven protocol, and added a new `claim-experiment` skill (atomic claim + dependency gate). Skills now execute `project_planning/BeRL_experiments_tracker.md` (claim row → launch generic launcher → check health → write `Results summary` + `project_planning/results/<RUN_NAME>.md`) |
+| _pending_ | 2026-07-05 | Paper-branch cleanup (Phase 1): deleted 11 obsolete round-specific experiment scripts, 11 obsolete `pipeline_config_*` variants, and 17 stale one-off docs (DAILYDIALOG_*/EMPATHETIC_*/summaries); archived Round 1–20 narrative to `project_planning/HISTORY_rounds_1-20.md`; slimmed `CLAUDE.md` to point at `project_planning/` as source of truth. Pruned ~1.53T of pre-paper checkpoints/logs/wandb (git-ignored; paper runs start fresh) |
 | `057ebaf` | 2026-05-28 | Round 19 results in changelog |
 | `c20b729` | 2026-05-27 | 7B direct ToM baseline in CLAUDE.md |
 | `9543672` | 2026-05-27 | 7B scaling results |
