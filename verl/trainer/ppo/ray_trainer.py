@@ -478,11 +478,12 @@ class RayPPOTrainer(object):
             data_source_reward[data_source].append(reward_tensor[i].item())
 
         metric_dict = {}
+        suffix = self.config.data.get('val_metric_suffix', '') or ''
         for data_source, rewards in data_source_reward.items():
             count_equal_3 = sum(1 for reward in rewards if reward == 3)
             total_count = len(rewards)
             print(f'[Validate] {data_source} count_equal_3: {count_equal_3}, total_count: {total_count}')
-            metric_dict[f'val/test_score/{data_source}'] = count_equal_3 / total_count if total_count > 0 else 0
+            metric_dict[f'val/test_score/{data_source}{suffix}'] = count_equal_3 / total_count if total_count > 0 else 0
             # count_equal_2 = sum(1 for reward in rewards if reward == 2)
             # total_count = len(rewards)
             # print(f'[Validate] {data_source} count_equal_2: {count_equal_2}, total_count: {total_count}')

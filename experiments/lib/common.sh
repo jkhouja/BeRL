@@ -205,15 +205,22 @@ berl::run() {
   if [ -z "${VAL_FILES:-}" ]; then
     case "${VAL_SUITE:-subsample300}" in
       core)
-        VAL_FILES="[$ET/ToM_test_HiExTi_hint_v3.parquet,$ET/fantom_test_50pct.parquet]" ;;
+        VAL_FILES="[$ET/ToM_test_HiExTi_hint_v3.parquet,$ET/fantom_test_50pct.parquet]"
+        VAL_METRIC_SUFFIX="${VAL_METRIC_SUFFIX:-_core}" ;;
       sanity)
-        VAL_FILES="[$ET/eval_suite_sanity.parquet]" ;;
+        VAL_FILES="[$ET/eval_suite_sanity.parquet]"
+        VAL_METRIC_SUFFIX="${VAL_METRIC_SUFFIX:-_sanity}" ;;
       full)
-        VAL_FILES="[$ET/ToM_test_HiExTi_hint_v3.parquet,$ET/fantom_test_50pct.parquet,$ET/bigtom_test.parquet,$ET/dyntom_test.parquet,$ET/exploretom_infilled_test.parquet,$ET/mmlu_test.parquet,$ET/opentom_test.parquet,$ET/simpletom_test.parquet,$ET/tombench_test.parquet,$ET/ullman_perturbed_test.parquet]" ;;
+        VAL_FILES="[$ET/ToM_test_HiExTi_hint_v3.parquet,$ET/fantom_test_50pct.parquet,$ET/bigtom_test.parquet,$ET/dyntom_test.parquet,$ET/exploretom_infilled_test.parquet,$ET/mmlu_test.parquet,$ET/opentom_test.parquet,$ET/simpletom_test.parquet,$ET/tombench_test.parquet,$ET/ullman_perturbed_test.parquet]"
+        VAL_METRIC_SUFFIX="${VAL_METRIC_SUFFIX:-}" ;;   # full suite keeps canonical val/test_score/<src> names
       subsample300|*)
-        VAL_FILES="[$ET/eval_subsample_300.parquet]" ;;
+        VAL_FILES="[$ET/eval_subsample_300.parquet]"
+        VAL_METRIC_SUFFIX="${VAL_METRIC_SUFFIX:-_sub300}" ;;
     esac
   fi
+  # Suffix appended to every val metric name so a subset run's WandB series
+  # (e.g. val/test_score/tomi_sub300) never overwrites the full-suite series.
+  VAL_METRIC_SUFFIX="${VAL_METRIC_SUFFIX:-}"
 
   if [ "$TASK" = "behavior" ]; then
     KL="${KL:-0.05}"
@@ -244,6 +251,7 @@ berl::run() {
     algorithm.adv_estimator=grpo
     data.train_files="$DATA_TRAIN"
     data.val_files="$VAL_FILES"
+    data.val_metric_suffix="$VAL_METRIC_SUFFIX"
     data.train_batch_size="$TRAIN_BATCH"
     data.val_batch_size="$VAL_BATCH"
     data.prompt_is_text=False

@@ -71,6 +71,12 @@ the full suite. Regenerate with:
 python examples/data_preprocess/build_eval_subsample.py --n_per_subtype 300 --seed 42
 ```
 
+**Metric names.** Each val metric is logged as `val/test_score/<data_source><suffix>`, where the
+suffix is set per suite via `data.val_metric_suffix` (common.sh): `subsample300` → `_sub300`,
+`core` → `_core`, `sanity` → `_sanity`, `full` → *empty* (canonical `val/test_score/tomi` etc.).
+This keeps a subset run's WandB series from overwriting the full-suite series of the same benchmark.
+Override with `VAL_METRIC_SUFFIX=...` (or `data.val_metric_suffix=...`).
+
 ## Benchmark catalog
 
 ### Pre-existing (already in repo)
