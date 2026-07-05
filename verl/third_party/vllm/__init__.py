@@ -45,6 +45,14 @@ elif package_version == '0.6.3':
     from .vllm_v_0_6_3.llm import LLM
     from .vllm_v_0_6_3.llm import LLMEngine
     from .vllm_v_0_6_3 import parallel_state
+
+    # vllm 0.6.3 predates Qwen3 and has no Qwen3ForCausalLM in its registry.
+    # Register the in-repo Qwen3 implementation (Qwen2 + QK-norm) so the
+    # rollout engine can build and serve Qwen3 checkpoints.
+    from vllm.model_executor.models import ModelRegistry as _ModelRegistry
+    if 'Qwen3ForCausalLM' not in _ModelRegistry.get_supported_archs():
+        from .vllm_v_0_6_3.qwen3 import Qwen3ForCausalLM as _Qwen3ForCausalLM
+        _ModelRegistry.register_model('Qwen3ForCausalLM', _Qwen3ForCausalLM)
 else:
     raise ValueError(
         f'vllm version {package_version} not supported. Currently supported versions are 0.3.1, 0.4.2, 0.5.4 and 0.6.3.'

@@ -201,8 +201,14 @@ class ActorRolloutRefWorker(Worker):
         }
         override_config_kwargs.update(override_model_config)
         update_model_config(actor_model_config, override_config_kwargs=override_config_kwargs)
+        # Gemma2/Gemma3 use attention & final logit soft-capping, which flash_attention_2
+        # silently ignores. This makes the FSDP training/ref logits diverge from the
+        # soft-capped vLLM rollout logits, corrupting advantages/KL. Allow overriding the
+        # attention implementation (e.g. 'eager') for such models; default stays FA2.
+        attn_implementation = self.config.model.get('attn_implementation', 'flash_attention_2')
         if self.rank == 0:
             print(f'Model config after override: {actor_model_config}')
+            print(f'Using attn_implementation={attn_implementation}')
 
         # NOTE(fix me): tie_word_embedding causes meta_tensor init to hang
         init_context = get_init_weight_context_manager(use_meta_tensor=not actor_model_config.tie_word_embeddings)
@@ -212,7 +218,7 @@ class ActorRolloutRefWorker(Worker):
             actor_module = AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path=local_path,
                                                                 torch_dtype=torch_dtype,
                                                                 config=actor_model_config,
-                                                                attn_implementation='flash_attention_2',
+                                                                attn_implementation=attn_implementation,
                                                                 trust_remote_code=trust_remote_code)
             # some parameters may not in torch_dtype. TODO(zhangchi.usc1992) remove this after we switch to fsdp2
             actor_module.to(torch_dtype)
@@ -551,14 +557,30 @@ class ActorRolloutRefWorker(Worker):
         rm_data.batch = rm_data.batch.cuda()
 
         # Forward pass through actor model (no gradient)
-        micro_batch_size = self.config.ref.log_prob_micro_batch_size
-        micro_batches = rm_data.batch.split(micro_batch_size)
+        # Gemma2 (or other large-vocab models) run with use_remove_padding=False, so the
+        # full-vocab logits tensor can OOM at the static micro-batch size. Honor dynamic
+        # bsz here (token-budget splitting) just like compute_rm_score / compute_log_prob.
+        use_dynamic_bsz = self.config.ref.log_prob_use_dynamic_bsz
+        if use_dynamic_bsz:
+            max_token_len = self.config.ref.log_prob_max_token_len_per_gpu * self.ulysses_sequence_parallel_size
+            micro_batches, indices = rearrange_micro_batches(batch=rm_data.batch, max_token_len=max_token_len)
+        else:
+            micro_batch_size = self.config.ref.log_prob_micro_batch_size
+            micro_batches = rm_data.batch.split(micro_batch_size)
         output = []
         with torch.no_grad(), torch.autocast(device_type='cuda', dtype=torch.bfloat16):
             for micro_batch in micro_batches:
                 rm_score = self._actor_rm_forward(micro_batch)
                 output.append(rm_score)
         scores = torch.cat(output, dim=0)
+
+        if use_dynamic_bsz:
+            # rearrange_micro_batches reorders sequences; restore original order so the
+            # eos-position score mapping below (which assumes scores[i] <-> rm_data.batch[i]) is correct.
+            indices = list(itertools.chain.from_iterable(indices))
+            assert len(indices) == scores.size(0), f"{len(indices)} vs. {scores.size()}"
+            revert_indices = torch.tensor(get_reverse_idx(indices), dtype=torch.long)
+            scores = scores[revert_indices]
 
         # Expand to token-level (same as RewardModelWorker._expand_to_token_level)
         batch_size = data.batch.batch_size[0]
@@ -643,8 +665,9 @@ class ActorRolloutRefWorker(Worker):
             rm_attention_mask.append(attention_mask)
             response_masks.append(response_mask)
             invalid_responses.append(invalid_response)
-            answer_pps.append(data.non_tensor_batch.get('answer_pp', [0.0])[i]
-                              if 'answer_pp' in data.non_tensor_batch else 0.0)
+            _app = data.non_tensor_batch.get('answer_pp', [0.0])[i] \
+                if 'answer_pp' in data.non_tensor_batch else 0.0
+            answer_pps.append(0.0 if _app is None else _app)
 
         rm_input_ids = torch.cat(rm_input_ids, dim=0)
         rm_attention_mask = torch.cat(rm_attention_mask, dim=0)
@@ -680,8 +703,8 @@ class ActorRolloutRefWorker(Worker):
         logits = output.logits
 
         log_prob = logprobs_from_logits_v2(logits, labels, response_mask)
-        log_prob = log_prob.sum(dim=-1)
-        log_prob = log_prob / response_mask.sum(-1)
+        response_token_count = response_mask.sum(-1)
+        log_prob = log_prob.sum(dim=-1) / response_token_count.clamp(min=1)  # avoid 0/0 for empty responses
 
         # Apply reward type transformation (same logic as RewardModelWorker._compute_rm_score)
         if self.reward_type == "neg_perplexity":
@@ -693,6 +716,13 @@ class ActorRolloutRefWorker(Worker):
             rm_score = log_prob
 
         rm_score = rm_score.masked_fill_(micro_batch['invalid_response'], MIN_REWARD)
+        # Degenerate rollouts whose thinking fills the RM context leave no response
+        # tokens to score (0/0 -> NaN above); treat them as invalid rather than
+        # letting a single NaN poison the whole GRPO batch.
+        rm_score = torch.where(response_token_count > 0, rm_score,
+                               torch.full_like(rm_score, float(MIN_REWARD)))
+        rm_score = torch.nan_to_num(rm_score, nan=float(MIN_REWARD),
+                                    posinf=float(MAX_REWARD), neginf=float(MIN_REWARD))
         rm_score = torch.clamp(rm_score, min=MIN_REWARD, max=MAX_REWARD)
         return rm_score
 
@@ -1055,6 +1085,8 @@ class RewardModelWorker(Worker):
         # note that we have to create model in fp32. Otherwise, the optimizer is in bf16, which is incorrect
         init_context = get_init_weight_context_manager(use_meta_tensor=not model_config.tie_word_embeddings)
 
+        # Allow overriding attention impl (e.g. 'eager' for Gemma2/3 logit soft-capping); default FA2.
+        rm_attn_implementation = config.model.get('attn_implementation', 'flash_attention_2')
         with init_context(), warnings.catch_warnings():
             warnings.simplefilter("ignore")
             if config.type == "classifier":
@@ -1063,14 +1095,14 @@ class RewardModelWorker(Worker):
                 reward_module = AutoModelForTokenClassification.from_pretrained(pretrained_model_name_or_path=local_path,
                                                                                 config=model_config,
                                                                                 torch_dtype=torch.bfloat16,
-                                                                                attn_implementation='flash_attention_2',
+                                                                                attn_implementation=rm_attn_implementation,
                                                                                 trust_remote_code=trust_remote_code)
 
             elif config.type == "lm":
                 reward_module = AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path=local_path,
                                                                                 config=model_config,
                                                                                 torch_dtype=torch.bfloat16,
-                                                                                attn_implementation='flash_attention_2',
+                                                                                attn_implementation=rm_attn_implementation,
                                                                                 trust_remote_code=trust_remote_code)
 
             else:
@@ -1127,8 +1159,8 @@ class RewardModelWorker(Worker):
 
                 log_prob = logprobs_from_logits_v2(logits, labels, response_mask)
 
-                log_prob = log_prob.sum(dim=-1)
-                log_prob = log_prob / response_mask.sum(-1) # avg log prob per token
+                response_token_count = response_mask.sum(-1)
+                log_prob = log_prob.sum(dim=-1) / response_token_count.clamp(min=1) # avg log prob per token (guard 0/0)
 
                 assert log_prob.shape[0] == batch_size
 
@@ -1152,6 +1184,12 @@ class RewardModelWorker(Worker):
             if self.subtract_baseline:
                 rm_score = rm_score - pp
             rm_score = rm_score.masked_fill_(micro_batch['invalid_response'], self.invalid_penalty)
+            # Degenerate rollouts with no scored response tokens yield NaN above;
+            # treat them as invalid so one NaN can't poison the whole GRPO batch.
+            rm_score = torch.where(response_token_count > 0, rm_score,
+                                   torch.full_like(rm_score, float(self.invalid_penalty)))
+            rm_score = torch.nan_to_num(rm_score, nan=float(self.invalid_penalty),
+                                        posinf=float(MAX_REWARD), neginf=float(MIN_REWARD))
             rm_score = torch.clamp(rm_score, min=MIN_REWARD, max=MAX_REWARD)
             #eos_mask_idx = torch.argmax(position_ids * attention_mask, dim=-1)  # (bsz,)
             #rm_score = rm_score[torch.arange(batch_size), eos_mask_idx]
@@ -1255,9 +1293,18 @@ class RewardModelWorker(Worker):
             response_mask = torch.zeros_like(attention_mask)
             full_len = attention_mask.sum()
 
-            # If answer is truncated due to max len, return all zeros
+            # If the thinking part alone fills/exceeds max_length, the true next utterance
+            # was truncated away. Keep the sample in the batch but mark it invalid (zero
+            # response mask), so it gets the invalid_penalty downstream. Returning a bare
+            # tensor here previously aborted the whole batch (rm_data became a Tensor with
+            # no `.batch`), crashing compute_rm_score on Gemma2 where truncation is hit.
             if thinking_length >= full_len:
-                return response_mask
+                invalid_response = torch.tensor([True])
+                rm_input_ids.append(input_ids)
+                rm_attention_mask.append(attention_mask)
+                response_masks.append(response_mask)
+                invalid_responses.append(invalid_response)
+                continue
 
             # Now get true utterance mask (this only works with right padding and right truncation)
             if self.config.get('truncation', 'right') != 'right':

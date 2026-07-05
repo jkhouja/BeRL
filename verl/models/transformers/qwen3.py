@@ -46,6 +46,14 @@ def qwen3_flash_attn_forward(
     key_states = key_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
     value_states = value_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
 
+    # Qwen3: per-head QK-RMSNorm over head_dim, applied before RoPE. This is the
+    # key architectural difference from Qwen2; omitting it lets unnormalized Q/K
+    # magnitudes overflow (bf16) and produces NaN logits/rewards. head_dim is the
+    # last dim after the transpose above, so q_norm/k_norm apply identically here.
+    if getattr(self, "q_norm", None) is not None:
+        query_states = self.q_norm(query_states)
+        key_states = self.k_norm(key_states)
+
     ########## AlltoAll for Ulysses ##########
     ulysses_sp_size = get_ulysses_sequence_parallel_world_size()
 
