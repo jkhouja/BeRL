@@ -20,7 +20,8 @@ model_name="Qwen/Qwen3-1.7B"
 lr=5e-7
 train_batch_size=32
 ROLLOUT_N=16
-EXP_NAME="qwen3-1.7B-smoke-test"
+RUN_INDEX="${RUN_INDEX:-1}"
+EXP_NAME="test-qwen3-1.7B-smoke-r${RUN_INDEX}"
 
 data_train_files=$REPO_DIR/data/merged_dialogue_cga_eval_prompt.parquet
 test_files=$REPO_DIR/data/cleaned_tom/ToM_test_HiExTi_hint_v3.parquet

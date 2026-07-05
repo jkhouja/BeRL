@@ -60,11 +60,15 @@ write.
 
 ## Per-run log file (mandatory)
 
-Every run gets its own markdown file at **`experiments_logs/<RUN_NAME>.md`** (`RUN_NAME` = the
-tracker `Run name` = WandB run name = log filename stem). Create it at launch and **append** to it as
-you go (append-friendly so concurrent tooling never truncates it). It must summarize:
+Every experiment gets its own markdown file at **`experiments_logs/<RUN_NAME_BASE>.md`**, where
+`RUN_NAME_BASE` = the tracker `Run name` stem = `<RQ>-<expid>-<data_name>` (RQ tag baked in; **`test`**
+for smoke runs). The full WandB run name adds `-<model>-<params>-r<N>` (run index) — but the md file
+is keyed by the **base stem without `-r<N>`** so every *attempt* (r1, r2, … after a crash/resubmit)
+**appends** to the same file (append-friendly so concurrent tooling never truncates it). It must
+summarize:
 
-- **Entry name / RUN_NAME** and `Exp #` / `Exp ID` (the handle in the tracker).
+- **Entry name / RUN_NAME_BASE** and `Exp #` / `Exp ID` (the handle in the tracker), plus the list of
+  attempted run indices (`-r1`, `-r2`, …) and which one is authoritative.
 - **Hypothesis / question** — what this run tests and the expected outcome.
 - **Implementation details** — resolved knobs (reward family, KL, clamp, baseline, RM mode, LR,
   `dcfg_*` data, CoT prompt var, model/size), the **exact launch command**, and the env.

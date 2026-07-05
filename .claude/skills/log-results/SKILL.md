@@ -9,8 +9,9 @@ allowed-tools: Bash Read Edit Grep Glob
 Results live in **two** places (the old `grpo_tuning_changelog.md` round-format is retired):
 1. **`project_planning/BeRL_experiments_tracker.md`** — the row's `Results summary` + `Status`
    (source of truth for coordination).
-2. **`experiments_logs/<RUN_NAME>.md`** — the self-contained, reproducible experiment record
-   (exact command, knobs, env, WandB/log, findings, rerun line) written by the launcher.
+2. **`experiments_logs/<RUN_NAME_BASE>.md`** — the self-contained, reproducible experiment record
+   (base stem `<RQ>-<expid>-<data_name>`, no `-r<N>`; exact command, knobs, env, WandB/log, findings,
+   rerun line) written by the launcher; all resubmission attempts (`-r1`, `-r2`, …) append here.
 
 ## Instructions
 
@@ -27,7 +28,7 @@ Results live in **two** places (the old `grpo_tuning_changelog.md` round-format 
    note + downstream implication (e.g. "power@ll_min=p50 stable to 800 steps; tomi +5.1pp vs A0; no
    collapse ⇒ adopt as `stable` for Phase 0"). Set `Status=Completed` (or `Failed`).
 
-5. **Fill the findings section** of `experiments_logs/<RUN_NAME>.md` by appending: the metrics table
+5. **Fill the findings section** of `experiments_logs/<RUN_NAME_BASE>.md` by appending: the metrics table
    (step vs benchmarks), verdict, and any health/hacking observations. Keep the earlier
    command/knobs/env/rerun sections intact — append, don't overwrite (the file may be edited
    concurrently).

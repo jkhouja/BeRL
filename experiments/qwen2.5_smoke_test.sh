@@ -19,7 +19,8 @@ model_name="Qwen/Qwen2.5-3B-Instruct"
 lr=5e-7
 train_batch_size=32
 ROLLOUT_N=16
-EXP_NAME="qwen2.5-3B-smoke-test-parser-refactor"
+RUN_INDEX="${RUN_INDEX:-1}"
+EXP_NAME="test-qwen2.5-3B-smoke-parser-refactor-r${RUN_INDEX}"
 
 data_train_files=$REPO_DIR/data/merged_dialogue_cga_eval_prompt.parquet
 test_files="[$REPO_DIR/data/cleaned_tom/ToM_test_HiExTi_hint_v3.parquet,$REPO_DIR/data/cleaned_tom/fantom_test_50pct.parquet]"

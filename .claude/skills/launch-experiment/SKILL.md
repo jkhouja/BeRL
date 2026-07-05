@@ -41,7 +41,17 @@ The row must already be **claimed** (`Status=Processing`, `Owner_host` set) — 
    - SFT baseline → `experiments/train_sft.sh`
    - or the dispatcher `experiments/run_experiment.sh <EXP_ID>` (parses the row → sets knobs → calls
      the right launcher).
-   `RUN_NAME` MUST equal the tracker `Run name` = WandB run name = log filename stem.
+   **Construct the WandB run name** (self-describing — see tracker §"Agent protocol" #4):
+   ```
+   <RQ>-<expid>-<data_name>-<model>-<params>-r<N>
+   ```
+   where `<RQ>-<expid>` = the tracker `Exp ID` (RQ tag already baked in), `<data_name>` = the
+   `Data config name` (`dcfg_*`), `<model>` = family+size, `<params>` = key knobs (reward/lr/kl),
+   and `-r<N>` = **run index**. Before launching, **pick the next free `N`**: scan
+   `logs/<YYYYMMDD>/` and WandB for the base stem; if `-r1` already exists (e.g. a prior crash),
+   use `-r2`, `-r3`, … so a resubmitted run never clashes with the crashed one. **Test/smoke runs
+   use `RQ=test`** (e.g. `test-qwen3_smoke-…-r1`). `RUN_NAME` MUST equal WandB run name = log
+   filename stem, and its base (`<RQ>-<expid>-<data_name>`) MUST match the tracker `Run name` cell.
    Model-family branches (attention backend, `require_answer_tags`, chat template) are handled inside
    the launcher (Qwen3: `+*.require_answer_tags=False`, `VLLM_ATTENTION_BACKEND=XFORMERS`,
    `gpu_memory_utilization=0.35`).
@@ -52,12 +62,13 @@ The row must already be **claimed** (`Status=Processing`, `Owner_host` set) — 
 5. **Verify start-up**: tail the log to confirm no import errors, model loads, first rollout begins.
 
 6. **Record back to the tracker**: set `Status=Training`, paste `WandB link` and
-   `Log path` (`logs/<YYYYMMDD>/<RUN_NAME>.log`) into the row.
+   `Log path` (`logs/<YYYYMMDD>/<RUN_NAME>.log`, where `RUN_NAME` includes `-r<N>`) into the row.
 
 7. **Reproducibility artifact**: create/append the self-contained per-run log at
-   `experiments_logs/<RUN_NAME>.md` (exact command + all knobs + env + WandB/log + hypothesis + a
-   "how to rerun" line). See the `join-experiments` skill for the required sections. Findings are
-   filled on completion by the `log-results` skill.
+   `experiments_logs/<RUN_NAME_BASE>.md` (base stem `<RQ>-<expid>-<data_name>`, **no** `-r<N>` — all
+   attempts append to one file; record the exact command + all knobs + env + WandB/log + hypothesis +
+   attempted run indices + a "how to rerun" line). See the `join-experiments` skill for the required
+   sections. Findings are filled on completion by the `log-results` skill.
 
 ## Never
 

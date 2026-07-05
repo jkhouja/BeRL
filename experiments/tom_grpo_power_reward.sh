@@ -23,6 +23,10 @@ REWARD_TYPE="power"  # Power reward: max(ll - ll_min, 0) ^ k
 POWER_K=2.0
 POWER_LL_MIN=-2.0
 DATASET_NAME="tom_orig_3k"
+# WandB naming convention: <RQ>-<data>-<model>-<params>-r<N> (see BeRL_experiments_tracker.md §4).
+# Override RQ_TAG per experiment ("test" for smoke runs); bump RUN_INDEX on resubmission.
+RQ_TAG="${RQ_TAG:-generalization}"
+RUN_INDEX="${RUN_INDEX:-1}"
 EXP_DESC="power-reward-k${POWER_K}-llmin${POWER_LL_MIN}"
 
 model_names=("Qwen/Qwen2.5-3B-Instruct")
@@ -40,7 +44,7 @@ do
         # Build descriptive experiment name
         RM_TYPE=$( [ "$USE_ACTOR_AS_RM" = "True" ] && echo "actorRM" || echo "frozenRM" )
         BASELINE_TAG=$( [ "$SUBTRACT_BASELINE" = "True" ] && echo "baseline" || echo "nobaseline" )
-        EXP_NAME="${DATASET_NAME}-$(basename $model_name)-${RM_TYPE}-${BASELINE_TAG}-lr${lr}-n${ROLLOUT_N}-${EXP_DESC}"
+        EXP_NAME="${RQ_TAG}-${DATASET_NAME}-$(basename $model_name)-${RM_TYPE}-${BASELINE_TAG}-lr${lr}-n${ROLLOUT_N}-${EXP_DESC}-r${RUN_INDEX}"
 
         cd $REPO_DIR
         HYDRA_FULL_ERROR=1 RAY_BACKEND_LOG_LEVEL=debug python3 -m verl.trainer.main_ppo \

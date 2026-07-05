@@ -26,6 +26,10 @@ REWARD_TYPE="power"
 POWER_K=2.0
 POWER_LL_MIN=-8.0
 DATASET_NAME="all_dialogue_merged"
+# WandB naming convention: <RQ>-<data>-<model>-<params>-r<N> (see BeRL_experiments_tracker.md §4).
+# Override RQ_TAG per experiment ("test" for smoke runs); bump RUN_INDEX on resubmission.
+RQ_TAG="${RQ_TAG:-data-recipe}"
+RUN_INDEX="${RUN_INDEX:-1}"
 EXP_DESC="power-reward-k${POWER_K}-llmin${POWER_LL_MIN}"
 
 model_name="Qwen/Qwen2.5-3B-Instruct"
@@ -38,7 +42,7 @@ test_files="[$REPO_DIR/data/cleaned_tom/ToM_test_HiExTi_hint_v3.parquet,$REPO_DI
 
 RM_TYPE=$( [ "$USE_ACTOR_AS_RM" = "True" ] && echo "actorRM" || echo "frozenRM" )
 BASELINE_TAG=$( [ "$SUBTRACT_BASELINE" = "True" ] && echo "baseline" || echo "nobaseline" )
-EXP_NAME="${DATASET_NAME}-Qwen2.5-3B-Instruct-${RM_TYPE}-${BASELINE_TAG}-lr${lr}-n${ROLLOUT_N}-${EXP_DESC}-fantom"
+EXP_NAME="${RQ_TAG}-${DATASET_NAME}-Qwen2.5-3B-Instruct-${RM_TYPE}-${BASELINE_TAG}-lr${lr}-n${ROLLOUT_N}-${EXP_DESC}-fantom-r${RUN_INDEX}"
 
 cd $REPO_DIR
 HYDRA_FULL_ERROR=1 RAY_BACKEND_LOG_LEVEL=debug python3 -m verl.trainer.main_ppo \
