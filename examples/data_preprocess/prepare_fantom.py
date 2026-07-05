@@ -27,65 +27,47 @@ import pandas as pd
 # Prompt construction (mirrors merge_tom.py make_prefix)
 # ---------------------------------------------------------------------------
 
-def make_prefix(context, question, template_type='base', add_hint=False, wo_think=False):
+def make_prefix(context, question, template_type='messages', add_hint=False, wo_think=False):
+    """Build the prompt as a clean list of chat messages.
+
+    The messages are stored WITHOUT any model-specific special tokens
+    (e.g. ``<|im_start|>``). The chat template for the configured model is
+    applied later at load time in ``RLHFDataset`` so the same parquet works
+    for Qwen2.5, Qwen3, Gemma2, etc. ``template_type`` is accepted for
+    backward compatibility but ignored.
+    """
     quiz = f"{context}\n\nQuestion: {question}"
 
-    if template_type == 'base':
-        prefix = (
-            "The user asks a question about a story, and the Assistant answers it. "
-            "The assistant first thinks about the reasoning process in the mind and then provides the user with the final answer. "
-            "The reasoning process and answer are enclosed within <think> </think> and <answer> </answer> tags, respectively, "
-            "i.e., <think> reasoning process here </think><answer> answer here </answer>. "
-            "Now the user asks you to solve a theory of mind reasoning problem. "
-            "After thinking, when you finally reach a conclusion, clearly state your answer within <answer> </answer> tags."
-            f"\n\nUser:{quiz}\nAssistant: <think>"
+    hint = ""
+    if add_hint:
+        hint = (
+            "\nNote: You should assume the following.\n"
+            "(1) An agent witnesses everything and every movement before exiting a room.\n"
+            "(2) An agent A can infer another agent B's mental state only if A and B have been in the same room, "
+            "or have private or public interactions.\n"
         )
-    elif template_type == 'qwen-instruct':
-        hint = ""
-        if add_hint:
-            hint = (
-                "\nNote: You should assume the following.\n"
-                "(1) An agent witnesses everything and every movement before exiting a room.\n"
-                "(2) An agent A can infer another agent B's mental state only if A and B have been in the same room, "
-                "or have private or public interactions.\n"
-            )
-        if not wo_think:
-            prefix = (
-                "<|im_start|>system\n"
-                "You are a helpful assistant. The assistant first thinks about the reasoning process in the mind "
-                "and then provides the user with the answer. The reasoning process and answer are enclosed within "
-                "<think> </think> and <answer> </answer> tags, respectively, i.e., "
-                "<think> reasoning process here </think><answer> answer here </answer>. "
-                "Now the user asks you to solve a theory of mind reasoning problem. "
-                "After thinking, when you finally reach a conclusion, clearly state your answer within "
-                f"<answer> </answer> tags.\n{hint}"
-                "<|im_end|>\n"
-                f"<|im_start|>user\n{quiz}\n<|im_end|>\n"
-                "<|im_start|>assistant\n<think>"
-            )
-        else:
-            prefix = (
-                "<|im_start|>system\n"
-                "You are a helpful assistant. The assistant first thinks about the reasoning process in the mind "
-                "and then provides the user with the answer. Now the user asks you to solve a theory of mind "
-                "reasoning problem. Please reason step by step, and put your final answer within "
-                f"<answer> </answer> tags.\n{hint}"
-                "<|im_end|>\n"
-                f"<|im_start|>user\n{quiz}\n<|im_end|>\n"
-                "<|im_start|>assistant\n"
-            )
-    elif template_type == 'dpsk-reasoning':
-        prefix = (
-            "<｜begin▁of▁sentence｜><｜User｜>You are a helpful assistant. The assistant first thinks about the "
-            "reasoning process in the mind and then provides the user with the answer. The reasoning process and "
-            "answer are enclosed within <think> </think> and <answer> </answer> tags, respectively, i.e., "
-            "<think> reasoning process here </think><answer> answer here </answer>. Now the user asks you to solve "
-            "a theory of mind reasoning problem. After thinking, when you finally reach a conclusion, clearly state "
-            f"your answer within <answer> </answer> tags.<｜Assistant｜><think>"
+
+    if not wo_think:
+        system_content = (
+            "You are a helpful assistant. The assistant first thinks about the reasoning process in the mind "
+            "and then provides the user with the answer. The reasoning process and answer are enclosed within "
+            "<think> </think> and <answer> </answer> tags, respectively, i.e., "
+            "<think> reasoning process here </think><answer> answer here </answer>. "
+            "Now the user asks you to solve a theory of mind reasoning problem. "
+            "After thinking, when you finally reach a conclusion, clearly state your answer within "
+            f"<answer> </answer> tags.\n{hint}"
         )
     else:
-        raise ValueError(f"Unknown template_type: {template_type}")
-    return prefix
+        system_content = (
+            "You are a helpful assistant. The assistant first thinks about the reasoning process in the mind "
+            "and then provides the user with the answer. Now the user asks you to solve a theory of mind "
+            f"reasoning problem. Please reason step by step, and put your final answer within <answer> </answer> tags.\n{hint}"
+        )
+
+    return [
+        {"role": "system", "content": system_content},
+        {"role": "user", "content": quiz},
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -156,10 +138,14 @@ def build_samples(data, context_type, template_type, add_hint, wo_think):
         return str(val) if val else ""
 
     def _make_sample(data_source, prompt_text, gt_json, question_text, answer_text, context, extra_info):
-        """Build a sample dict with all required columns for schema compatibility."""
+        """Build a sample dict with all required columns for schema compatibility.
+
+        ``prompt_text`` is a list of chat messages (model-agnostic); the chat
+        template is applied later at load time based on the active model.
+        """
         return {
             "data_source": data_source,
-            "prompt": [{"role": "user", "content": prompt_text}],
+            "prompt": prompt_text,
             "ability": "theory_of_mind",
             "reward_model": {"style": "rule", "ground_truth": gt_json},
             "extra_info": extra_info,
@@ -261,8 +247,9 @@ def build_samples(data, context_type, template_type, add_hint, wo_think):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Prepare FANToM eval parquet")
     parser.add_argument("--local_dir", default="./data/cleaned_tom")
-    parser.add_argument("--template_type", type=str, default="qwen-instruct",
-                        choices=["base", "qwen-instruct", "dpsk-reasoning"])
+    parser.add_argument("--template_type", type=str, default="messages",
+                        choices=["messages", "base", "qwen-instruct", "dpsk-reasoning"],
+                        help="Kept for backward compatibility; prompts are always stored as model-agnostic chat messages.")
     parser.add_argument("--add_hint", action="store_true")
     parser.add_argument("--wo_think", action="store_true")
     parser.add_argument("--context_type", type=str, default="short",

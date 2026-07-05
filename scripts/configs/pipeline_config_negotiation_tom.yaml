@@ -1,0 +1,84 @@
+pipeline:
+  output_dir: "data"
+  output_name: "merged_negotiation_tom_eval_prompt"
+  seed: 42
+  shuffle: true
+
+perplexity:
+  enabled: true
+  model_name: "Qwen/Qwen2.5-3B-Instruct"
+  batch_size: 4
+
+# High-ToM-signal datasets: next utterance requires inferring hidden state
+# (priorities, target prices, deception, persuasion). cot_eval system prompt
+# matches the eval prompt for best transfer.
+datasets:
+  - source: "casino"
+    split: "train"
+    sample_size: null
+    min_turns: 6
+    min_response_words: 1          # negotiation has short utterances (e.g. "Deal!")
+    max_response_words: 120
+    prompt_style: "cot_tom"
+    system_prompt_style: "cot_eval"
+    generation_prefix: "<think>"
+    add_response_tags: true
+    include_system_in_prompt: true
+    multi_sample: true
+    turn_order: "random"
+
+  - source: "craigslist_bargain"
+    split: "train"
+    sample_size: null
+    min_turns: 6
+    min_response_words: 1
+    max_response_words: 120
+    prompt_style: "cot_tom"
+    system_prompt_style: "cot_eval"
+    generation_prefix: "<think>"
+    add_response_tags: true
+    include_system_in_prompt: true
+    multi_sample: true
+    turn_order: "random"
+
+  - source: "dealornodeal"
+    split: "train"
+    sample_size: null
+    min_turns: 6
+    min_response_words: 1
+    max_response_words: 120
+    prompt_style: "cot_tom"
+    system_prompt_style: "cot_eval"
+    generation_prefix: "<think>"
+    add_response_tags: true
+    include_system_in_prompt: true
+    multi_sample: true
+    turn_order: "random"
+
+  - source: "persuasionforgood"
+    split: "train"
+    sample_size: null
+    min_turns: 6
+    min_response_words: 5
+    max_response_words: 120
+    prompt_style: "cot_tom"
+    system_prompt_style: "cot_eval"
+    generation_prefix: "<think>"
+    add_response_tags: true
+    include_system_in_prompt: true
+    multi_sample: true
+    turn_order: "random"
+
+  - source: "diplomacy"
+    split: "train"
+    sample_size: null
+    min_turns: 6
+    min_response_words: 5
+    max_response_words: 150
+    prompt_style: "cot_tom"
+    system_prompt_style: "cot_eval"
+    generation_prefix: "<think>"
+    add_response_tags: true
+    include_system_in_prompt: true
+    multi_sample: true
+    turn_order: "random"

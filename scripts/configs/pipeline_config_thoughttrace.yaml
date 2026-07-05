@@ -1,0 +1,28 @@
+pipeline:
+  output_dir: "data"
+  output_name: "thoughttrace_user_eval_prompt"
+  seed: 42
+  shuffle: true
+
+perplexity:
+  enabled: true
+  model_name: "Qwen/Qwen2.5-3B-Instruct"
+  batch_size: 2
+
+# ThoughtTrace only, with target_speaker="user": human–AI conversations where
+# AI turns are very long (~231 w). Only predict the human's (user) turns so the
+# long assistant context doesn't reject the whole conversation.
+datasets:
+  - source: "thoughttrace"
+    sample_size: 3000
+    min_turns: 6
+    min_response_words: 10
+    max_response_words: 120
+    prompt_style: "cot_tom"
+    system_prompt_style: "cot_eval"
+    generation_prefix: "<think>"
+    add_response_tags: true
+    include_system_in_prompt: true
+    multi_sample: true
+    turn_order: "random"
+    target_speaker: "user"

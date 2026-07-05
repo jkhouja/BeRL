@@ -26,6 +26,13 @@ CONVERTERS = {
     "empathetic_dialogues": ("scripts.convert_empathetic_dialogues", "EmpatheticDialoguesConverter"),
     "theory_of_mind": ("scripts.convert_theory_of_mind", "TheoryOfMindConverter"),
     "conversations_gone_awry": ("scripts.convert_conversations_gone_awry", "ConversationsGoneAwryConverter"),
+    "casino": ("scripts.convert_casino", "CasinoConverter"),
+    "craigslist_bargain": ("scripts.convert_craigslist_bargain", "CraigslistBargainConverter"),
+    "dealornodeal": ("scripts.convert_dealornodeal", "DealOrNoDealConverter"),
+    "switchboard": ("scripts.convert_switchboard", "SwitchboardConverter"),
+    "diplomacy": ("scripts.convert_diplomacy", "DiplomacyConverter"),
+    "persuasionforgood": ("scripts.convert_persuasionforgood", "PersuasionForGoodConverter"),
+    "thoughttrace": ("scripts.convert_thoughttrace", "ThoughtTraceConverter"),
 }
 
 # ---------------------------------------------------------------------------
