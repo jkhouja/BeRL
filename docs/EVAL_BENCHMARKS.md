@@ -166,3 +166,12 @@ python prepare_mmlu.py                 --out ../../data/cleaned_tom/mmlu_test.pa
 python prepare_ullman_perturbed.py     --out ../../data/cleaned_tom/ullman_perturbed_test.parquet
 python prepare_exploretom_infilled.py  --out ../../data/cleaned_tom/exploretom_infilled_test.parquet --limit 1500
 ```
+
+The in-distribution merged ToM eval (`ToM_test_HiExTi_hint_v3.parquet` = tomi + hi_tom +
+explore_tom, 8060 rows) is regenerated from `merge_tom.py` (needs the source parquets under
+`data/cleaned_tom/merge/`). The `v3` variant = `cot_eval` + room-witness hint + concise-answer
+instruction, produced by:
+
+```bash
+python merge_tom.py --add_hint --concise_answer   # writes ToM_test_HiExTi_hint_v3.parquet
+```
