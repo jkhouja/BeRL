@@ -23,7 +23,8 @@ from scripts.prompt_templates import (
     SYSTEM_PROMPT_STYLES,
     PROMPT_STYLES,
     DEFAULT_SYSTEM_PROMPT,
-    SIMPLE_USER_TEMPLATE,
+    USER_TEMPLATE_SIMPLE,
+    validate_prompt_tag_consistency,
 )
 
 
@@ -88,9 +89,20 @@ class DialogueConverterBase:
         self.system_prompt = cfg.get("system_prompt", system_prompt)
 
         if self.user_template is None:
-            self.user_template = PROMPT_STYLES.get(self.prompt_style, SIMPLE_USER_TEMPLATE)
+            self.user_template = PROMPT_STYLES.get(self.prompt_style, USER_TEMPLATE_SIMPLE)
         if self.system_prompt is None:
             self.system_prompt = SYSTEM_PROMPT_STYLES.get(self.system_prompt_style, DEFAULT_SYSTEM_PROMPT)
+
+        # Guard: the <answer>-tag signals (system prompt, add_response_tags,
+        # generation_prefix) must agree. Mismatches silently hurt the reward
+        # (e.g. a tag-free target with a system prompt that demands tags).
+        for _w in validate_prompt_tag_consistency(
+            system_prompt=self.system_prompt,
+            add_response_tags=self.add_response_tags,
+            generation_prefix=self.generation_prefix,
+            context=f"{self.data_source} converter",
+        ):
+            print(f"[WARN] {_w}")
 
         random.seed(self.seed)
 

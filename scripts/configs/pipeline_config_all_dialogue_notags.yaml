@@ -1,6 +1,6 @@
 pipeline:
   output_dir: "data"
-  output_name: "merged_all_dialogue_eval_prompt"
+  output_name: "merged_all_dialogue_notags"
   seed: 42
   shuffle: true
 
@@ -11,9 +11,11 @@ perplexity:
   # ThoughtTrace contexts (long AI turns) to avoid CUDA OOM.
   batch_size: 2
 
-# "Everything" merge: all dialogue sources. cot_eval system prompt for ToM
-# transfer. Per-dataset filters tuned to each source's utterance length:
-# negotiation sets allow short utterances; long-form sets are capped.
+# Tag-free variant of pipeline_config_all_dialogue.yaml for native-thinking
+# models (Qwen3, Gemma/Gemma2): cot_eval_notags system prompt (no <answer>
+# instruction), add_response_tags=false, empty generation_prefix. The scorer's
+# tag expectation is set automatically via model_type detection at train time.
+# Per-dataset filters are identical to the tagged config.
 datasets:
   # --- conversational / empathetic (low-medium ToM signal) ---
   - source: "dailydialog"
@@ -22,9 +24,9 @@ datasets:
     min_response_words: 10
     max_response_words: 150
     prompt_style: "simple"
-    system_prompt_style: "cot_eval"
-    generation_prefix: "<think>"
-    add_response_tags: true
+    system_prompt_style: "cot_eval_notags"
+    generation_prefix: ""
+    add_response_tags: false
     include_system_in_prompt: true
     multi_sample: true
     turn_order: "random"
@@ -35,9 +37,9 @@ datasets:
     min_response_words: 10
     max_response_words: 150
     prompt_style: "simple"
-    system_prompt_style: "cot_eval"
-    generation_prefix: "<think>"
-    add_response_tags: true
+    system_prompt_style: "cot_eval_notags"
+    generation_prefix: ""
+    add_response_tags: false
     include_system_in_prompt: true
     multi_sample: true
     turn_order: "random"
@@ -49,9 +51,9 @@ datasets:
     min_response_words: 10
     max_response_words: 200
     prompt_style: "simple"
-    system_prompt_style: "cot_eval"
-    generation_prefix: "<think>"
-    add_response_tags: true
+    system_prompt_style: "cot_eval_notags"
+    generation_prefix: ""
+    add_response_tags: false
     include_system_in_prompt: true
     multi_sample: true
     turn_order: "random"
@@ -63,9 +65,9 @@ datasets:
     min_response_words: 1
     max_response_words: 120
     prompt_style: "simple"
-    system_prompt_style: "cot_eval"
-    generation_prefix: "<think>"
-    add_response_tags: true
+    system_prompt_style: "cot_eval_notags"
+    generation_prefix: ""
+    add_response_tags: false
     include_system_in_prompt: true
     multi_sample: true
     turn_order: "random"
@@ -76,9 +78,9 @@ datasets:
     min_response_words: 1
     max_response_words: 120
     prompt_style: "simple"
-    system_prompt_style: "cot_eval"
-    generation_prefix: "<think>"
-    add_response_tags: true
+    system_prompt_style: "cot_eval_notags"
+    generation_prefix: ""
+    add_response_tags: false
     include_system_in_prompt: true
     multi_sample: true
     turn_order: "random"
@@ -89,9 +91,9 @@ datasets:
     min_response_words: 1
     max_response_words: 120
     prompt_style: "simple"
-    system_prompt_style: "cot_eval"
-    generation_prefix: "<think>"
-    add_response_tags: true
+    system_prompt_style: "cot_eval_notags"
+    generation_prefix: ""
+    add_response_tags: false
     include_system_in_prompt: true
     multi_sample: true
     turn_order: "random"
@@ -102,9 +104,9 @@ datasets:
     min_response_words: 5
     max_response_words: 120
     prompt_style: "simple"
-    system_prompt_style: "cot_eval"
-    generation_prefix: "<think>"
-    add_response_tags: true
+    system_prompt_style: "cot_eval_notags"
+    generation_prefix: ""
+    add_response_tags: false
     include_system_in_prompt: true
     multi_sample: true
     turn_order: "random"
@@ -115,9 +117,9 @@ datasets:
     min_response_words: 5
     max_response_words: 150
     prompt_style: "simple"
-    system_prompt_style: "cot_eval"
-    generation_prefix: "<think>"
-    add_response_tags: true
+    system_prompt_style: "cot_eval_notags"
+    generation_prefix: ""
+    add_response_tags: false
     include_system_in_prompt: true
     multi_sample: true
     turn_order: "random"
@@ -129,9 +131,9 @@ datasets:
     min_response_words: 10
     max_response_words: 120
     prompt_style: "simple"
-    system_prompt_style: "cot_eval"
-    generation_prefix: "<think>"
-    add_response_tags: true
+    system_prompt_style: "cot_eval_notags"
+    generation_prefix: ""
+    add_response_tags: false
     include_system_in_prompt: true
     multi_sample: true
     turn_order: "random"

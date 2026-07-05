@@ -64,6 +64,18 @@ COT_TOM2_SYSTEM_PROMPT = (
     "before making your final reasoning."
 )
 
+# Tag-free CoT variant for models that reason in a native <think> mode and are
+# NOT expected to emit <answer> tags (e.g. Qwen3, Gemma / Gemma2). It keeps the
+# reason-then-answer + ToM framing of ``cot_eval`` but instructs NO <answer>
+# tags, so it must be paired with ``add_response_tags: false`` and an empty
+# ``generation_prefix``. See ``validate_prompt_tag_consistency``.
+COT_EVAL_NOTAGS_SYSTEM_PROMPT = (
+    "You are a helpful assistant. The assistant first thinks about the "
+    "reasoning process in the mind and then provides the user with the answer. "
+    "Now the user asks you to solve a theory of mind reasoning problem. "
+    "Please reason step by step, and then clearly state your final answer."
+)
+
 SYSTEM_PROMPT_STYLES = {
     "default": DEFAULT_SYSTEM_PROMPT,
     "research": RESEARCH_SYSTEM_PROMPT,
@@ -72,29 +84,23 @@ SYSTEM_PROMPT_STYLES = {
     "cot_tom": COT_TOM_SYSTEM_PROMPT,
     "cot_eval": COT_EVAL_SYSTEM_PROMPT,
     "cot_tom2": COT_TOM2_SYSTEM_PROMPT,
+    "cot_eval_notags": COT_EVAL_NOTAGS_SYSTEM_PROMPT,
 }
 
 # ---------------------------------------------------------------------------
 # User prompt templates
 # ---------------------------------------------------------------------------
 
-SIMPLE_USER_TEMPLATE = """Below is a real conversation between two people.
+USER_TEMPLATE_SIMPLE = """Below is a real conversation between two people.
 Based on the conversation history, predict what {responding_speaker} will say next.
 
 Dialogue History:
 {dialogue_history}
 
-Now respond with what {responding_speaker} will say next."""
+Now respond with what {responding_speaker} will say next without including the speaker: prefix."""
 
-DETAILED_USER_TEMPLATE = """Below is a real conversation between two people. Continue the conversation as realistically as possible.
 
-CONVERSATION:
-{dialogue_history}
-
-Now respond with the following:
-{responding_speaker}: """
-
-BASELINE_USER_TEMPLATE = """Below is a real conversation between two people.
+USER_TEMPLATE_HINT = """Below is a real conversation between two people.
 Respond with the next utterance in the conversation as realistically as possible.
 
 CONVERSATION:
@@ -102,37 +108,61 @@ CONVERSATION:
 
 {responding_speaker}: """
 
-EMPATHY_USER_TEMPLATE = """Below is a conversation where one person is sharing an emotional experience and another is responding with empathy.
 
-Context: {emotion_label}
-
-CONVERSATION:
-{dialogue_history}
-
-Continue the conversation with an empathetic response as {responding_speaker}:
-"""
-
-COT_USER_TEMPLATE = """Below is a real conversation between two people.
-Based on the conversation history, think about what {responding_speaker} would say next. Consider the context, tone, and flow of the conversation.
-
-Dialogue History:
-{dialogue_history}
-
-Think step by step about what {responding_speaker} will say next, then provide the response."""
-
-COT_TOM_USER_TEMPLATE = """Below is a real conversation between two people.
-Based on the conversation history, figure out what {responding_speaker} would say next.
-
-Dialogue History:
-{dialogue_history}
-
-Reason about each person's intent, beliefs, and goals, then predict what {responding_speaker} will say next."""
 
 PROMPT_STYLES = {
-    "simple": SIMPLE_USER_TEMPLATE,
-    "detailed": DETAILED_USER_TEMPLATE,
-    "baseline": BASELINE_USER_TEMPLATE,
-    "empathy": EMPATHY_USER_TEMPLATE,
-    "cot": COT_USER_TEMPLATE,
-    "cot_tom": COT_TOM_USER_TEMPLATE,
+    "simple": USER_TEMPLATE_SIMPLE,
+    "prefix_hint": USER_TEMPLATE_HINT,
 }
+
+
+# ---------------------------------------------------------------------------
+# Tag-consistency validation
+# ---------------------------------------------------------------------------
+
+def system_prompt_instructs_answer_tags(system_prompt: str) -> bool:
+    """Return True if *system_prompt* tells the model to emit <answer> tags."""
+    return "<answer>" in (system_prompt or "")
+
+
+def validate_prompt_tag_consistency(
+    system_prompt: str,
+    add_response_tags: bool,
+    generation_prefix: str = "",
+    context: str = "",
+) -> list:
+    """Check that the answer-tag signals agree across the three knobs.
+
+    The three tag-related settings that must agree are:
+      1. the system prompt (does it *instruct* <answer> tags?),
+      2. ``add_response_tags`` (does the *target* get wrapped in <answer> tags?),
+      3. ``generation_prefix`` (a "<think>" prefix implies a tagged CoT format).
+
+    Returns a list of human-readable warning strings (empty if consistent).
+    Raising is left to the caller so callers can choose warn-vs-error.
+    """
+    warnings = []
+    prefix = f"[{context}] " if context else ""
+    instructs_tags = system_prompt_instructs_answer_tags(system_prompt)
+
+    if instructs_tags and not add_response_tags:
+        warnings.append(
+            f"{prefix}System prompt instructs <answer> tags but add_response_tags=False: "
+            "the model will be told to emit tags the target lacks. Use a tag-free "
+            "system prompt (e.g. system_prompt_style='cot_eval_notags') or set "
+            "add_response_tags=True."
+        )
+    if add_response_tags and not instructs_tags:
+        warnings.append(
+            f"{prefix}add_response_tags=True but the system prompt does not mention "
+            "<answer> tags: the target is wrapped in tags the prompt never asks for. "
+            "Use a tag-instructing system prompt (e.g. 'cot_eval') or set "
+            "add_response_tags=False."
+        )
+    if generation_prefix and "<think>" in generation_prefix and not instructs_tags:
+        warnings.append(
+            f"{prefix}generation_prefix contains '<think>' but the system prompt does "
+            "not describe the <think>/<answer> tag format. For native-thinking models "
+            "(Qwen3/Gemma) leave generation_prefix empty."
+        )
+    return warnings

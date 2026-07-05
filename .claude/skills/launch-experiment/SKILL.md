@@ -77,6 +77,22 @@ The row must already be **claimed** (`Status=Processing`, `Owner_host` set) — 
    override text. When the prompt is *not* varied (the default `cot_eval`), do **not** set
    `+data.system_prompt` — the baked prompts already match.
 
+   **4b. Answer-tag alignment (MANDATORY — tag-free CoTs for Qwen3 / Gemma).** The scorer's
+   `<answer>`-tag expectation is decided by **model type**, not by any flag: `main_ppo.py` picks a
+   parser where Qwen2/2.5 require `<answer>` tags but **Qwen3 and Gemma/Gemma2 do NOT**
+   (`response_parser.py`). The `+*.require_answer_tags=...` overrides are **no-ops** (the scorers
+   read `parser.REQUIRE_ANSWER_TAGS` instead). Therefore the *data* must match the model:
+   - **Qwen2/2.5** → tagged data: `system_prompt_style: cot_eval`, `add_response_tags: true`,
+     `generation_prefix: "<think>"` (e.g. `pipeline_config_all_dialogue.yaml`,
+     `data/merged_all_dialogue_eval_prompt.parquet`).
+   - **Qwen3 / Gemma / Gemma2** → **tag-free** data: `system_prompt_style: cot_eval_notags`,
+     `add_response_tags: false`, `generation_prefix: ""` (e.g.
+     `pipeline_config_all_dialogue_notags.yaml`, `data/merged_all_dialogue_notags.parquet`).
+   Never train Qwen3/Gemma on a `cot_eval`/`add_response_tags: true` dataset: the system prompt
+   would command `<answer>` tags the target lacks and the parser ignores → mismatch. The data-gen
+   pipeline (`build_dataset.py`) now **fails fast** if `system_prompt_style`, `add_response_tags`,
+   and `generation_prefix` disagree (`validate_prompt_tag_consistency`).
+
 5. **Verify start-up**: tail the log to confirm no import errors, model loads, first rollout begins.
 
 6. **Record back to the tracker**: set `Status=Training`, paste `WandB link` and

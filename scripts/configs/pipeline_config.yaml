@@ -15,8 +15,8 @@ datasets:
     sample_size: 2000
     min_turns: 4
     min_response_words: 5
-    prompt_style: "cot"
-    system_prompt_style: "cot"
+    prompt_style: "simple"
+    system_prompt_style: "simple"
     generation_prefix: "<think>"
     add_response_tags: true
     include_system_in_prompt: true
@@ -26,8 +26,8 @@ datasets:
     sample_size: 2000
     min_turns: 4
     min_response_words: 5
-    prompt_style: "cot"
-    system_prompt_style: "cot"
+    prompt_style: "simple"
+    system_prompt_style: "simple"
     generation_prefix: "<think>"
     add_response_tags: true
     include_system_in_prompt: true

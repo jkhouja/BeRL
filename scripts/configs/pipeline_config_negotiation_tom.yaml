@@ -19,7 +19,7 @@ datasets:
     min_turns: 6
     min_response_words: 1          # negotiation has short utterances (e.g. "Deal!")
     max_response_words: 120
-    prompt_style: "cot_tom"
+    prompt_style: "simple"
     system_prompt_style: "cot_eval"
     generation_prefix: "<think>"
     add_response_tags: true
@@ -33,7 +33,7 @@ datasets:
     min_turns: 6
     min_response_words: 1
     max_response_words: 120
-    prompt_style: "cot_tom"
+    prompt_style: "simple"
     system_prompt_style: "cot_eval"
     generation_prefix: "<think>"
     add_response_tags: true
@@ -47,7 +47,7 @@ datasets:
     min_turns: 6
     min_response_words: 1
     max_response_words: 120
-    prompt_style: "cot_tom"
+    prompt_style: "simple"
     system_prompt_style: "cot_eval"
     generation_prefix: "<think>"
     add_response_tags: true
@@ -61,7 +61,7 @@ datasets:
     min_turns: 6
     min_response_words: 5
     max_response_words: 120
-    prompt_style: "cot_tom"
+    prompt_style: "simple"
     system_prompt_style: "cot_eval"
     generation_prefix: "<think>"
     add_response_tags: true
@@ -75,7 +75,7 @@ datasets:
     min_turns: 6
     min_response_words: 5
     max_response_words: 150
-    prompt_style: "cot_tom"
+    prompt_style: "simple"
     system_prompt_style: "cot_eval"
     generation_prefix: "<think>"
     add_response_tags: true

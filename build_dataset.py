@@ -18,6 +18,12 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 import yaml
 
+from scripts.prompt_templates import (
+    SYSTEM_PROMPT_STYLES,
+    DEFAULT_SYSTEM_PROMPT,
+    validate_prompt_tag_consistency,
+)
+
 # ---------------------------------------------------------------------------
 # Source registry – maps source name to (module_path, class_name)
 # ---------------------------------------------------------------------------
@@ -46,7 +52,7 @@ DATASET_DEFAULTS: Dict[str, Any] = {
     "min_response_words": 5,
     "max_response_words": None,
     "limit_turn": None,
-    "prompt_style": "cot",
+    "prompt_style": "simple",
     "system_prompt_style": "cot",
     "generation_prefix": "<think>",
     "add_response_tags": True,
@@ -94,7 +100,34 @@ def build_converter_config(dataset_entry: dict, pipeline_cfg: dict) -> dict:
         if k == "source":
             continue
         cfg[k] = v
+    _validate_tag_consistency(dataset_entry.get("source", "?"), cfg)
     return cfg
+
+
+def _validate_tag_consistency(source: str, cfg: Dict[str, Any]) -> None:
+    """Fail fast if the <answer>-tag knobs disagree for this dataset entry.
+
+    Resolves the effective system prompt (explicit ``system_prompt`` or the
+    ``system_prompt_style`` registry entry) and cross-checks it against
+    ``add_response_tags`` / ``generation_prefix``. Raises ValueError so a
+    misconfigured run stops before generating a mismatched dataset.
+    """
+    system_prompt = cfg.get("system_prompt")
+    if system_prompt is None:
+        system_prompt = SYSTEM_PROMPT_STYLES.get(
+            cfg.get("system_prompt_style", "default"), DEFAULT_SYSTEM_PROMPT
+        )
+    warnings = validate_prompt_tag_consistency(
+        system_prompt=system_prompt,
+        add_response_tags=cfg.get("add_response_tags", True),
+        generation_prefix=cfg.get("generation_prefix", "") or "",
+        context=f"source '{source}'",
+    )
+    if warnings:
+        raise ValueError(
+            "Inconsistent <answer>-tag configuration:\n  - "
+            + "\n  - ".join(warnings)
+        )
 
 
 def run_converter(source: str, converter_config: dict, tmp_dir: str) -> str:

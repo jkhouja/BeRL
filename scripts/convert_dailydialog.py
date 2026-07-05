@@ -23,7 +23,7 @@ from scripts.prompt_templates import (
     DEFAULT_SYSTEM_PROMPT,
     SYSTEM_PROMPT_STYLES,
     PROMPT_STYLES,
-    SIMPLE_USER_TEMPLATE,
+    USER_TEMPLATE_SIMPLE,
 )
 
 
@@ -162,7 +162,7 @@ class DailyDialogConverter:
 
         # Set defaults based on styles if not provided
         if self.user_template is None:
-            self.user_template = PROMPT_STYLES.get(self.prompt_style, SIMPLE_USER_TEMPLATE)
+            self.user_template = PROMPT_STYLES.get(self.prompt_style, USER_TEMPLATE_SIMPLE)
 
         if self.system_prompt is None:
             self.system_prompt = SYSTEM_PROMPT_STYLES.get(self.system_prompt_style, DEFAULT_SYSTEM_PROMPT)

@@ -18,7 +18,7 @@ datasets:
     min_turns: 6
     min_response_words: 10
     max_response_words: 120
-    prompt_style: "cot_tom"
+    prompt_style: "simple"
     system_prompt_style: "cot_eval"
     generation_prefix: "<think>"
     add_response_tags: true
