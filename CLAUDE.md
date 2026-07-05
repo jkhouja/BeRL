@@ -176,6 +176,10 @@ Key: Qwen3-1.7B surpasses Qwen2.5-3B on tomi (77.2% vs 69.0%) with half the para
 - Direct ToM (1.7B): `round20-tom3k-rulebased-fantom-Qwen3-1.7B-5e-7-16`
 - Combined (1.7B): `dialogue_cga_combined-Qwen3-1.7B-actorRM-nobaseline-lr5e-7-n16-power-reward-k2.0-llmin-8.0-fantom`
 
+## Keeping Change History Updated
+
+**ALWAYS** update `docs/CHANGE_HISTORY.md` whenever you make a code change. After committing, add a row to the relevant table (Features / Bug Fixes / Docs) with: the commit hash, date, a short title, *what* changed, and *why*. This keeps a traceable map from feature/fix → commit pointer for future sessions.
+
 ## Branch & Workflow
 
 - Working branch: `jude/dev`
