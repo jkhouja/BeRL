@@ -17,7 +17,8 @@ The forward-looking plan and live execution state live in `project_planning/`:
   are defined here.
 - **`project_planning/HISTORY_rounds_1-20.md`** — archived pre-paper results (Rounds 1–20) and the
   best-known config. Historical only; not the final paper experiments.
-- `grpo_tuning_changelog.md` — archival run-by-run log.
+- `grpo_tuning_changelog.md` — frozen archival run-by-run log (pre-paper Rounds 1–20); not part of
+  the paper workflow, do not append.
 
 ## Best-known config (from Round 17f/20; starting point, to be re-derived in Phase −1/0/Q2)
 Qwen2.5-3B-Instruct; `cot_eval` system prompt (matches eval); power-law LL reward, ll_min=-8,
@@ -27,21 +28,21 @@ clip (-40,40), actor-as-RM; KL=0.05, LR=5e-7, batch=32, mini_batch=128, rollout_
 - **Run name** = launcher `EXP_NAME` = WandB run name = log filename = tracker slug (lowercase),
   e.g. `pm1a_power`, `p0_single_cga`, `q0_a1_berl_s1`.
 - **Data config** = `dcfg_*` = data-gen YAML stem AND output parquet stem (generate once, share).
-- Each experiment auto-writes a self-contained summary `.md` (in `project_planning/results/`) with
+- Each experiment auto-writes a self-contained summary `.md` (in `experiments_logs/`) with
   the exact command, all knobs, env, WandB link, log path, findings, and a rerun one-liner.
 
 ## Repo map
 - `experiments/` — training launchers (being consolidated into generic, model-class-aware launchers
   + smoke tests; see plan). Scripts are dataset-agnostic; data is passed via `dcfg_*`.
-- `scripts/` — dataset converters (`convert_*.py`, 11 domains + ConvoKit/dialogue bases),
-  `build_dataset.py` (CONVERTERS registry), `prompt_templates.py` (CoT/ToM prompt styles),
-  `configs/` (`pipeline_config_*` → `dcfg_*`).
+- `scripts/` — dataset converters (`convert_*.py`: ~10 dialogue domains + ToM, on shared
+  ConvoKit/dialogue base classes), `build_dataset.py` (CONVERTERS registry),
+  `prompt_templates.py` (CoT/ToM prompt styles), `configs/` (`pipeline_config_*` → `dcfg_*`).
 - `verl/` — training framework (FSDP). Reward computation + clipping in
   `verl/workers/fsdp_workers.py` (MIN/MAX_REWARD constants). Qwen3 support in
   `verl/models/transformers/qwen3.py` + `verl/third_party/vllm/` (see `docs/ENVIRONMENT_SETUP.md`).
 - `examples/data_preprocess/prepare_fantom.py` — FANToM eval prep; `verl/utils/reward_score/fantom.py`.
 - `docs/` — `ENVIRONMENT_SETUP.md`, `CHANGE_HISTORY.md`, `NEW_DATASETS.md`,
-  `skill_adding_dataset.md`, `training_scripts_reference.md`, `PIPELINE_DIAGRAM.md`.
+  `skill_adding_dataset.md`, `PIPELINE_DIAGRAM.md`.
 
 ## Conventions
 - **Change history:** ALWAYS update `docs/CHANGE_HISTORY.md` on every code change (commit hash, date,

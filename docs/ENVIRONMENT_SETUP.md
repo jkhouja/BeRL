@@ -153,7 +153,7 @@ in your shell the scripts are self-contained.
 
 ## Hardware notes
 
-- Training configs assume NVIDIA A100 80G GPUs (e.g. `tom_grpo.sh` targets 4×A100
-  80G). torch is the CUDA 12.1 build, so the host needs a compatible NVIDIA driver.
+- Training configs assume NVIDIA A100 80G GPUs (e.g. `experiments/tom_grpo_power_reward.sh`
+  targets 4×A100 80G). torch is the CUDA 12.1 build, so the host needs a compatible NVIDIA driver.
 - `flash-attn` is built from source (`--no-build-isolation`) and needs a working
   CUDA toolchain at install time.

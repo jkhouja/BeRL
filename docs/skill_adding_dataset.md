@@ -200,7 +200,7 @@ data.train_files=/path/to/your/training.parquet
 data.val_files=[/path/to/eval1.parquet,/path/to/eval2.parquet]
 ```
 
-See `experiments/dialogue_grpo_fantom_eval.sh` for a complete example.
+See `experiments/qwen2.5_3b_all_dialogue.sh` for a complete example.
 
 ## Best Practices
 
