@@ -8,24 +8,24 @@ pipeline:
 
 datasets:
   - source: "dailydialog"
-    sample_size: 60
+    sample_size: 1000
   - source: "empathetic_dialogues"
-    sample_size: 60
+    sample_size: 1000
   - source: "conversations_gone_awry"
-    sample_size: 60
+    sample_size: 1000
   - source: "casino"
     min_response_words: 1   # negotiation: short utterances (e.g. "Deal!")
-    sample_size: 50
+    sample_size: 600
   - source: "craigslist_bargain"
     min_response_words: 1   # negotiation: short utterances (e.g. "Deal!")
-    sample_size: 50
+    sample_size: 500
   - source: "dealornodeal"
     min_response_words: 1   # negotiation: short utterances (e.g. "Deal!")
-    sample_size: 50
+    sample_size: 500
   - source: "persuasionforgood"
-    sample_size: 50
+    sample_size: 500
   - source: "diplomacy"
-    sample_size: 40
+    sample_size: 400
   - source: "thoughttrace"
-    sample_size: 50
+    sample_size: 600
     target_speaker: "user"

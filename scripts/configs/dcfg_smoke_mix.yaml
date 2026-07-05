@@ -1,31 +1,32 @@
 extends: dcfg_base.yaml
 
-# Small fixed mix for the Phase-stability / smoke phase: every all_dialogue
-# source at common data-gen params, capped tiny so a full GRPO run finishes
-# quickly. Same recipe as dcfg_mix_all, just small per-source sample sizes.
+# Fixed mix for the Phase-stability / smoke phase: every all_dialogue source at
+# common data-gen params. Sized ~6k rows — large enough to give a meaningful
+# number of GRPO steps and expose reward issues / eval regressions, while still
+# far smaller than the full production mix. Same recipe as dcfg_mix_all.
 pipeline:
   output_name: "dcfg_smoke_mix"
 
 datasets:
   - source: "dailydialog"
-    sample_size: 60
+    sample_size: 1000
   - source: "empathetic_dialogues"
-    sample_size: 60
+    sample_size: 1000
   - source: "conversations_gone_awry"
-    sample_size: 60
+    sample_size: 1000
   - source: "casino"
     min_response_words: 1   # negotiation: short utterances (e.g. "Deal!")
-    sample_size: 50
+    sample_size: 600
   - source: "craigslist_bargain"
     min_response_words: 1   # negotiation: short utterances (e.g. "Deal!")
-    sample_size: 50
+    sample_size: 500
   - source: "dealornodeal"
     min_response_words: 1   # negotiation: short utterances (e.g. "Deal!")
-    sample_size: 50
+    sample_size: 500
   - source: "persuasionforgood"
-    sample_size: 50
+    sample_size: 500
   - source: "diplomacy"
-    sample_size: 40
+    sample_size: 400
   - source: "thoughttrace"
-    sample_size: 50
+    sample_size: 600
     target_speaker: "user"
