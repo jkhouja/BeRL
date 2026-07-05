@@ -33,8 +33,9 @@ Results live in **two** places (the old `grpo_tuning_changelog.md` round-format 
    concurrently).
 
 6. **Notable phase outcomes only** (e.g. "Phase −1 stable config = X", "Phase 0 winning recipe = Y")
-   → also append a short entry to the slim `grpo_tuning_changelog.md`. Routine per-row results go in
-   the tracker + summary md, NOT the changelog.
+   → record the resolved value in the tracker `Notes`/`OUTPUT` cell and, if it changes the design,
+   note it in `project_planning/BeRL_paper_plan.md`. **Do NOT append to `grpo_tuning_changelog.md`** —
+   that file is frozen archival (pre-paper Rounds 1–20) and is not part of the paper workflow.
 
 7. **Propagate winners**: if this row is an `OUTPUT` row that resolves a placeholder
    (`stable`/`dcfg_default`/`Q2best`), record the concrete resolved values so downstream `Backlog`
