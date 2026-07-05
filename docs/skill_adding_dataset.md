@@ -18,6 +18,24 @@ Final Training Parquet (data/*.parquet)
 GRPO Training (experiments/*.sh)
 ```
 
+## Default Data Generation Parameters
+
+Unless an experiment or grid-search deliberately overrides them, use these sensible defaults for every dataset entry in a pipeline config:
+
+```yaml
+min_turns: 6              # conversations need enough context for ToM signal
+min_response_words: 3     # drop trivial one/two-word responses
+max_response_words: 100   # cap over-long responses that dominate the LL reward
+turn_order: "random"      # avoid positional bias across turns
+```
+
+Additional conditional defaults:
+
+- **Human ↔ assistant/AI datasets** (e.g. ThoughtTrace, human–AI chat logs): only extract the **human** turns as prediction targets by setting `target_speaker: "user"`. We model the human's mental state, not the assistant's scripted output.
+- **Datasets with splits**: use `split: "train"` for training data (reserve `validation`/`test` for eval-only benchmarks).
+
+These are defaults, not hard rules — override any of them for a specific experiment or when sweeping in a grid-search, and document the deviation in the config.
+
 ## Step 1: Create a Converter
 
 Create `scripts/convert_<name>.py` following the existing converter pattern. Your converter class must implement `download_dataset()` and `convert()`.
@@ -93,27 +111,30 @@ datasets:
     sample_size: 6000          # null = use all
     min_turns: 6
     max_turns: null
-    min_response_words: 10
-    max_response_words: null
-    prompt_style: "cot_tom"
+    min_response_words: 3
+    max_response_words: 100
+    prompt_style: "simple"
     system_prompt_style: "cot_eval"    # use cot_eval for best transfer
     generation_prefix: "<think>"
     add_response_tags: true
     include_system_in_prompt: true
     multi_sample: true
     turn_order: "random"
+    # target_speaker: "user"   # set for human <-> AI datasets (predict human turns)
 
   # Can include multiple datasets — they get merged
   - source: "dailydialog"
     split: "train"
     sample_size: 3000
     min_turns: 6
-    min_response_words: 10
-    prompt_style: "cot_tom"
+    min_response_words: 3
+    max_response_words: 100
+    prompt_style: "simple"
     system_prompt_style: "cot_eval"
     generation_prefix: "<think>"
     add_response_tags: true
     include_system_in_prompt: true
+    turn_order: "random"
 ```
 
 ### Config field reference
@@ -207,10 +228,12 @@ See `experiments/qwen2.5_3b_all_dialogue.sh` for a complete example.
 1. **Prompt alignment is critical** — training system prompt must match eval system prompt. Use `cot_eval` style.
 2. **Data quality > quantity** — filtered 6k beats noisy 16k.
 3. **Use `min_turns: 6`** — conversations need enough context for ToM signal.
-4. **Use `min_response_words: 10`** — filters out trivial responses.
-5. **Keep `generation_prefix: "<think>"`** — aligns with CoT reasoning format.
-6. **Version control your configs** — configs in `scripts/configs/` are the reproducibility record.
-7. **Name configs descriptively** — `pipeline_config_[size]_[prompt_style]_[filter_desc].yaml`.
+4. **Use `min_response_words: 3` and `max_response_words: 100`** — drops trivial responses and caps over-long ones that dominate the LL reward.
+5. **Use `turn_order: "random"`** — avoids positional bias across turns.
+6. **For human ↔ AI datasets, set `target_speaker: "user"`** — predict the human's turns only.
+7. **Keep `generation_prefix: "<think>"`** — aligns with CoT reasoning format (tag-free for Qwen3/Gemma; see §"Adding a New Training Dataset" answer-tag rules).
+8. **Version control your configs** — configs in `scripts/configs/` are the reproducibility record.
+9. **Name configs descriptively** — `pipeline_config_[size]_[prompt_style]_[filter_desc].yaml`.
 
 ## Adding an Eval-Only Benchmark
 
