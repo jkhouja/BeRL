@@ -7,6 +7,8 @@ TODAY=$(date +%Y%m%d)
 mkdir -p $REPO_DIR/logs/${TODAY}
 
 source ~/.bashrc
+eval "$($HOME/miniconda3/bin/conda shell.bash hook 2>/dev/null)"
+conda activate tom
 export VLLM_ATTENTION_BACKEND=XFORMERS
 
 #NUM_GPUS=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
