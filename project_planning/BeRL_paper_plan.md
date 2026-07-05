@@ -14,7 +14,7 @@ human utterance (optionally baseline-subtracted), scorer = frozen base LM or the
 ## Repo knobs (what exists vs. needs building)
 **Exists:** `reward_type ∈ {log_prob, neg_perplexity, power}`, `power_k`/`power_ll_min`,
 `subtract_baseline`, `actor_as_rm` vs frozen RM; rule-based ToM reward
-(`qwen3_tom_grpo_rulebased.sh` + `explore_tom*.py`); `prompt_style`, `generation_prefix`
+(`experiments/train_tom_*.sh` + `explore_tom*.py`); `prompt_style`, `generation_prefix`
 (`<think>`), ToM template tags (intents/beliefs/intent/strategy); `limit_turn`, `turn_order`.
 **Needs building `[build]`:** control reward (shuffled/mismatched utterance, length/register-matched);
 surprise sampling (select turns by baseline-PPL / info-asymmetry) + length-matched random control;
@@ -98,7 +98,7 @@ Model: **3B**; repeat B1/B2 at **0.5B & 7B-1M** for a scaling curve.
 | Run | Reward                            | Note                                                                           |
 | --- | --------------------------------- | ------------------------------------------------------------------------------ |
 | B1  | behavior (= A1)                   | **no ToM labels**                                                              |
-| B2  | rule-based ToM (`*_rulebased.sh`) | direct ToM (uses labels) = TOM-RL baseline                                     |
+| B2  | rule-based ToM (`train_tom_*.sh`) | direct ToM (uses labels) = TOM-RL baseline                                     |
 | B3  | behavior + rule-based (combined)  | does behavior add on top of labels? Might need implementation of mixed rewards |
 
 Headline results: OOD/Applied/Robustness vs signal type; ID–OOD gap; **label-efficiency**

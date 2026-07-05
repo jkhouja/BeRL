@@ -118,16 +118,19 @@ Once `tom` is set up:
 
 ```bash
 conda activate tom
-bash experiments/qwen2.5_smoke_test.sh   # quick smoke test
-# or any other script under experiments/
+bash experiments/smoke_qwen2.5.sh   # quick smoke test (Qwen2.5 behavior GRPO)
+# or dispatch a tracker row: bash experiments/run_experiment.sh <EXP_ID>
+# or a generic launcher directly, e.g.:
+#   EXP_ID=... DATA_NAME=... DATA_TRAIN=... bash experiments/train_behavior_qwen2.5.sh
 ```
 
-Each script calls `conda activate tom` itself, so as long as conda is initialized
-in your shell the scripts are self-contained.
+Each launcher sources `experiments/lib/common.sh`, which calls `conda activate tom`
+itself, so as long as conda is initialized in your shell the launchers are
+self-contained.
 
 ## Hardware notes
 
-- Training configs assume NVIDIA A100 80G GPUs (e.g. `experiments/tom_grpo_power_reward.sh`
-  targets 4×A100 80G). torch is the CUDA 12.1 build, so the host needs a compatible NVIDIA driver.
+- Training configs assume NVIDIA A100/H100 80G GPUs (the launchers default to 8 GPUs,
+  `tensor_model_parallel_size=2`). torch is the CUDA 12.1 build, so the host needs a compatible NVIDIA driver.
 - `flash-attn` is built from source (`--no-build-isolation`) and needs a working
   CUDA toolchain at install time.

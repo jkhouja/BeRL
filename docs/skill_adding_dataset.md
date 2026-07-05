@@ -212,16 +212,25 @@ You can also merge parquets manually:
 python merge_parquet.py data/dataset1.parquet data/dataset2.parquet -o data/merged.parquet
 ```
 
-## Step 6: Create an Experiment Script
+## Step 6: Launch Training
 
-Create `experiments/<experiment_name>.sh` following existing scripts. Key parameters to set:
+Do **not** write a per-dataset training script. Use the generic launchers (task × model-class),
+which read all knobs from env and reproduce a single `main_ppo` invocation. Point them at your
+new parquet via `DATA_TRAIN` (and `DATA_NAME` = your dcfg/parquet stem):
 
 ```bash
-data.train_files=/path/to/your/training.parquet
-data.val_files=[/path/to/eval1.parquet,/path/to/eval2.parquet]
+# behavior-reward GRPO on your new dataset (Qwen2.5)
+EXP_ID=<exp_id> DATA_NAME=<dcfg_stem> \
+  DATA_TRAIN=/path/to/your/training.parquet \
+  bash experiments/train_behavior_qwen2.5.sh
+
+# preview the exact command without launching:
+BERL_DRY_RUN=1 EXP_ID=... DATA_NAME=... DATA_TRAIN=... bash experiments/train_behavior_qwen2.5.sh
 ```
 
-See `experiments/qwen2.5_3b_all_dialogue.sh` for a complete example.
+Or, if the dataset is tied to a tracker row, run it through the dispatcher:
+`bash experiments/run_experiment.sh <EXP_ID>`. See `experiments/README.md` for the full launcher
+reference and `experiments/lib/common.sh` for the env-knob surface.
 
 ## Best Practices
 
