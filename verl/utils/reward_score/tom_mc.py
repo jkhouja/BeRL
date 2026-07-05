@@ -23,6 +23,7 @@ from verl.utils.reward_score.explore_tom import (
     extract_solution,
     validate_response_structure,
     normalize_answer,
+    check_answer_correctness,
 )
 from verl.utils.reward_score.fantom import _check_mc, _check_binary, _check_list
 from verl.utils.reward_score.response_parser import ModelResponseParser
@@ -105,8 +106,10 @@ def compute_score(solution_str: str,
         elif question_type == "list":
             is_correct = _check_list(pred, gt_answer, wrong_answer)
         elif question_type == "exact":
-            is_correct = normalize_answer(pred) == normalize_answer(gt_answer) or \
-                (normalize_answer(gt_answer) in normalize_answer(pred))
+            # Use explore_tom's matcher so open-ended answers (e.g. ExploreToM-Infilled)
+            # are scored identically to the in-distribution explore_tom eval:
+            # exact normalized match OR prediction ends with the gold answer.
+            is_correct, _ = check_answer_correctness(pred, gt_answer)
         else:  # mc (default)
             is_correct = _check_mc_or_text(pred, gt_answer, answer_text, choices)
         answer_score = answer_reward if is_correct else -answer_reward
