@@ -9,7 +9,7 @@ allowed-tools: Bash Read Edit Grep Glob
 Results live in **two** places (the old `grpo_tuning_changelog.md` round-format is retired):
 1. **`project_planning/BeRL_experiments_tracker.md`** — the row's `Results summary` + `Status`
    (source of truth for coordination).
-2. **`project_planning/results/<RUN_NAME>.md`** — the self-contained, reproducible experiment record
+2. **`experiments_logs/<RUN_NAME>.md`** — the self-contained, reproducible experiment record
    (exact command, knobs, env, WandB/log, findings, rerun line) written by the launcher.
 
 ## Instructions
@@ -27,9 +27,10 @@ Results live in **two** places (the old `grpo_tuning_changelog.md` round-format 
    note + downstream implication (e.g. "power@ll_min=p50 stable to 800 steps; tomi +5.1pp vs A0; no
    collapse ⇒ adopt as `stable` for Phase 0"). Set `Status=Completed` (or `Failed`).
 
-5. **Fill the findings section** of `project_planning/results/<RUN_NAME>.md`: the metrics table (step
-   vs benchmarks), verdict, and any health/hacking observations. Keep the auto-written
-   command/knobs/env/rerun sections intact.
+5. **Fill the findings section** of `experiments_logs/<RUN_NAME>.md` by appending: the metrics table
+   (step vs benchmarks), verdict, and any health/hacking observations. Keep the earlier
+   command/knobs/env/rerun sections intact — append, don't overwrite (the file may be edited
+   concurrently).
 
 6. **Notable phase outcomes only** (e.g. "Phase −1 stable config = X", "Phase 0 winning recipe = Y")
    → also append a short entry to the slim `grpo_tuning_changelog.md`. Routine per-row results go in

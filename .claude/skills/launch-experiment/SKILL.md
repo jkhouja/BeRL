@@ -54,10 +54,10 @@ The row must already be **claimed** (`Status=Processing`, `Owner_host` set) — 
 6. **Record back to the tracker**: set `Status=Training`, paste `WandB link` and
    `Log path` (`logs/<YYYYMMDD>/<RUN_NAME>.log`) into the row.
 
-7. **Reproducibility artifact**: the launcher auto-writes a self-contained summary to
-   `project_planning/results/<RUN_NAME>.md` (exact command + all knobs + env + WandB/log + a "how to
-   rerun" line). Confirm it was created; if not, write it. Findings are filled on completion by the
-   `log-results` skill.
+7. **Reproducibility artifact**: create/append the self-contained per-run log at
+   `experiments_logs/<RUN_NAME>.md` (exact command + all knobs + env + WandB/log + hypothesis + a
+   "how to rerun" line). See the `join-experiments` skill for the required sections. Findings are
+   filled on completion by the `log-results` skill.
 
 ## Never
 
