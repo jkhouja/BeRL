@@ -7,8 +7,8 @@ machine.
 ## TL;DR
 
 There is **one canonical environment: the conda env named `tom`**. All experiment
-scripts (`experiments/*.sh`) activate it with `conda activate tom`, and every
-recent training/eval run logged under `logs/` used it.
+scripts (`experiments/*.sh`) activate it with `conda activate tom`. It supports
+**Qwen2.5, Qwen3, and Gemma-2** (Qwen3 needs one extra vllm patch — see below).
 
 ```bash
 conda create -n tom python=3.10
@@ -31,7 +31,7 @@ pip install wandb IPython matplotlib
 
 > **Running Qwen3?** You also need to patch the installed vllm (it predates
 > Qwen3). See [Qwen3 requires an extra vllm patch](#️-qwen3-requires-an-extra-vllm-patch)
-> below. Qwen2.5 / Gemma2 do not need it.
+> below. **Qwen2.5 and Gemma2 do not need it.**
 
 After installing, sanity-check the env:
 
@@ -50,17 +50,14 @@ this checkout), and `torch.cuda.is_available()` should be `True` on a GPU machin
 
 `requirements.txt` pins `transformers<4.48` and `setup.py` installs from it, so a
 plain `pip install -e .` will give you an **old transformers that cannot load
-Qwen3 or Gemma2**. The canonical `tom` env runs **transformers 4.51.3**, which was
-upgraded specifically when Qwen3 and Gemma2 support was added (Round 20).
+Qwen3 or Gemma2**. The canonical `tom` env runs **transformers 4.51.3**, which
+supports Qwen2.5, Qwen3, and Gemma-2.
 
 Always upgrade transformers after `pip install -e .`:
 
 ```bash
 pip install "transformers==4.51.3"
 ```
-
-(If you only ever use Qwen2.5 you can stay on the pinned `transformers<4.48`, but
-4.51.3 is backward-compatible and is what current scripts expect.)
 
 ## ⚠️ Qwen3 requires an extra vllm patch
 
@@ -91,31 +88,8 @@ model, activated when `config.model_type == 'qwen3'`. The script is idempotent
 and verifies the remap afterward.
 
 **Qwen2.5 and Gemma2 do NOT need this patch** — only Qwen3. Run it once per
-environment, after installing `vllm==0.6.3`.
-
-> History note: on the original machine these patches existed only inside the
-> `tom3` conda env's vllm site-packages (uncommitted). `patches/vllm_0_6_3_qwen3.patch`
-> captures that exact diff so Qwen3 is reproducible on any machine.
-
-## Why there are multiple environments (history)
-
-On the original machine you may see several leftover environments. Only `tom` is
-canonical; the others are stale or experimental and should **not** be recreated on
-a new machine:
-
-| Environment | Status | Notes |
-|-------------|--------|-------|
-| `tom` (conda) | ✅ **Canonical** | Used by all `experiments/*.sh` and all recent runs. transformers 4.51.3. |
-| `tom2` (conda) | ❌ Stale/empty | No core packages installed. |
-| `tom3` (conda) | ❌ Broken | Has packages but errors on `import verl`. |
-| `yolo` (conda) | ❌ Unrelated | Not used for these experiments. |
-| `.venv` (repo) | ❌ Do not use | A venv layered on top of `tom` with mismatched versions; its verl points at an old `BeRL_og` checkout. The `launch-experiment` skill references this, but the scripts use conda `tom`. |
-| `~/venv` | ❌ Stale/empty | No core packages installed. |
-
-The newer envs (`tom2`, `tom3`) were created while iterating on new model versions
-(Qwen3, Gemma2), which required upgrading `transformers` past the pin. That work
-was consolidated back into the `tom` env, so on a fresh machine you only need to
-create `tom` with `transformers==4.51.3`.
+environment, after installing `vllm==0.6.3`. The exact diff is captured in
+`patches/vllm_0_6_3_qwen3.patch` so it is reproducible on any machine.
 
 ## Verified package versions (canonical `tom` env)
 
