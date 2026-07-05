@@ -1,0 +1,9 @@
+extends: dcfg_base.yaml
+
+pipeline:
+  output_name: "dcfg_casino"
+
+datasets:
+  - source: "casino"
+    min_response_words: 1   # negotiation: short utterances (e.g. "Deal!")
+

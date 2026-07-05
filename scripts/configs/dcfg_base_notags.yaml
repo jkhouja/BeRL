@@ -1,0 +1,13 @@
+# =============================================================================
+# dcfg_base_notags.yaml — tag-free variant of dcfg_base for native-thinking
+# models (Qwen3, Gemma). Uses the cot_eval_notags system prompt and emits no
+# <answer> tags, keeping prompt / target / reward tag-consistent.
+# Extend this (instead of dcfg_base) for Qwen3/Gemma data configs.
+# =============================================================================
+
+extends: dcfg_base.yaml
+
+dataset_defaults:
+  system_prompt_style: "cot_eval_notags"
+  add_response_tags: false
+  generation_prefix: ""

@@ -87,11 +87,11 @@ The row must already be **claimed** (`Status=Processing`, `Owner_host` set) — 
    (`response_parser.py`). The `+*.require_answer_tags=...` overrides are **no-ops** (the scorers
    read `parser.REQUIRE_ANSWER_TAGS` instead). Therefore the *data* must match the model:
    - **Qwen2/2.5** → tagged data: `system_prompt_style: cot_eval`, `add_response_tags: true`,
-     `generation_prefix: "<think>"` (e.g. `pipeline_config_all_dialogue.yaml`,
-     `data/merged_all_dialogue_eval_prompt.parquet`).
+     `generation_prefix: "<think>"` (inherited from `dcfg_base.yaml`; e.g. `dcfg_mix_all`,
+     `dcfg_smoke_mix`).
    - **Qwen3 / Gemma / Gemma2** → **tag-free** data: `system_prompt_style: cot_eval_notags`,
-     `add_response_tags: false`, `generation_prefix: ""` (e.g.
-     `pipeline_config_all_dialogue_notags.yaml`, `data/merged_all_dialogue_notags.parquet`).
+     `add_response_tags: false`, `generation_prefix: ""` (inherited from `dcfg_base_notags.yaml`;
+     e.g. `dcfg_smoke_mix_gemma`).
    Never train Qwen3/Gemma on a `cot_eval`/`add_response_tags: true` dataset: the system prompt
    would command `<answer>` tags the target lacks and the parser ignores → mismatch. The data-gen
    pipeline (`build_dataset.py`) now **fails fast** if `system_prompt_style`, `add_response_tags`,

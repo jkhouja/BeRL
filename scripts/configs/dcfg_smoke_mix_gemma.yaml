@@ -1,0 +1,31 @@
+extends: dcfg_base_notags.yaml
+
+# Tag-free smoke mix for Gemma / Qwen3 (native-thinking, no <answer> tags).
+# Identical mixture to dcfg_smoke_mix; only the prompt/tag recipe differs
+# (inherited from dcfg_base_notags).
+pipeline:
+  output_name: "dcfg_smoke_mix_gemma"
+
+datasets:
+  - source: "dailydialog"
+    sample_size: 60
+  - source: "empathetic_dialogues"
+    sample_size: 60
+  - source: "conversations_gone_awry"
+    sample_size: 60
+  - source: "casino"
+    min_response_words: 1   # negotiation: short utterances (e.g. "Deal!")
+    sample_size: 50
+  - source: "craigslist_bargain"
+    min_response_words: 1   # negotiation: short utterances (e.g. "Deal!")
+    sample_size: 50
+  - source: "dealornodeal"
+    min_response_words: 1   # negotiation: short utterances (e.g. "Deal!")
+    sample_size: 50
+  - source: "persuasionforgood"
+    sample_size: 50
+  - source: "diplomacy"
+    sample_size: 40
+  - source: "thoughttrace"
+    sample_size: 50
+    target_speaker: "user"

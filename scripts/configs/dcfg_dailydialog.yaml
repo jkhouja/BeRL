@@ -1,0 +1,8 @@
+extends: dcfg_base.yaml
+
+pipeline:
+  output_name: "dcfg_dailydialog"
+
+datasets:
+  - source: "dailydialog"
+

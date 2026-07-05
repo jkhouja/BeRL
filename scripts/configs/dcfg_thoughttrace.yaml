@@ -1,0 +1,10 @@
+extends: dcfg_base.yaml
+
+pipeline:
+  output_name: "dcfg_thoughttrace"
+
+datasets:
+  # ThoughtTrace is human↔AI; AI turns are very long, so only predict the
+  # human's (user) turns per the human↔AI convention.
+  - source: "thoughttrace"
+    target_speaker: "user"

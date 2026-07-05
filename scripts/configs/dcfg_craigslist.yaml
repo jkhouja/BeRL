@@ -1,0 +1,9 @@
+extends: dcfg_base.yaml
+
+pipeline:
+  output_name: "dcfg_craigslist"
+
+datasets:
+  - source: "craigslist_bargain"
+    min_response_words: 1   # negotiation: short utterances (e.g. "Deal!")
+

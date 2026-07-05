@@ -1,0 +1,40 @@
+# =============================================================================
+# dcfg_base.yaml — shared data-generation defaults for all `dcfg_*` configs.
+#
+# Per-domain / mix configs `extends: dcfg_base.yaml` and only declare their
+# own `datasets:` list (plus any per-source override such as
+# `target_speaker: "user"` for human↔AI sources). Values here follow the
+# project's default data-generation parameters (see docs/skill_adding_dataset.md).
+#
+# Precedence (lowest → highest): build_dataset.DATASET_DEFAULTS →
+# this `dataset_defaults` block → per-dataset entry values.
+# =============================================================================
+
+pipeline:
+  output_dir: "data"
+  seed: 42
+  shuffle: true
+
+perplexity:
+  enabled: true
+  model_name: "Qwen/Qwen2.5-3B-Instruct"
+  # batch_size=2 keeps the lm_head logits buffer small enough for long
+  # contexts (e.g. ThoughtTrace) to avoid CUDA OOM.
+  batch_size: 2
+
+# Common per-dataset defaults (override per source only when justified).
+dataset_defaults:
+  split: "train"
+  min_turns: 6
+  min_response_words: 3
+  max_response_words: 100
+  turn_order: "random"
+  multi_sample: true
+  # --- Qwen2.5 (tagged) prompt recipe. For Qwen3/Gemma tag-free runs, an
+  #     extending config overrides system_prompt_style: cot_eval_notags +
+  #     add_response_tags: false + generation_prefix: "". ---
+  prompt_style: "simple"
+  system_prompt_style: "cot_eval"
+  generation_prefix: "<think>"
+  add_response_tags: true
+  include_system_in_prompt: true

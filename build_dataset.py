@@ -71,10 +71,51 @@ DATASET_DEFAULTS: Dict[str, Any] = {
 # Helpers
 # ---------------------------------------------------------------------------
 
-def load_config(path: str) -> dict:
-    """Load and return the YAML pipeline config."""
+def _deep_merge(base: dict, override: dict) -> dict:
+    """Recursively merge ``override`` into ``base`` (override wins).
+
+    Dict values are merged key-by-key; every other type (including the
+    ``datasets`` list) is replaced wholesale by the override.
+    """
+    out = dict(base)
+    for k, v in override.items():
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = _deep_merge(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+
+def load_config(path: str, _seen: Optional[set] = None) -> dict:
+    """Load a YAML pipeline config, resolving an optional ``extends:`` parent.
+
+    ``extends`` may be a single path or a list of paths (resolved relative to
+    the including file's directory). Parents are merged first, then this file's
+    keys override them via :func:`_deep_merge`. This lets per-domain ``dcfg_*``
+    configs inherit shared defaults from ``dcfg_base.yaml`` and only declare
+    their own ``datasets`` + overrides.
+    """
+    path = os.path.abspath(path)
+    _seen = _seen or set()
+    if path in _seen:
+        raise ValueError(f"Circular 'extends' detected at {path}")
+    _seen.add(path)
+
     with open(path, "r") as f:
-        return yaml.safe_load(f)
+        cfg = yaml.safe_load(f) or {}
+
+    parents = cfg.pop("extends", None)
+    if not parents:
+        return cfg
+    if isinstance(parents, str):
+        parents = [parents]
+
+    base_dir = os.path.dirname(path)
+    merged: dict = {}
+    for parent in parents:
+        parent_path = parent if os.path.isabs(parent) else os.path.join(base_dir, parent)
+        merged = _deep_merge(merged, load_config(parent_path, _seen))
+    return _deep_merge(merged, cfg)
 
 
 def get_converter(source: str):
@@ -88,13 +129,22 @@ def get_converter(source: str):
     return getattr(module, class_name)
 
 
-def build_converter_config(dataset_entry: dict, pipeline_cfg: dict) -> dict:
+def build_converter_config(
+    dataset_entry: dict, pipeline_cfg: dict, dataset_defaults: Optional[dict] = None
+) -> dict:
     """Merge dataset entry with defaults, returning a flat config dict
-    suitable for passing to a converter's ``config=`` parameter."""
+    suitable for passing to a converter's ``config=`` parameter.
+
+    Precedence (lowest → highest): hardcoded ``DATASET_DEFAULTS`` →
+    config-level ``dataset_defaults`` block → pipeline ``seed`` →
+    per-dataset entry values.
+    """
     cfg: Dict[str, Any] = {}
     cfg.update(DATASET_DEFAULTS)
+    if dataset_defaults:
+        cfg.update(dataset_defaults)
     # Pipeline-level seed overrides the default
-    cfg["seed"] = pipeline_cfg.get("seed", DATASET_DEFAULTS["seed"])
+    cfg["seed"] = pipeline_cfg.get("seed", cfg.get("seed", DATASET_DEFAULTS["seed"]))
     # Dataset-level values override everything
     for k, v in dataset_entry.items():
         if k == "source":
@@ -304,6 +354,7 @@ def main():
     cfg = load_config(args.config)
     pipeline_cfg = cfg.get("pipeline", {})
     perplexity_cfg = cfg.get("perplexity", {})
+    dataset_defaults = cfg.get("dataset_defaults", {})
     datasets_cfg: List[dict] = cfg.get("datasets", [])
 
     if not datasets_cfg:
@@ -330,7 +381,7 @@ def main():
             if not source:
                 print("WARNING: dataset entry missing 'source', skipping.")
                 continue
-            converter_cfg = build_converter_config(ds_entry, pipeline_cfg)
+            converter_cfg = build_converter_config(ds_entry, pipeline_cfg, dataset_defaults)
             path = run_converter(source, converter_cfg, tmp_dir)
             intermediate_paths.append(path)
 

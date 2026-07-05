@@ -9,7 +9,7 @@ Raw Dataset (HuggingFace / local)
     ↓
 Converter Script (scripts/convert_*.py)
     ↓
-YAML Pipeline Config (scripts/configs/pipeline_config_*.yaml)
+YAML Data Config (scripts/configs/dcfg_*.yaml, extends dcfg_base.yaml)
     ↓
 Build Script (python build_dataset.py --config ...)
     ↓
@@ -89,9 +89,39 @@ CONVERTERS = {
 }
 ```
 
-## Step 3: Create a YAML Pipeline Config
+## Step 3: Create a YAML Pipeline Config (`dcfg_*` + `extends`)
 
-Create `scripts/configs/pipeline_config_<description>.yaml`:
+Data configs live in `scripts/configs/` and are named `dcfg_<name>.yaml`. The config
+**filename stem = `output_name` = the tracker's `Data config name` = the output parquet stem**
+(`data/dcfg_<name>.parquet`). The `run_experiment.sh` dispatcher relies on this 1:1 mapping.
+
+Rather than repeating the full parameter block, **inherit shared defaults from `dcfg_base.yaml`**
+via `extends:` and declare only your `datasets:` list plus any per-source overrides:
+
+```yaml
+extends: dcfg_base.yaml          # shared pipeline + perplexity + dataset_defaults
+
+pipeline:
+  output_name: "dcfg_my_dataset" # == filename stem == data/dcfg_my_dataset.parquet
+
+datasets:
+  - source: "my_dataset"         # only override what differs from dcfg_base
+    # sample_size: 6000          # null (base default) = use all
+    # target_speaker: "user"     # set for human <-> AI datasets (predict human turns)
+```
+
+`extends` accepts a single path or a list (resolved relative to the config's directory) and
+deep-merges parents first, then this file's keys (child wins). The `dataset_defaults:` block in
+`dcfg_base.yaml` is applied to **every** dataset entry (below the hardcoded
+`build_dataset.DATASET_DEFAULTS`, above the per-entry values). `dcfg_base.yaml` already encodes the
+Default Data Generation Parameters above (`min_turns:6`, `min_response_words:3`,
+`max_response_words:100`, `turn_order:random`, `simple`/`cot_eval`, `split:train`).
+
+**Tag-free (Qwen3 / Gemma):** `extends: dcfg_base_notags.yaml` instead — it overrides
+`system_prompt_style: cot_eval_notags`, `add_response_tags: false`, `generation_prefix: ""`.
+
+The fully-explicit (non-`extends`) schema — every available key with inline docs — is
+`scripts/configs/pipeline_config.yaml`, kept as the reference example:
 
 ```yaml
 pipeline:
@@ -121,20 +151,6 @@ datasets:
     multi_sample: true
     turn_order: "random"
     # target_speaker: "user"   # set for human <-> AI datasets (predict human turns)
-
-  # Can include multiple datasets — they get merged
-  - source: "dailydialog"
-    split: "train"
-    sample_size: 3000
-    min_turns: 6
-    min_response_words: 3
-    max_response_words: 100
-    prompt_style: "simple"
-    system_prompt_style: "cot_eval"
-    generation_prefix: "<think>"
-    add_response_tags: true
-    include_system_in_prompt: true
-    turn_order: "random"
 ```
 
 ### Config field reference
@@ -196,7 +212,7 @@ For **eval-only** datasets (like FANToM, tomi, hi_tom), the schema is simpler �
 ## Step 5: Build the Dataset
 
 ```bash
-python build_dataset.py --config scripts/configs/pipeline_config_my_experiment.yaml
+python build_dataset.py --config scripts/configs/dcfg_my_dataset.yaml
 ```
 
 This will:
@@ -242,7 +258,7 @@ reference and `experiments/lib/common.sh` for the env-knob surface.
 6. **For human ↔ AI datasets, set `target_speaker: "user"`** — predict the human's turns only.
 7. **Keep `generation_prefix: "<think>"`** — aligns with CoT reasoning format (tag-free for Qwen3/Gemma; see §"Adding a New Training Dataset" answer-tag rules).
 8. **Version control your configs** — configs in `scripts/configs/` are the reproducibility record.
-9. **Name configs descriptively** — `pipeline_config_[size]_[prompt_style]_[filter_desc].yaml`.
+9. **Name configs `dcfg_<name>.yaml`** — filename stem must equal `output_name` and the parquet stem; extend `dcfg_base.yaml` (or `dcfg_base_notags.yaml`) rather than duplicating defaults.
 
 ## Adding an Eval-Only Benchmark
 
@@ -260,7 +276,7 @@ You also need a scoring module in `verl/utils/reward_score/<name>.py` with a `co
 | `merge_parquet.py` | Parquet merge utility |
 | `scripts/convert_*.py` | Dataset converters |
 | `scripts/prompt_templates.py` | All prompt/system prompt templates |
-| `scripts/configs/pipeline_config_*.yaml` | Pipeline configurations |
+| `scripts/configs/dcfg_*.yaml` | Data configs (extend `dcfg_base.yaml`) |
 | `examples/data_preprocess/` | Eval dataset preprocessing |
 | `verl/utils/reward_score/` | Scoring modules for eval |
 | `verl/trainer/main_ppo.py` | Score function routing |
