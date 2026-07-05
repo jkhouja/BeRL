@@ -17,7 +17,7 @@ Note that we don't combine the main with ray_trainer as ray_trainer is used by o
 
 from verl import DataProto
 import torch
-from verl.utils.reward_score import gsm8k, math, multiply, countdown, explore_tom, fantom
+from verl.utils.reward_score import gsm8k, math, multiply, countdown, explore_tom, fantom, tom_mc
 from verl.utils.reward_score.response_parser import get_parser, ModelResponseParser
 from verl.trainer.ppo.ray_trainer import RayPPOTrainer
 
@@ -34,6 +34,8 @@ def _select_rm_score_fn(data_source):
         return countdown.compute_score, False
     elif "fantom" in data_source:
         return fantom.compute_score, True
+    elif any(b in data_source for b in ("simpletom", "tombench", "bigtom", "opentom", "mmlu", "dyntom", "ullman", "exploretom_infilled")):
+        return tom_mc.compute_score, True
     elif "explore_tom" in data_source or "hi_tom" in data_source or 'tomi' in data_source:
         return explore_tom.compute_score, True
     else:
