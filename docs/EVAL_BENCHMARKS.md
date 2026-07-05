@@ -46,6 +46,31 @@ dataset uses its baked prompt:
   `data.prompt_is_text=False` (all current parquets); it overwrites eval-specific system content
   including the tomi `hint_v3` room-witness note.
 
+## Selecting the eval set (`VAL_SUITE`)
+
+Launchers pick the validation parquet(s) via the `VAL_SUITE` env var in `experiments/lib/common.sh`
+(an explicit `VAL_FILES=[...]` bypasses it):
+
+| `VAL_SUITE` | Files | Prompts | Approx eval time (Qwen2.5-3B / 8×H100) | Use |
+|---|---|---|---|---|
+| `subsample300` (**default**) | `eval_subsample_300.parquet` | 7,500 (25 subtypes × 300) | ~1.6 min | Every-`TEST_FREQ` monitoring across all benchmarks |
+| `full` | all 10 benchmark parquets | ~40,000 | ~8 min | Final headline reporting (run at start/end) |
+| `core` | HiExTi_v3 + fantom_50pct | 13,272 | ~2.8 min | Legacy default (core benchmarks only) |
+| `sanity` | `eval_suite_sanity.parquet` | 689 | ~20 s | Quick collapse/regression check (~40/subtype) |
+
+Time model (Qwen2.5-3B, 8×H100, `response_length=512`): `≈ 11s + 0.0117s × N_prompts`. Qwen3/Gemma
+native-thinking models are ~1.5× slower.
+
+**Representative subset** (`subsample300`): stratified `min(300, available)` rows per `data_source`,
+fixed seed 42, `ullman_perturbed` excluded (only 9 rows). At N=300 the worst-case 95% CI half-width on
+per-subtype accuracy is ≈ `0.98/√300 ≈ 3.5pp` — far tighter than the 5–15pp transfer effects this
+project reports, so the subset reflects true per-benchmark performance while running ~5× faster than
+the full suite. Regenerate with:
+
+```bash
+python examples/data_preprocess/build_eval_subsample.py --n_per_subtype 300 --seed 42
+```
+
 ## Benchmark catalog
 
 ### Pre-existing (already in repo)

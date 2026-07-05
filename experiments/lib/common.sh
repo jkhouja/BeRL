@@ -191,23 +191,27 @@ berl::run() {
   DATA_TRAIN="${DATA_TRAIN:?set DATA_TRAIN (train parquet path)}"
   # --- Eval suite selection -------------------------------------------------
   # VAL_SUITE picks which benchmark parquets to evaluate on (override with an
-  # explicit VAL_FILES=[...] to bypass). Default is the FULL suite (all
-  # benchmarks). Note: the full suite is ~45k val prompts, so eval is slow;
-  # for long training runs consider VAL_SUITE=sanity (all subtypes, ~40 each)
-  # or VAL_SUITE=core, and/or a larger TEST_FREQ.
-  #   full   — every benchmark (tomi/explore/hi + fantom + bigtom/dyntom/
-  #            exploretom_infilled/mmlu/opentom/simpletom/tombench/ullman)
-  #   core   — tomi/explore/hi + fantom (the legacy default)
-  #   sanity — data/cleaned_tom/eval_suite_sanity.parquet (fast, ~40/subtype)
+  # explicit VAL_FILES=[...] to bypass).
+  #   subsample300 — DEFAULT. Stratified representative subset:
+  #                  min(300,available) rows per subtype (25 subtypes, 7,500
+  #                  prompts, ullman excluded). ~3.5pp per-subtype CI; ~1.6 min
+  #                  eval on Qwen2.5-3B/8xH100. Rebuild via
+  #                  examples/data_preprocess/build_eval_subsample.py.
+  #   full         — every benchmark at full size (~40k prompts; ~8 min eval).
+  #                  Use for final headline reporting, not every TEST_FREQ.
+  #   core         — tomi/explore/hi + fantom (the legacy default).
+  #   sanity       — data/cleaned_tom/eval_suite_sanity.parquet (~40/subtype).
   local ET="$REPO_DIR/data/cleaned_tom"
   if [ -z "${VAL_FILES:-}" ]; then
-    case "${VAL_SUITE:-full}" in
+    case "${VAL_SUITE:-subsample300}" in
       core)
         VAL_FILES="[$ET/ToM_test_HiExTi_hint_v3.parquet,$ET/fantom_test_50pct.parquet]" ;;
       sanity)
         VAL_FILES="[$ET/eval_suite_sanity.parquet]" ;;
-      full|*)
+      full)
         VAL_FILES="[$ET/ToM_test_HiExTi_hint_v3.parquet,$ET/fantom_test_50pct.parquet,$ET/bigtom_test.parquet,$ET/dyntom_test.parquet,$ET/exploretom_infilled_test.parquet,$ET/mmlu_test.parquet,$ET/opentom_test.parquet,$ET/simpletom_test.parquet,$ET/tombench_test.parquet,$ET/ullman_perturbed_test.parquet]" ;;
+      subsample300|*)
+        VAL_FILES="[$ET/eval_subsample_300.parquet]" ;;
     esac
   fi
 
