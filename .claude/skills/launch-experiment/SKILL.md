@@ -97,6 +97,16 @@ The row must already be **claimed** (`Status=Processing`, `Owner_host` set) — 
    pipeline (`build_dataset.py`) now **fails fast** if `system_prompt_style`, `add_response_tags`,
    and `generation_prefix` disagree (`validate_prompt_tag_consistency`).
 
+   **4c. Eval suite (default `VAL_SUITE=subsample300`).** Launchers eval on the stratified
+   representative subset `data/cleaned_tom/eval_subsample_300.parquet` by default (25 subtypes ×
+   300 = 7,500 prompts; ~1.6 min/eval on Qwen2.5-3B/8×H100). **Use this for all standard
+   experiments** — do not override unless you specifically need the full suite for final headline
+   reporting (`VAL_SUITE=full`, ~40k prompts, ~8 min/eval). Other options: `core` (legacy tomi+fantom),
+   `sanity` (~40/subtype). Metric names are suffixed per suite (`_sub300`, `_core`, `_sanity`; `full`
+   is canonical) so subset series never overwrite full-suite series in WandB. See
+   `docs/EVAL_BENCHMARKS.md` → "Selecting the eval set". Regenerate the subset with
+   `python examples/data_preprocess/build_eval_subsample.py --n_per_subtype 300 --seed 42`.
+
 5. **Verify start-up**: tail the log to confirm no import errors, model loads, first rollout begins.
 
 6. **Record back to the tracker**: set `Status=Training`, paste `WandB link` and
