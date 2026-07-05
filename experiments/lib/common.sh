@@ -341,7 +341,11 @@ berl::run() {
   local launcher_task="$TASK"; [ "$TASK" = "tom_rulebased" ] && launcher_task="tom"
   BERL_RERUN="EXP_ID=$EXP_ID DATA_NAME=$DATA_NAME MODEL_PATH=$MODEL_PATH DATA_TRAIN=$DATA_TRAIN RUN_INDEX=$RUN_INDEX bash experiments/train_${launcher_task}_${MODEL_FAMILY}.sh"
 
-  berl::write_summary_md
+  if [ "${BERL_NO_EXP_LOG:-0}" = "1" ]; then
+    echo "[common] BERL_NO_EXP_LOG=1 — skipping experiments_logs reproducibility record (WandB still on)"
+  else
+    berl::write_summary_md
+  fi
 
   echo "[common] launching RUN_NAME=$RUN_NAME"
   echo "[common] log: $logfile"

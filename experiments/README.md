@@ -49,9 +49,11 @@ BERL_DRY_RUN=1 EXP_ID=... DATA_NAME=... DATA_TRAIN=... bash experiments/train_be
 
 `MODEL_PATH`, `REWARD_TYPE` (power|log_prob|neg_perplexity), `POWER_K`, `POWER_LL_MIN`,
 `USE_ACTOR_AS_RM` (True|False), `SUBTRACT_BASELINE`, `KL`, `LR`, `ROLLOUT_N`, `MAX_PROMPT`,
-`MAX_RESP`, `TOTAL_EPOCHS`, `SAVE_FREQ`, `TEST_FREQ`, `VAL_FILES`, `DATA_TRAIN`, `DATA_NAME`,
+`MAX_RESP`, `TOTAL_EPOCHS`, `SAVE_FREQ`, `TEST_FREQ`, `VAL_FILES`, `VAL_SUITE` (subsample300|full|core|sanity),
+`VAL_METRIC_SUFFIX`, `DATA_TRAIN`, `DATA_NAME`,
 `EXP_ID`, `RUN_INDEX`, `GPU_IDS` (pin GPUs), `SYSTEM_PROMPT` (prompt-alignment Option A),
-`BERL_DRY_RUN`.
+`BERL_DRY_RUN`, `BERL_NO_EXP_LOG` (skip the `experiments_logs/` reproducibility record for
+verification/test runs; **WandB stays on**).
 
 ## Model-family specifics (set automatically per launcher)
 

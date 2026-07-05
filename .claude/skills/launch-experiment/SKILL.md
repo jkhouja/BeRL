@@ -62,6 +62,9 @@ The row must already be **claimed** (`Status=Processing`, `Owner_host` set) — 
 
 4. **WandB online is mandatory** — `WANDB_API_KEY` is in `~/.bashrc`; use `logger=[console,wandb]`.
    Never set `WANDB_MODE=offline`, never unset the key, never fall back to `[console]`.
+   "Run **without logging**" means **skip the experiment logs/summaries** (the `experiments_logs/`
+   reproducibility md + changelog/tracker bookkeeping), **NOT** WandB — pass `BERL_NO_EXP_LOG=1`
+   and keep WandB on. WandB is included on **every** run, including verification/test runs.
 
    **4a. Prompt alignment (MANDATORY when the CoT/system prompt varies).** All eval parquets bake
    the `cot_eval` system prompt, and **no** eval prompt is re-aligned at runtime by default. So if
