@@ -59,6 +59,24 @@ The row must already be **claimed** (`Status=Processing`, `Owner_host` set) — 
 4. **WandB online is mandatory** — `WANDB_API_KEY` is in `~/.bashrc`; use `logger=[console,wandb]`.
    Never set `WANDB_MODE=offline`, never unset the key, never fall back to `[console]`.
 
+   **4a. Prompt alignment (MANDATORY when the CoT/system prompt varies).** All eval parquets bake
+   the `cot_eval` system prompt, and **no** eval prompt is re-aligned at runtime by default. So if
+   your row varies the training system/CoT prompt — RQ `cot-style` (E082–E085), or **any** row whose
+   `CoT prompt var` / `system_prompt_style` is not `cot_eval` — you MUST force **Option A**: pass
+   ```
+   +data.system_prompt="<exact system-prompt text for this run>"
+   ```
+   at launch. `RLHFDataset._process_system_prompt` (`verl/utils/dataset/rl_dataset.py:127`) then
+   **replaces** the system message in **both** the train and val loaders (`ray_trainer.py:390,406`),
+   so training *and* every eval use the identical system prompt and the comparison stays fair.
+   Without it, the evals stay frozen at `cot_eval` while training drifts → train/eval mismatch (the
+   Round-17 transfer bottleneck). Caveats: (1) the override only takes effect with
+   `data.prompt_is_text=False` (message-format parquets — all current ones; the legacy
+   `merge_tom.py` text-prefix format bypasses it); (2) it overwrites eval-specific system content
+   **including** the tomi `hint_v3` room-witness note, so if that hint matters, append it to your
+   override text. When the prompt is *not* varied (the default `cot_eval`), do **not** set
+   `+data.system_prompt` — the baked prompts already match.
+
 5. **Verify start-up**: tail the log to confirm no import errors, model loads, first rollout begins.
 
 6. **Record back to the tracker**: set `Status=Training`, paste `WandB link` and

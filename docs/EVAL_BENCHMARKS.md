@@ -25,6 +25,27 @@ scorers. `question_type="exact"` delegates to `explore_tom.check_answer_correctn
 (exact-normalized OR prediction-ends-with-gold) so open-ended answers match the
 in-distribution explore_tom eval.
 
+## Prompt alignment (train vs eval)
+
+Every eval parquet bakes the **`cot_eval`** system prompt (identical text across the merged
+tomi/hi_tom/explore_tom parquet, `prepare_fantom.py`, and the 8 `tom_eval_common`-based evals).
+Training data built by the dialogue/ToM pipeline also bakes `cot_eval` (`system_prompt_style:
+cot_eval`), so **by default training and every eval are aligned** — the Round-17d alignment that
+unlocked ToM transfer.
+
+There is **no runtime system-prompt override by default** (`data.system_prompt` unset), so each
+dataset uses its baked prompt:
+
+- **Default runs (`cot_eval`)**: aligned, nothing to do.
+- **Experiments varying the CoT/system prompt** (RQ `cot-style`, or any `system_prompt_style` ≠
+  `cot_eval`): you **MUST** pass `+data.system_prompt="<exact prompt text>"` at launch (**Option
+  A**). It replaces the system message in **both** train and val loaders
+  (`verl/utils/dataset/rl_dataset.py:127`, wired in `ray_trainer.py:390,406`), keeping the
+  comparison fair. Otherwise evals stay frozen at `cot_eval` while training drifts → the Round-17
+  train/eval mismatch reappears. See `launch-experiment` skill §4a. Caveats: only applies when
+  `data.prompt_is_text=False` (all current parquets); it overwrites eval-specific system content
+  including the tomi `hint_v3` room-witness note.
+
 ## Benchmark catalog
 
 ### Pre-existing (already in repo)
