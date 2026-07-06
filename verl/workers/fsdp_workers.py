@@ -44,6 +44,42 @@ from codetiming import Timer
 MIN_REWARD = -40
 MAX_REWARD = 40
 
+# Issue 5: reserve a band strictly below the valid-response range for invalid
+# (malformed / unscoreable) rollouts, so an invalid response is ALWAYS ranked below
+# even the worst valid response — regardless of reward_type. A fixed -40 sentinel
+# overlapped the negative valid range of log_prob / neg_perplexity (a valid response
+# can legitimately clamp to -40, and neg_perplexity=-exp(-ll) saturates the floor for
+# ordinary log-likelihoods), making invalid and poor-but-valid rollouts indistinguishable
+# to GRPO's group normalisation. The sentinel is computed RELATIVE to the reward-type's
+# valid floor with a large fixed gap.
+INVALID_MARGIN = 40.0
+
+
+def valid_reward_floor(reward_type):
+    """Lowest value a well-formed (valid) response can take after its reward transform
+    is clamped into range.
+
+    - power:  max(ll - ll_min, 0) ** k  >= 0
+    - log_prob / neg_perplexity: negative and (potentially) unbounded below, so they are
+      clamped up to MIN_REWARD.
+    """
+    if reward_type == "power":
+        return 0.0
+    return float(MIN_REWARD)
+
+
+def invalid_reward_value(reward_type, format_penalty=0.0):
+    """Relative sentinel for invalid rollouts.
+
+    Guaranteed to sit at least INVALID_MARGIN below the worst possible *valid* response,
+    including a maximally format-penalised (but structurally valid) one. Because valid
+    scores are clamped to >= valid_reward_floor before the graded format penalty is
+    subtracted, the worst valid score is `floor - format_penalty`; the sentinel is one
+    full margin below that.
+    """
+    return valid_reward_floor(reward_type) - float(format_penalty or 0.0) - INVALID_MARGIN
+
+
 logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv('VERL_PPO_LOGGING_LEVEL', 'WARN'))
 
@@ -704,14 +740,16 @@ class ActorRolloutRefWorker(Worker):
                 truncation='right')
 
             response_mask = torch.zeros_like(attention_mask)
-            # Issue 3: use the SAME boundary convention as the frozen RM path
-            # (RewardModelWorker._switch_chat_template): [thinking_length-1 : full_len].
-            # The -1 compensates for the assistant-turn terminator that thinking-only
-            # re-tokenization (add_generation_prompt=False) appends but which is absent
-            # at that position in the stitched full sequence. Previously this path used
-            # `thinking_length:` (no -1), so actor-as-RM and frozen-RM scored a response
-            # window shifted by one token and their rewards were not comparable.
-            response_mask[0, thinking_length - 1:attention_mask.sum().item()] = 1
+            # Issue 3 + Issue 6: use the SAME exact boundary convention as the frozen RM
+            # path (RewardModelWorker._switch_chat_template). The first answer-region token
+            # is located via the tokenizer's character offset mapping (robust to
+            # model-specific turn terminators); `-1` aligns with the downstream [:-1] scoring
+            # slice so the first answer token is scored. Previously this path used a plain
+            # `thinking_length-1`, which (a) differed from the frozen path's exact boundary
+            # and (b) under-covered the answer on Gemma.
+            answer_start = self._parser.answer_token_start(
+                tokenizer, prompt_with_chat_template, thinking_length)
+            response_mask[0, answer_start - 1:attention_mask.sum().item()] = 1
 
             rm_input_ids.append(input_ids)
             rm_attention_mask.append(attention_mask)
@@ -770,18 +808,24 @@ class ActorRolloutRefWorker(Worker):
         else:
             rm_score = log_prob
 
-        rm_score = rm_score.masked_fill_(micro_batch['invalid_response'], MIN_REWARD)
-        # Fix 2: graded format penalty for malformed model responses.
+        # Issue 5: reward-type-aware valid clamp + RELATIVE invalid sentinel.
+        # Clamp valid scores into their range FIRST so the worst valid is bounded, then
+        # place invalid rollouts a full margin below it (see invalid_reward_value).
+        invalid_value = invalid_reward_value(self.reward_type, self.format_penalty)
+        rm_score = torch.clamp(rm_score, min=valid_reward_floor(self.reward_type), max=MAX_REWARD)
+        # Fix 2: graded format penalty for malformed (but still valid) model responses.
         if self.format_penalty and 'format_violation' in micro_batch:
             rm_score = rm_score - micro_batch['format_violation'].to(rm_score.dtype) * self.format_penalty
+        # Invalid rollouts (no </think>) -> relative sentinel, guaranteed below any valid.
+        rm_score = rm_score.masked_fill_(micro_batch['invalid_response'], invalid_value)
         # Degenerate rollouts whose thinking fills the RM context leave no response
         # tokens to score (0/0 -> NaN above); treat them as invalid rather than
         # letting a single NaN poison the whole GRPO batch.
         rm_score = torch.where(response_token_count > 0, rm_score,
-                               torch.full_like(rm_score, float(MIN_REWARD)))
-        rm_score = torch.nan_to_num(rm_score, nan=float(MIN_REWARD),
-                                    posinf=float(MAX_REWARD), neginf=float(MIN_REWARD))
-        rm_score = torch.clamp(rm_score, min=MIN_REWARD, max=MAX_REWARD)
+                               torch.full_like(rm_score, invalid_value))
+        rm_score = torch.nan_to_num(rm_score, nan=invalid_value,
+                                    posinf=float(MAX_REWARD), neginf=invalid_value)
+        rm_score = torch.clamp(rm_score, min=invalid_value, max=MAX_REWARD)
         return rm_score
 
     @register(dispatch_mode=Dispatch.ONE_TO_ALL)
@@ -1245,18 +1289,24 @@ class RewardModelWorker(Worker):
             # or just current_log_prob (GRPO group normalization acts as implicit baseline)
             if self.subtract_baseline:
                 rm_score = rm_score - pp
-            # Fix 2: graded format penalty for malformed model responses (applied before
-            # the hard invalid_penalty / clamp so genuinely-degenerate rollouts still floor).
+            # Issue 5: reward-type-aware valid clamp + RELATIVE invalid sentinel.
+            # Clamp valid scores into their range FIRST so the worst valid is bounded, then
+            # place invalid rollouts a full margin below it (see invalid_reward_value). This
+            # replaces the fixed `self.invalid_penalty` (=-40) which overlapped the negative
+            # valid range of log_prob / neg_perplexity.
+            invalid_value = invalid_reward_value(self.reward_type, self.format_penalty)
+            rm_score = torch.clamp(rm_score, min=valid_reward_floor(self.reward_type), max=MAX_REWARD)
+            # Fix 2: graded format penalty for malformed (but still valid) responses.
             if self.format_penalty and 'format_violation' in micro_batch:
                 rm_score = rm_score - micro_batch['format_violation'].to(rm_score.dtype) * self.format_penalty
-            rm_score = rm_score.masked_fill_(micro_batch['invalid_response'], self.invalid_penalty)
+            rm_score = rm_score.masked_fill_(micro_batch['invalid_response'], invalid_value)
             # Degenerate rollouts with no scored response tokens yield NaN above;
             # treat them as invalid so one NaN can't poison the whole GRPO batch.
             rm_score = torch.where(response_token_count > 0, rm_score,
-                                   torch.full_like(rm_score, float(self.invalid_penalty)))
-            rm_score = torch.nan_to_num(rm_score, nan=float(self.invalid_penalty),
-                                        posinf=float(MAX_REWARD), neginf=float(MIN_REWARD))
-            rm_score = torch.clamp(rm_score, min=MIN_REWARD, max=MAX_REWARD)
+                                   torch.full_like(rm_score, invalid_value))
+            rm_score = torch.nan_to_num(rm_score, nan=invalid_value,
+                                        posinf=float(MAX_REWARD), neginf=invalid_value)
+            rm_score = torch.clamp(rm_score, min=invalid_value, max=MAX_REWARD)
             #eos_mask_idx = torch.argmax(position_ids * attention_mask, dim=-1)  # (bsz,)
             #rm_score = rm_score[torch.arange(batch_size), eos_mask_idx]
             return rm_score
@@ -1380,7 +1430,16 @@ class RewardModelWorker(Worker):
             # Now get true utterance mask (this only works with right padding and right truncation)
             if self.config.get('truncation', 'right') != 'right':
                 raise ValueError("Only right padding is allowed")
-            response_mask[:,thinking_length-1:full_len] = 1
+            # Issue 6: locate the first answer-region token EXACTLY via the tokenizer's
+            # character offset mapping (robust to model-specific turn terminators — Gemma's
+            # multi-token <end_of_turn>\n vs Qwen's single <|im_end|>) instead of the
+            # re-tokenised thinking_length minus a fixed -1, which under-covered the ground
+            # truth on Gemma by >1 token. `-1` aligns with the downstream [:-1] scoring slice
+            # so the first answer token is scored. Falls back to thinking_length if offsets
+            # are unavailable.
+            answer_start = self._parser.answer_token_start(
+                target_tokenizer, prompt_with_chat_template, thinking_length)
+            response_mask[:, answer_start - 1:full_len] = 1
 
             rm_input_ids.append(input_ids)
             rm_attention_mask.append(attention_mask)

@@ -172,6 +172,42 @@ class ModelResponseParser:
             actual_response = ground_truth
         return thinking + actual_response
 
+    def answer_token_start(self, tokenizer, rendered_full: str,
+                           thinking_length: int = None) -> int:
+        """Return the index of the FIRST answer-region token in the tokenised
+        ``rendered_full`` chat string (the token immediately after ``</think>``).
+
+        Issue 6: the previous heuristic derived the boundary from re-tokenising the
+        thinking-only chat (``apply_chat_template(chat + thinking, add_generation_prompt
+        =False)``) and subtracting a fixed ``-1`` for the assistant-turn terminator. That
+        terminator is model-dependent (1 token for Qwen's ``<|im_end|>`` but multiple for
+        Gemma's ``<end_of_turn>\\n``), so a single ``-1`` under-covered the ground-truth
+        answer on Gemma by more than one token. This method instead uses the tokenizer's
+        character ``offset_mapping`` to find the exact first token whose span begins at or
+        after the end of the last ``</think>`` — robust to any turn structure / terminator
+        token count and to BPE merges around the boundary.
+
+        Falls back to ``thinking_length`` (the caller's re-tokenised length) when a fast
+        tokenizer / offset mapping is unavailable or no ``</think>`` is present.
+        """
+        close_idx = rendered_full.rfind(self.THINK_CLOSE)
+        if close_idx == -1:
+            return thinking_length
+        answer_char_start = close_idx + len(self.THINK_CLOSE)
+        try:
+            enc = tokenizer(rendered_full, return_offsets_mapping=True,
+                            add_special_tokens=False)
+            offsets = enc['offset_mapping']
+        except (TypeError, KeyError, NotImplementedError):
+            return thinking_length
+        if not offsets:
+            return thinking_length
+        for t, (s, e) in enumerate(offsets):
+            # first token that contains at least one answer-region character
+            if e > answer_char_start:
+                return t
+        return len(offsets)
+
 
 class QwenResponseParser(ModelResponseParser):
     """Parser for Qwen2/Qwen2.5 models."""

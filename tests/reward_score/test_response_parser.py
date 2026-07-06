@@ -1,5 +1,5 @@
 """
-Unit tests for reward-side response parsing/stitching fixes (Issues 2 & 3).
+Unit tests for reward-side response parsing/stitching fixes (Issues 2, 3, 5 & 6).
 
 Issue 2 (split_thinking double-<think>): the opening <think> must be added only when
 the model's response does not already start with one. Behavior/dialogue rollouts emit
@@ -7,15 +7,21 @@ their own <think> (no generation_prefix), so the old unconditional prepend produ
 malformed "<think><think>...</think>" context for the reward model. Direct-ToM rollouts
 start after a generation_prefix "<think>" and still need it added.
 
-Issue 3 (response_mask boundary): the actor-as-RM path must use the SAME boundary as the
-frozen RM path — [thinking_length-1 : full_len] — so the two RM modes score the same token
-window and their rewards are comparable. The -1 compensates for the assistant-turn
-terminator that thinking-only re-tokenization appends. This test numerically verifies, with
-real tokenizers, that the corrected boundary aligns the scored labels to the ground-truth
-answer tokens (and that the old off-by-one convention misaligns them).
+Issue 3 / Issue 6 (response_mask boundary): the mask that selects the ground-truth answer
+tokens for scoring must (a) be identical between the actor-as-RM and frozen RM paths, and
+(b) cover the FULL ground-truth answer for every model family. The boundary is now found via
+the tokenizer's character offset mapping (ModelResponseParser.answer_token_start), robust to
+model-specific turn terminators — the old re-tokenised thinking_length minus a fixed -1
+under-covered the answer on Gemma (multi-token <end_of_turn>) by >1 token. This test verifies
+full coverage and no thinking-text leakage with real tokenizers.
+
+Issue 5 (relative invalid sentinel): invalid / unscoreable rollouts must always rank below the
+worst valid response, for every reward_type. A fixed -40 sentinel overlapped the negative valid
+range of log_prob / neg_perplexity; the sentinel is now computed relative to the reward-type's
+valid floor with a large fixed gap. This test verifies the ordering numerically.
 
 Run: python tests/reward_score/test_response_parser.py   (or: pytest tests/reward_score/test_response_parser.py)
-Offline for the string tests; the tokenizer-based mask test SKIPs if a model is unavailable.
+The string/numeric tests run offline; the tokenizer-based mask test SKIPs if a model is unavailable.
 """
 
 import sys
@@ -113,15 +119,15 @@ def run_format_violation():
 
 
 # ---------------------------------------------------------------------------
-# Issue 3 — numeric mask-alignment check with a real tokenizer
+# Issue 6 — exact answer-region boundary via offset mapping (real tokenizer)
 # ---------------------------------------------------------------------------
-def _masked_label_ids(tokenizer, parser, chat, model_response, ground_truth, use_minus_one):
-    """Replicate the fsdp_workers stitching + response_mask boundary and return the
-    (decoded_text, label_token_ids) the reward model would actually score.
+def _scored_region(tokenizer, parser, chat, model_response, ground_truth):
+    """Replicate the fsdp_workers stitching + the NEW offset-mapping boundary and return
+    (scored_text, n_scored_tokens, thinking_text) the reward model would actually score.
 
-    use_minus_one=True reproduces the CORRECTED convention [thinking_length-1 : full_len]
-    (shared by frozen and, after the fix, the actor path). False reproduces the OLD actor
-    off-by-one [thinking_length : full_len].
+    Mirrors RewardModelWorker._switch_chat_template / _build_actor_rm_inputs: the response
+    mask is set from `answer_token_start - 1` (the -1 aligns with the downstream labels =
+    ids[1:] / response_mask = mask[:-1] slice), so a set index k scores label ids[k+1].
     """
     thinking, _ = parser.split_thinking(model_response)
     thinking = thinking.replace(tokenizer.eos_token, "") if tokenizer.eos_token else thinking
@@ -132,31 +138,28 @@ def _masked_label_ids(tokenizer, parser, chat, model_response, ground_truth, use
 
     model_used_answer_tags = "<answer>" in model_response
     full_response = parser.build_stitched_response(thinking, ground_truth, model_used_answer_tags)
-    full_chat = chat + [{"role": "assistant", "content": full_response}]
-    full_str = tokenizer.apply_chat_template(full_chat, add_generation_prompt=False, tokenize=False)
+    full_str = tokenizer.apply_chat_template(chat + [{"role": "assistant", "content": full_response}],
+                                             add_generation_prompt=False, tokenize=False)
     ids = tokenizer(full_str, return_tensors="pt", add_special_tokens=False)["input_ids"][0]
-
     full_len = ids.shape[-1]
-    start = (thinking_length - 1) if use_minus_one else thinking_length
-    # Replicate downstream: labels = ids[1:], response_mask (pre-slice) gates token_{i+1}.
-    # A set mask index k selects label token at position k+1 == ids[k+1].
+
+    answer_start = parser.answer_token_start(tokenizer, full_str, thinking_length)
+    start = answer_start - 1
     label_token_ids = [int(ids[k + 1]) for k in range(start, full_len) if (k + 1) < full_len]
-    return tokenizer.decode(label_token_ids), label_token_ids
+    return tokenizer.decode(label_token_ids), len(label_token_ids), thinking
 
 
-def run_mask_alignment():
-    """Best-effort numeric check with real tokenizers. The Issue-3 fix guarantees:
-      (a) the corrected actor boundary scores EXACTLY one extra leading token vs the old
-          off-by-one, with an identical tail  => the two RM paths now agree token-for-token;
-      (b) where the thinking re-tokenization aligns (Qwen), that extra token completes the
-          ground-truth answer coverage. For Gemma the re-tokenization over-counts the turn
-          boundary by >1 token (Issue 6, deferred), so full coverage is only informational.
+def run_issue6_mask():
+    """The offset-mapping boundary must cover the FULL ground-truth answer for every model
+    family (Qwen single-token terminator AND Gemma multi-token terminator), without leaking
+    the model's thinking text into the scored region (beyond a single BPE-glued boundary
+    token). Real tokenizers required; SKIPs cleanly when unavailable.
     """
     failures = []
     try:
         from transformers import AutoTokenizer
     except Exception as e:  # pragma: no cover
-        print(f"[SKIP] mask-alignment: transformers unavailable ({e})")
+        print(f"[SKIP] issue6-mask: transformers unavailable ({e})")
         return failures
 
     specs = [
@@ -164,56 +167,126 @@ def run_mask_alignment():
          [{"role": "system", "content": "You are a helpful assistant."},
           {"role": "user", "content": "Continue the conversation naturally."}],
          "<think>they seem worried about money</think><answer>Have you considered a budget?</answer>",
-         "Have you considered a budget?", True),
+         "Have you considered a budget?", "worried about money"),
         # Gemma's chat template rejects a system role (the real pipeline folds it into the
-        # first user turn via fold_system_prompt), so keep the prompt user-only here.
-        # expect_full_coverage=False: Gemma needs the Issue-6 boundary fix for full coverage.
+        # first user turn), so keep the prompt user-only here.
         ("google/gemma-2-2b-it", "gemma",
          [{"role": "user", "content": "You are a helpful assistant. Continue the conversation."}],
          "<think>the buyer is hesitant</think>The appliances are included in the rent.",
-         "The appliances are included in the rent.", False),
+         "The appliances are included in the rent.", "the buyer is hesitant"),
     ]
     ran_any = False
-    for model_path, ptype, chat, model_response, ground_truth, expect_full in specs:
+    for model_path, ptype, chat, model_response, ground_truth, thinking_probe in specs:
         try:
             tok = AutoTokenizer.from_pretrained(model_path)
         except Exception as e:
-            print(f"[SKIP] mask-alignment/{ptype}: tokenizer '{model_path}' unavailable ({e})")
+            print(f"[SKIP] issue6-mask/{ptype}: tokenizer '{model_path}' unavailable ({e})")
             continue
         ran_any = True
         parser = get_parser(ptype)
         try:
-            corr_txt, corr_ids = _masked_label_ids(tok, parser, chat, model_response, ground_truth, True)
-            old_txt, old_ids = _masked_label_ids(tok, parser, chat, model_response, ground_truth, False)
+            scored_txt, n_scored, thinking = _scored_region(tok, parser, chat, model_response, ground_truth)
         except Exception as e:
-            print(f"[FAIL] mask-alignment/{ptype}: raised {e!r}")
-            failures.append(f"mask/{ptype}")
+            print(f"[FAIL] issue6-mask/{ptype}: raised {e!r}")
+            failures.append(f"issue6/{ptype}")
             continue
 
-        # (a) The fix adds exactly one leading token; the tail is unchanged.
-        one_extra_leading = (len(corr_ids) == len(old_ids) + 1) and (corr_ids[1:] == old_ids)
-        status = "PASS" if one_extra_leading else "FAIL"
-        print(f"[{status}] mask-alignment/{ptype}: corrected = old + exactly one leading token "
-              f"(len {len(corr_ids)} vs {len(old_ids)})")
-        print(f"        corrected scored: {' '.join(corr_txt.split())!r}")
-        print(f"        old       scored: {' '.join(old_txt.split())!r}")
-        if not one_extra_leading:
-            failures.append(f"mask/{ptype}")
+        norm = lambda s: " ".join(s.split())
+        covered = norm(ground_truth) in norm(scored_txt)
+        # thinking text (minus the tags) must NOT be scored (allow the single glued boundary token)
+        think_body = norm(thinking.replace(parser.THINK_OPEN, "").replace(parser.THINK_CLOSE, ""))
+        leaks = think_body and think_body in norm(scored_txt)
 
-        # (b) Coverage: asserted only where re-tokenization aligns (Qwen); informational for Gemma.
-        gt_norm = " ".join(ground_truth.split())
-        covered = gt_norm in " ".join(corr_txt.split())
-        if expect_full:
-            cov_status = "PASS" if covered else "FAIL"
-            print(f"[{cov_status}] mask-coverage/{ptype}: corrected covers full ground truth ({covered})")
-            if not covered:
-                failures.append(f"cov/{ptype}")
-        else:
-            print(f"[INFO] mask-coverage/{ptype}: full GT covered={covered} "
-                  f"(Issue 6 boundary drift, deferred)")
+        cov_status = "PASS" if covered else "FAIL"
+        print(f"[{cov_status}] issue6-coverage/{ptype}: covers full ground truth ({covered})")
+        print(f"        scored: {norm(scored_txt)!r}")
+        if not covered:
+            failures.append(f"issue6-cov/{ptype}")
+
+        leak_status = "PASS" if not leaks else "FAIL"
+        print(f"[{leak_status}] issue6-noleak/{ptype}: thinking body not scored ({not leaks})")
+        if leaks:
+            failures.append(f"issue6-leak/{ptype}")
 
     if not ran_any:
-        print("[SKIP] mask-alignment: no tokenizers available (offline)")
+        print("[SKIP] issue6-mask: no tokenizers available (offline)")
+    return failures
+
+
+# ---------------------------------------------------------------------------
+# Issue 5 — relative invalid sentinel always ranks below the worst valid response
+# ---------------------------------------------------------------------------
+def _reward_tail(raw_scores, invalid_mask, token_counts, reward_type,
+                 format_penalty=0.0, format_viol=None):
+    """Pure re-implementation of the fsdp_workers reward tail (Issue 5) for testing:
+    valid clamp -> graded format penalty -> relative invalid sentinel -> nan/0-token
+    handling -> final clamp. Kept byte-for-byte consistent with _actor_rm_forward /
+    _forward_micro_batch so the ordering guarantee is what actually ships.
+    """
+    import torch
+    from verl.workers.fsdp_workers import (valid_reward_floor, invalid_reward_value,
+                                           MAX_REWARD)
+    rm = raw_scores.clone().float()
+    invalid_value = invalid_reward_value(reward_type, format_penalty)
+    rm = torch.clamp(rm, min=valid_reward_floor(reward_type), max=MAX_REWARD)
+    if format_penalty and format_viol is not None:
+        rm = rm - format_viol.float() * format_penalty
+    rm = rm.masked_fill(invalid_mask, invalid_value)
+    rm = torch.where(token_counts > 0, rm, torch.full_like(rm, invalid_value))
+    rm = torch.nan_to_num(rm, nan=invalid_value, posinf=float(MAX_REWARD), neginf=invalid_value)
+    rm = torch.clamp(rm, min=invalid_value, max=MAX_REWARD)
+    return rm, invalid_value
+
+
+def run_invalid_sentinel():
+    """For every reward_type the invalid sentinel must be strictly below EVERY valid score,
+    including a maximally format-penalised valid one, and NaN / zero-token rollouts must map
+    onto the sentinel (not into the valid range). This is the Issue-5 guarantee GRPO relies
+    on to rank malformed rollouts below poor-but-valid ones.
+    """
+    import math
+    import torch
+    failures = []
+
+    # (reward_type, valid raw post-transform scores spanning the plausible range)
+    scenarios = {
+        "power": [0.0, 0.01, 0.5, 4.0, 39.0, 100.0],                 # >=0; 100 clamps to 40
+        "log_prob": [-50.0, -12.0, -4.0, -1.0, -0.05],               # avg log prob (<=0)
+        "neg_perplexity": [-math.exp(6), -math.exp(2), -math.exp(0.3), -1.0],  # -exp(-ll)
+    }
+    for rtype, valids in scenarios.items():
+        for fp in (0.0, 5.0):
+            n = len(valids)
+            raw = torch.tensor(valids + [-999.0, float("nan"), 0.0], dtype=torch.float32)
+            invalid_mask = torch.tensor([False] * n + [True, False, False])
+            token_counts = torch.tensor([5] * n + [5, 5, 0])  # last: zero-token -> invalid
+            fviol = torch.zeros(n + 3)
+            out, inv = _reward_tail(raw, invalid_mask, token_counts, rtype, fp, fviol)
+            valid_out = out[:n]
+            invalid_out = out[n:]  # explicit-invalid, NaN, zero-token
+            ok_sep = bool((invalid_out.max() < valid_out.min()).item())
+            ok_all_sentinel = bool(torch.allclose(invalid_out, torch.full_like(invalid_out, inv)))
+            ok = ok_sep and ok_all_sentinel
+            status = "PASS" if ok else "FAIL"
+            print(f"[{status}] sentinel/{rtype} fp={fp}: invalid.max={invalid_out.max():.3f} "
+                  f"< valid.min={valid_out.min():.3f} (sentinel={inv:.1f})")
+            if not ok:
+                failures.append(f"sentinel/{rtype}/fp{fp}")
+
+        # malformed-but-valid (format_violation=1) must still rank above hard-invalid
+        if True:
+            n = len(valids)
+            raw = torch.tensor(valids + [-999.0], dtype=torch.float32)
+            invalid_mask = torch.tensor([False] * n + [True])
+            token_counts = torch.tensor([5] * (n + 1))
+            fviol = torch.tensor([1.0] * n + [0.0])  # all valids malformed
+            out, inv = _reward_tail(raw, invalid_mask, token_counts, rtype, 5.0, fviol)
+            ok = bool((out[n] < out[:n].min()).item())
+            status = "PASS" if ok else "FAIL"
+            print(f"[{status}] sentinel/{rtype} malformed-valid>invalid: "
+                  f"invalid={out[n]:.3f} < worst malformed-valid={out[:n].min():.3f}")
+            if not ok:
+                failures.append(f"sentinel/{rtype}/malformed")
     return failures
 
 
@@ -223,11 +296,15 @@ def run():
     all_failures += run_split_thinking()
     print("\n== Issue 2 companion: has_format_violation ==")
     all_failures += run_format_violation()
-    print("\n== Issue 3: response_mask boundary alignment ==")
-    all_failures += run_mask_alignment()
+    print("\n== Issue 5: relative invalid sentinel ==")
+    all_failures += run_invalid_sentinel()
+    print("\n== Issue 6: exact answer-region boundary (offset mapping) ==")
+    all_failures += run_issue6_mask()
 
     total = len(SPLIT_CASES) + len(VIOLATION_CASES)
-    print(f"\n{total - len([f for f in all_failures if not f.startswith('mask/')])}/{total} string checks passed")
+    string_fail = len([f for f in all_failures
+                       if not f.startswith(("issue6/", "issue6-", "sentinel/"))])
+    print(f"\n{total - string_fail}/{total} string checks passed")
     if all_failures:
         print("FAILURES:", all_failures)
         return 1
