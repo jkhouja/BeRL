@@ -117,13 +117,45 @@ class ModelResponseParser:
     def split_thinking(self, response: str) -> Tuple[str, str]:
         """Split response into (thinking_part, answer_part) around </think>.
 
-        The thinking_part includes <think>...</think>.
-        The answer_part is everything after </think>.
+        The thinking_part includes exactly one leading <think> and the </think>.
+        The answer_part is everything after the first </think>.
+
+        The opening <think> is added ONLY when the response does not already begin
+        with one. Behavior/dialogue rollouts (rl_dataset builds the prompt with
+        add_generation_prompt=True and no generation_prefix) contain their own
+        leading <think>, so unconditionally prepending produced a malformed
+        "<think><think>...</think>" that was then fed to the reward model. Direct-ToM
+        rollouts (tom_dataset uses generation_prefix="<think>") start *after* the tag
+        and still need it added. Checking the prefix handles both without doubling.
         """
-        parts = response.split(self.THINK_CLOSE)
-        thinking = self.THINK_OPEN + parts[0] + self.THINK_CLOSE
+        parts = response.split(self.THINK_CLOSE, 1)
+        prefix = parts[0]
+        if prefix.lstrip().startswith(self.THINK_OPEN):
+            thinking = prefix + self.THINK_CLOSE
+        else:
+            thinking = self.THINK_OPEN + prefix + self.THINK_CLOSE
         answer = parts[1] if len(parts) > 1 else ""
         return thinking, answer
+
+    def has_format_violation(self, response: str) -> bool:
+        """True if the model's OWN response is malformed.
+
+        A violation is: not exactly one <think> and one </think>, or an empty /
+        malformed answer after </think>. Used as a graded format-reward penalty so
+        dialogue-continuation training does not erode the <think>/answer structure
+        the eval depends on. For REQUIRE_ANSWER_TAGS parsers a proper non-empty
+        <answer>...</answer> is required; otherwise any non-empty content after
+        </think> (with stray answer tags stripped) is accepted.
+        """
+        if response.count(self.THINK_OPEN) != 1 or response.count(self.THINK_CLOSE) != 1:
+            return True
+        _, answer_part = self.split_thinking(response)
+        ans = self.strip_special_tokens(answer_part)
+        if self.REQUIRE_ANSWER_TAGS:
+            m = re.search(r'<answer>(.*?)</answer>', ans, re.DOTALL)
+            return (m is None) or (len(m.group(1).strip()) == 0)
+        ans_clean = re.sub(r'</?answer>', '', ans).strip()
+        return len(ans_clean) == 0
 
     def build_stitched_response(self, thinking: str, ground_truth: str,
                                 model_used_answer_tags: bool) -> str:

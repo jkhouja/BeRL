@@ -211,6 +211,9 @@ class DataParallelPPOActor(BasePPOActor):
         select_keys = ['responses', 'input_ids', 'attention_mask', 'position_ids', 'old_log_probs', 'advantages']
         if self.config.use_kl_loss:
             select_keys.append('ref_log_prob')
+        think_only_pg = self.config.get('think_only_pg', False)
+        if think_only_pg:
+            select_keys.append('think_mask')
         batch = data.select(batch_keys=select_keys).batch
 
         # Split to make minibatch iterator for updating the actor
@@ -239,6 +242,11 @@ class DataParallelPPOActor(BasePPOActor):
                 old_log_prob = data['old_log_probs']
                 advantages = data['advantages']
 
+                # Fix 1: restrict the policy gradient + entropy to <think>...</think> tokens
+                # when enabled; the KL term still uses the full response_mask so the answer
+                # region stays anchored to the reference (base) model's format.
+                pg_mask = data['think_mask'] if think_only_pg and 'think_mask' in data.keys() else response_mask
+
                 clip_ratio = self.config.clip_ratio
                 entropy_coeff = self.config.entropy_coeff
 
@@ -248,10 +256,10 @@ class DataParallelPPOActor(BasePPOActor):
                 pg_loss, pg_clipfrac, ppo_kl = core_algos.compute_policy_loss(old_log_prob=old_log_prob,
                                                                               log_prob=log_prob,
                                                                               advantages=advantages,
-                                                                              eos_mask=response_mask,
+                                                                              eos_mask=pg_mask,
                                                                               cliprange=clip_ratio)
                 # compute entropy loss from entropy
-                entropy_loss = verl_F.masked_mean(entropy, response_mask)
+                entropy_loss = verl_F.masked_mean(entropy, pg_mask)
 
                 # compute policy loss
                 policy_loss = pg_loss - entropy_loss * entropy_coeff

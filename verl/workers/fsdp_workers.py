@@ -136,6 +136,12 @@ class ActorRolloutRefWorker(Worker):
         self.power_k = self.config.get("power_k", self.config.actor.get("power_k", 2.0))
         self.power_ll_min = self.config.get("power_ll_min", self.config.actor.get("power_ll_min", -2.0))
         self.require_answer_tags = self.config.get("require_answer_tags", True)
+        # Fix 2: graded format penalty (actor-as-RM mode). 0.0 = disabled.
+        self.format_penalty = self.config.get("format_penalty", self.config.actor.get("format_penalty", 0.0))
+        # Fix 1: restrict the policy-gradient loss + entropy to <think>...</think> tokens
+        # (the span the dialogue reward actually reflects); the answer region is governed
+        # only by the KL-to-reference term so it stays anchored to the base model's format.
+        self.think_only_pg = self.config.actor.get("think_only_pg", False)
 
         # Response parser (will be initialized after model config is loaded)
         self._parser = None
@@ -409,6 +415,35 @@ class ActorRolloutRefWorker(Worker):
 
         torch.cuda.empty_cache()
 
+    def _compute_think_mask(self, responses, attention_mask):
+        """Fix 1: per-token mask over the <think>...</think> span of each response.
+
+        Returns a (bsz, response_length) mask that is 1 for thinking tokens (up to and
+        including </think>) and 0 for answer tokens. Rows with no </think> keep the full
+        response mask (train all tokens; they are penalized as invalid elsewhere).
+        Boundary is found by decoding then re-encoding the thinking prefix (same approach
+        the reward path uses for thinking_length); off-by-one at the boundary is harmless.
+        """
+        response_length = responses.size(1)
+        response_mask = attention_mask[:, -response_length:]
+        think_mask = response_mask.clone()
+        resp_cpu = responses.detach().cpu()
+        close_tag = "</think>"
+        for i in range(responses.size(0)):
+            valid_len = int(response_mask[i].sum().item())
+            if valid_len == 0:
+                continue
+            ids = resp_cpu[i, :valid_len].tolist()
+            text = self.tokenizer.decode(ids, skip_special_tokens=False)
+            idx = text.rfind(close_tag)
+            if idx == -1:
+                continue  # no closing tag -> keep full mask
+            prefix = text[:idx + len(close_tag)]
+            n = len(self.tokenizer(prefix, add_special_tokens=False)['input_ids'])
+            n = max(1, min(n, valid_len))
+            think_mask[i, n:] = 0
+        return think_mask
+
     @register(dispatch_mode=Dispatch.DP_COMPUTE_PROTO)
     def update_actor(self, data: DataProto):
         data = data.to('cuda')
@@ -422,6 +457,12 @@ class ActorRolloutRefWorker(Worker):
             load_fsdp_optimizer(optimizer=self.actor_optimizer, device_id=torch.cuda.current_device())
 
         data.batch = data.batch.cuda()
+
+        # Fix 1: attach a thinking-only mask so the policy gradient trains only the
+        # <think>...</think> span (the answer region is anchored to base via KL only).
+        if self.think_only_pg:
+            data.batch['think_mask'] = self._compute_think_mask(
+                data.batch['responses'], data.batch['attention_mask'])
 
         log_gpu_memory_usage('Before update policy', logger=logger)
 
@@ -612,6 +653,7 @@ class ActorRolloutRefWorker(Worker):
         rm_attention_mask = []
         response_masks = []
         invalid_responses = []
+        format_violations = []
         answer_pps = []
 
         for i in range(data.batch.batch_size[0]):
@@ -628,6 +670,9 @@ class ActorRolloutRefWorker(Worker):
             invalid_response = torch.tensor([False])
             if self._parser.THINK_CLOSE not in response:
                 invalid_response = torch.tensor([True])
+
+            # Fix 2: format-structure violation on the model's OWN response
+            format_violation = torch.tensor([self._parser.has_format_violation(response)])
 
             # Extract thinking part, stitch with ground truth
             thinking, answer_part = self._parser.split_thinking(response)
@@ -659,12 +704,20 @@ class ActorRolloutRefWorker(Worker):
                 truncation='right')
 
             response_mask = torch.zeros_like(attention_mask)
-            response_mask[0, thinking_length:attention_mask.sum().item()] = 1
+            # Issue 3: use the SAME boundary convention as the frozen RM path
+            # (RewardModelWorker._switch_chat_template): [thinking_length-1 : full_len].
+            # The -1 compensates for the assistant-turn terminator that thinking-only
+            # re-tokenization (add_generation_prompt=False) appends but which is absent
+            # at that position in the stitched full sequence. Previously this path used
+            # `thinking_length:` (no -1), so actor-as-RM and frozen-RM scored a response
+            # window shifted by one token and their rewards were not comparable.
+            response_mask[0, thinking_length - 1:attention_mask.sum().item()] = 1
 
             rm_input_ids.append(input_ids)
             rm_attention_mask.append(attention_mask)
             response_masks.append(response_mask)
             invalid_responses.append(invalid_response)
+            format_violations.append(format_violation)
             _app = data.non_tensor_batch.get('answer_pp', [0.0])[i] \
                 if 'answer_pp' in data.non_tensor_batch else 0.0
             answer_pps.append(0.0 if _app is None else _app)
@@ -673,6 +726,7 @@ class ActorRolloutRefWorker(Worker):
         rm_attention_mask = torch.cat(rm_attention_mask, dim=0)
         response_masks = torch.cat(response_masks, dim=0)
         invalid_responses = torch.cat(invalid_responses, dim=0)
+        format_violations = torch.cat(format_violations, dim=0)
         answer_pp = torch.tensor(answer_pps, dtype=torch.float32)
         rm_position_ids = compute_position_id_with_mask(rm_attention_mask)
 
@@ -682,6 +736,7 @@ class ActorRolloutRefWorker(Worker):
             'position_ids': rm_position_ids,
             'response_mask': response_masks,
             'invalid_response': invalid_responses,
+            'format_violation': format_violations,
             'answer_pp': answer_pp,
         }
         return DataProto.from_dict(rm_inputs)
@@ -716,6 +771,9 @@ class ActorRolloutRefWorker(Worker):
             rm_score = log_prob
 
         rm_score = rm_score.masked_fill_(micro_batch['invalid_response'], MIN_REWARD)
+        # Fix 2: graded format penalty for malformed model responses.
+        if self.format_penalty and 'format_violation' in micro_batch:
+            rm_score = rm_score - micro_batch['format_violation'].to(rm_score.dtype) * self.format_penalty
         # Degenerate rollouts whose thinking fills the RM context leave no response
         # tokens to score (0/0 -> NaN above); treat them as invalid rather than
         # letting a single NaN poison the whole GRPO batch.
@@ -1031,6 +1089,10 @@ class RewardModelWorker(Worker):
         # Power reward parameters: reward = max(ll - ll_min, 0) ^ k
         self.power_k = self.config.get("power_k", 2.0)
         self.power_ll_min = self.config.get("power_ll_min", -2.0)
+        # Fix 2: graded penalty subtracted from the reward when the model's OWN response
+        # is malformed (missing/duplicate <think>/</think> or empty/malformed answer).
+        # 0.0 = disabled (default). Anchors the <think>/answer structure the eval needs.
+        self.format_penalty = self.config.get("format_penalty", 0.0)
 
         # build device mesh for Ulysses Sequence Parallel
         world_size = torch.distributed.get_world_size()
@@ -1183,6 +1245,10 @@ class RewardModelWorker(Worker):
             # or just current_log_prob (GRPO group normalization acts as implicit baseline)
             if self.subtract_baseline:
                 rm_score = rm_score - pp
+            # Fix 2: graded format penalty for malformed model responses (applied before
+            # the hard invalid_penalty / clamp so genuinely-degenerate rollouts still floor).
+            if self.format_penalty and 'format_violation' in micro_batch:
+                rm_score = rm_score - micro_batch['format_violation'].to(rm_score.dtype) * self.format_penalty
             rm_score = rm_score.masked_fill_(micro_batch['invalid_response'], self.invalid_penalty)
             # Degenerate rollouts with no scored response tokens yield NaN above;
             # treat them as invalid so one NaN can't poison the whole GRPO batch.
@@ -1220,6 +1286,7 @@ class RewardModelWorker(Worker):
         rm_attention_mask = []
         response_masks = []
         invalid_responses = []
+        format_violations = []
 
         for i in range(data.batch.batch_size[0]):
             # extract raw prompt
@@ -1242,6 +1309,9 @@ class RewardModelWorker(Worker):
             invalid_response = torch.tensor([False])
             if self._parser.THINK_CLOSE not in response:
                 invalid_response = torch.tensor([True])
+
+            # Fix 2: format-structure violation on the model's OWN response
+            format_violation = torch.tensor([self._parser.has_format_violation(response)])
 
             # Split into thinking and answer parts
             thinking, response_model = self._parser.split_thinking(response)
@@ -1304,6 +1374,7 @@ class RewardModelWorker(Worker):
                 rm_attention_mask.append(attention_mask)
                 response_masks.append(response_mask)
                 invalid_responses.append(invalid_response)
+                format_violations.append(format_violation)
                 continue
 
             # Now get true utterance mask (this only works with right padding and right truncation)
@@ -1315,16 +1386,18 @@ class RewardModelWorker(Worker):
             rm_attention_mask.append(attention_mask)
             response_masks.append(response_mask)
             invalid_responses.append(invalid_response)
+            format_violations.append(format_violation)
 
         rm_input_ids = torch.cat(rm_input_ids, dim=0)
         rm_attention_mask = torch.cat(rm_attention_mask, dim=0)
         response_masks = torch.cat(response_masks, dim=0)
         invalid_responses = torch.cat(invalid_responses, dim=0)
+        format_violations = torch.cat(format_violations, dim=0)
         answer_pp = data.batch['answer_pp']
 
         rm_position_ids = compute_position_id_with_mask(rm_attention_mask)
 
-        rm_inputs = {'input_ids': rm_input_ids, 'attention_mask': rm_attention_mask, 'position_ids': rm_position_ids, 'response_mask': response_masks, 'invalid_response': invalid_responses, 'answer_pp': answer_pp}
+        rm_inputs = {'input_ids': rm_input_ids, 'attention_mask': rm_attention_mask, 'position_ids': rm_position_ids, 'response_mask': response_masks, 'invalid_response': invalid_responses, 'format_violation': format_violations, 'answer_pp': answer_pp}
 
         return DataProto.from_dict(rm_inputs)
 
