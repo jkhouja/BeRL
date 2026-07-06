@@ -77,6 +77,82 @@ suffix is set per suite via `data.val_metric_suffix` (common.sh): `subsample300`
 This keeps a subset run's WandB series from overwriting the full-suite series of the same benchmark.
 Override with `VAL_METRIC_SUFFIX=...` (or `data.val_metric_suffix=...`).
 
+## Eval set statistics
+
+Per-subtype (`data_source`) row counts. **Table 1** is the full suite (`VAL_SUITE=full`, using
+`fantom_test_50pct`); **Table 2** is the representative subset (`VAL_SUITE=subsample300`, the default).
+
+### Table 1 — Full eval suite (`VAL_SUITE=full`)
+
+| Parquet | `data_source` (subtype) | Rows | Role |
+|---------|-------------------------|-----:|------|
+| ToM_test_HiExTi_hint_v3 | `tomi` | 5,994 | Generalization (never in training) |
+| ToM_test_HiExTi_hint_v3 | `explore_tom` | 1,066 | In-distribution ToM (symbolic) |
+| ToM_test_HiExTi_hint_v3 | `hi_tom` | 1,000 | Multi-order belief |
+| fantom_test_50pct | `fantom_answerability_binary` | 1,786 | Multi-party — answerability |
+| fantom_test_50pct | `fantom_info_binary` | 1,786 | Multi-party — info access |
+| fantom_test_50pct | `fantom_belief_mc` | 770 | Multi-party — belief (MC) |
+| fantom_test_50pct | `fantom_answerability_list` | 435 | Multi-party — answerability (list) |
+| fantom_test_50pct | `fantom_info_list` | 435 | Multi-party — info access (list) |
+| bigtom_test | `bigtom_forward_belief` | 400 | OOD |
+| bigtom_test | `bigtom_forward_action` | 400 | OOD |
+| bigtom_test | `bigtom_backward_belief` | 400 | OOD |
+| dyntom_test | `dyntom_type_d` | 1,026 | Dynamic |
+| dyntom_test | `dyntom_type_a` | 538 | Dynamic |
+| dyntom_test | `dyntom_type_c` | 436 | Dynamic |
+| exploretom_infilled_test | `exploretom_infilled` | 1,500 | Robustness (NL infilled) |
+| mmlu_test | `mmlu` | 2,000 | Guardrail (should stay flat) |
+| opentom_test | `opentom_multihop_fo` | 3,576 | OOD |
+| opentom_test | `opentom_multihop_so` | 3,576 | OOD |
+| opentom_test | `opentom_location_fo` | 3,575 | OOD |
+| opentom_test | `opentom_location_so` | 2,384 | OOD |
+| opentom_test | `opentom_attitude` | 596 | OOD |
+| simpletom_test | `simpletom_mental` | 1,147 | Applied |
+| simpletom_test | `simpletom_behavior` | 1,147 | Applied |
+| simpletom_test | `simpletom_judgment` | 1,147 | Applied |
+| tombench_test | `tombench` | 2,859 | OOD |
+| ullman_perturbed_test | `ullman_perturbed` | 9 | Robustness (tiny) |
+| **Total** | **26 subtypes / 10 files** | **39,988** | ~8 min/eval |
+
+> The `full` suite uses `fantom_test_50pct` (5,212). A full-fantom option (`fantom_test`, 10,422:
+> answ_binary 3,571 · info_binary 3,571 · belief_mc 1,540 · answ_list 870 · info_list 870) also
+> exists on disk but is not wired into `VAL_SUITE=full`.
+
+### Table 2 — Representative subset (`VAL_SUITE=subsample300`, default)
+
+Stratified `min(300, available)` per `data_source`, seed 42, `ullman_perturbed` excluded.
+Per-subtype 95% CI half-width ≈ `0.98/√300 ≈ 3.5pp`. File: `data/cleaned_tom/eval_subsample_300.parquet`.
+
+| `data_source` (subtype) | Sampled | Available | Coverage |
+|-------------------------|--------:|----------:|---------:|
+| `tomi` | 300 | 5,994 | 5.0% |
+| `explore_tom` | 300 | 1,066 | 28.1% |
+| `hi_tom` | 300 | 1,000 | 30.0% |
+| `fantom_answerability_binary` | 300 | 1,786 | 16.8% |
+| `fantom_info_binary` | 300 | 1,786 | 16.8% |
+| `fantom_belief_mc` | 300 | 770 | 39.0% |
+| `fantom_answerability_list` | 300 | 435 | 69.0% |
+| `fantom_info_list` | 300 | 435 | 69.0% |
+| `bigtom_forward_belief` | 300 | 400 | 75.0% |
+| `bigtom_forward_action` | 300 | 400 | 75.0% |
+| `bigtom_backward_belief` | 300 | 400 | 75.0% |
+| `dyntom_type_d` | 300 | 1,026 | 29.2% |
+| `dyntom_type_a` | 300 | 538 | 55.8% |
+| `dyntom_type_c` | 300 | 436 | 68.8% |
+| `exploretom_infilled` | 300 | 1,500 | 20.0% |
+| `mmlu` | 300 | 2,000 | 15.0% |
+| `opentom_multihop_fo` | 300 | 3,576 | 8.4% |
+| `opentom_multihop_so` | 300 | 3,576 | 8.4% |
+| `opentom_location_fo` | 300 | 3,575 | 8.4% |
+| `opentom_location_so` | 300 | 2,384 | 12.6% |
+| `opentom_attitude` | 300 | 596 | 50.3% |
+| `simpletom_mental` | 300 | 1,147 | 26.2% |
+| `simpletom_behavior` | 300 | 1,147 | 26.2% |
+| `simpletom_judgment` | 300 | 1,147 | 26.2% |
+| `tombench` | 300 | 2,859 | 10.5% |
+| `ullman_perturbed` | — | 9 | excluded |
+| **Total** | **7,500** | **25 subtypes** | ~1.6 min/eval |
+
 ## Benchmark catalog
 
 ### Pre-existing (already in repo)
