@@ -306,14 +306,17 @@ berl::run() {
       +reward_model.power_k="$POWER_K"
       +reward_model.power_ll_min="$POWER_LL_MIN"
     )
-    # Gemma reads the reward config off actor_rollout_ref too (family quirk).
-    if [ "$MODEL_FAMILY" = "gemma" ]; then
-      ARGS+=(
-        +actor_rollout_ref.reward_type="$REWARD_TYPE"
-        +actor_rollout_ref.power_k="$POWER_K"
-        +actor_rollout_ref.power_ll_min="$POWER_LL_MIN"
-      )
-    fi
+    # Actor-as-RM reads the reward config off actor_rollout_ref (fsdp_workers.py:171),
+    # while the frozen RewardModelWorker reads it off reward_model.*. Wire BOTH for every
+    # family so actor-as-RM uses the intended reward_type/power params consistently — not
+    # just Gemma. Previously these were Gemma-only, so Qwen2.5/Qwen3 actor-as-RM runs
+    # silently fell back to the log_prob default. Still overridable via REWARD_TYPE /
+    # POWER_K / POWER_LL_MIN env vars and trailing hydra "$@" overrides.
+    ARGS+=(
+      +actor_rollout_ref.reward_type="$REWARD_TYPE"
+      +actor_rollout_ref.power_k="$POWER_K"
+      +actor_rollout_ref.power_ll_min="$POWER_LL_MIN"
+    )
   fi
 
   # Gemma folds the system prompt into the user turn (no system role in chat template).

@@ -751,6 +751,19 @@ class ActorRolloutRefWorker(Worker):
                 tokenizer, prompt_with_chat_template, thinking_length)
             response_mask[0, answer_start - 1:attention_mask.sum().item()] = 1
 
+            if getattr(self, 'rank', None) == 0 and i == 0:
+                # Debug (mirrors RewardModelWorker._switch_chat_template): verify the
+                # stitched response and the scored answer region look correct.
+                full_len_dbg = int(attention_mask.sum().item())
+                scored_ids = [int(input_ids[0, k + 1]) for k in range(answer_start - 1, full_len_dbg)
+                              if (k + 1) < full_len_dbg]
+                print(f'[actor-RM] Model response: {response}')
+                print(f'[actor-RM] Stitched full: {full_response}')
+                print(f'[actor-RM] invalid={bool(invalid_response.item())} '
+                      f'format_violation={bool(format_violation.item())} '
+                      f'thinking_length={thinking_length} answer_start={answer_start} full_len={full_len_dbg}')
+                print(f'[actor-RM] Scored answer region: {tokenizer.decode(scored_ids)!r}')
+
             rm_input_ids.append(input_ids)
             rm_attention_mask.append(attention_mask)
             response_masks.append(response_mask)
