@@ -17,7 +17,7 @@ Note that we don't combine the main with ray_trainer as ray_trainer is used by o
 
 from verl import DataProto
 import torch
-from verl.utils.reward_score import gsm8k, math, multiply, countdown, explore_tom, fantom, tom_mc
+from verl.utils.reward_score import gsm8k, gsm8k_eval, math, multiply, countdown, explore_tom, fantom, tom_mc
 from verl.utils.reward_score.response_parser import get_parser, ModelResponseParser
 from verl.trainer.ppo.ray_trainer import RayPPOTrainer
 
@@ -26,6 +26,11 @@ def _select_rm_score_fn(data_source):
     """Returns (score_fn, supports_parser) tuple."""
     if data_source == 'openai/gsm8k':
         return gsm8k.compute_score, False
+    elif data_source == 'gsm8k':
+        # GSM8K used as a numeric-reasoning *guardrail* eval: parser-aware scorer
+        # returning the shared [-3, +3] range (correct == +3) so it aggregates
+        # like the ToM benchmarks, unlike the raw 0/1 training scorer above.
+        return gsm8k_eval.compute_score, True
     elif data_source == 'lighteval/MATH':
         return math.compute_score, False
     elif "multiply" in data_source or "arithmetic" in data_source:

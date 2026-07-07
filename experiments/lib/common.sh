@@ -193,10 +193,10 @@ berl::run() {
   # VAL_SUITE picks which benchmark parquets to evaluate on (override with an
   # explicit VAL_FILES=[...] to bypass).
   #   subsample300 — DEFAULT. Stratified representative subset:
-  #                  min(300,available) rows per subtype (25 subtypes, 7,500
-  #                  prompts, ullman excluded). ~3.5pp per-subtype CI; ~1.6 min
-  #                  eval on Qwen2.5-3B/8xH100. Rebuild via
-  #                  examples/data_preprocess/build_eval_subsample.py.
+  #                  min(300,available) rows per subtype (26 subtypes, ~7,800
+  #                  prompts; ullman excluded, gsm8k numeric guardrail included).
+  #                  ~3.5pp per-subtype CI; ~1.6 min eval on Qwen2.5-3B/8xH100.
+  #                  Rebuild via examples/data_preprocess/build_eval_subsample.py.
   #   full         — every benchmark at full size (~40k prompts; ~8 min eval).
   #                  Use for final headline reporting, not every TEST_FREQ.
   #   core         — tomi/explore/hi + fantom (the legacy default).
@@ -211,7 +211,7 @@ berl::run() {
         VAL_FILES="[$ET/eval_suite_sanity.parquet]"
         VAL_METRIC_SUFFIX="${VAL_METRIC_SUFFIX:-_sanity}" ;;
       full)
-        VAL_FILES="[$ET/ToM_test_HiExTi_hint_v3.parquet,$ET/fantom_test_50pct.parquet,$ET/bigtom_test.parquet,$ET/dyntom_test.parquet,$ET/exploretom_infilled_test.parquet,$ET/mmlu_test.parquet,$ET/opentom_test.parquet,$ET/simpletom_test.parquet,$ET/tombench_test.parquet,$ET/ullman_perturbed_test.parquet]"
+        VAL_FILES="[$ET/ToM_test_HiExTi_hint_v3.parquet,$ET/fantom_test_50pct.parquet,$ET/bigtom_test.parquet,$ET/dyntom_test.parquet,$ET/exploretom_infilled_test.parquet,$ET/mmlu_test.parquet,$ET/opentom_test.parquet,$ET/simpletom_test.parquet,$ET/tombench_test.parquet,$ET/gsm8k_test.parquet]"
         VAL_METRIC_SUFFIX="${VAL_METRIC_SUFFIX:-}" ;;   # full suite keeps canonical val/test_score/<src> names
       subsample300|*)
         VAL_FILES="[$ET/eval_subsample_300.parquet]"

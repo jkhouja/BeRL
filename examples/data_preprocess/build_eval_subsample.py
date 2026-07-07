@@ -34,6 +34,7 @@ SOURCE_FILES = [
     "opentom_test.parquet",              # 5 opentom subtypes
     "simpletom_test.parquet",            # 3 simpletom subtypes
     "tombench_test.parquet",             # tombench
+    "gsm8k_test.parquet",                # numeric-reasoning guardrail (data_source=gsm8k)
 ]
 
 # data_source values to drop entirely (too small / not reported).

@@ -28,6 +28,7 @@ PARQUETS = [
     "mmlu_test.parquet",
     "ullman_perturbed_test.parquet",
     "exploretom_infilled_test.parquet",
+    "gsm8k_test.parquet",
 ]
 
 N_SAMPLE = 100
