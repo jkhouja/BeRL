@@ -47,7 +47,7 @@ export THINK_ONLY_PG=True
 export ROLLOUT_N="${ROLLOUT_N:-16}"
 export MAX_PROMPT="${MAX_PROMPT:-2048}"
 export MAX_RESP="${MAX_RESP:-512}"
-export TOTAL_EPOCHS="${TOTAL_EPOCHS:-2}"
+export TOTAL_EPOCHS="${TOTAL_EPOCHS:-1}"
 export TEST_FREQ="${TEST_FREQ:-10}"
 export SAVE_FREQ="${SAVE_FREQ:-999}"
 
