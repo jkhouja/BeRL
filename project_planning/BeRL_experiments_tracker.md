@@ -49,6 +49,12 @@ assume the Qwen2.5 winner generalizes — Wave 2 keeps all non-terrible cells. P
 Qwen2.5-3B (workhorse); Gemma rows confirm cross-family. **Batch gating:** only Phase −1 Wave-1
 (`PS001–PS096`) starts as `Not-started`; Wave-2 (`PS097–PS098`) and everything else is `Backlog`.
 After you review a completed batch, flip the next batch's rows `Backlog → Not-started`.
+**Launch mechanism (Phase −1):** the `PS###` rows are launched **as a batch via the driver**
+`experiments/phase_stability_sweep.sh` (which reproduces `PS001–PS096` in order and matches each
+`Exp ID`), **not** by claiming individual `PS###` rows. Preview with `BERL_DRY_RUN=1`; chunk/resume
+with `IDX_START`/`IDX_END`/`ONLY_IDX`; run Wave 2 with `FAMILY={gemma,qwen3}`. See
+`experiments/README.md` §"Phase −1 sweep". Fixed: 1 epoch (191 steps), `TEST_FREQ=10`, WandB
+project `TOM_EXP`.
 **Causal gate:** if A1 (E048–E050) does not beat the controls A3-shuffled (E052) and A4-no-CoT
 (E053), pause downstream and set A1 to `Awaiting-input`.
 
