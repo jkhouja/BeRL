@@ -186,7 +186,7 @@ berl::run() {
   TOTAL_EPOCHS="${TOTAL_EPOCHS:-2}"
   SAVE_FREQ="${SAVE_FREQ:-50}"
   TEST_FREQ="${TEST_FREQ:-30}"
-  PROJECT_NAME="${PROJECT_NAME:-EmpathicDialogue_GRPO}"
+  PROJECT_NAME="${PROJECT_NAME:-TOM_EXP}"
   GRAD_CKPT="${GRAD_CKPT:-True}"
   DATA_TRAIN="${DATA_TRAIN:?set DATA_TRAIN (train parquet path)}"
   # --- Eval suite selection -------------------------------------------------
