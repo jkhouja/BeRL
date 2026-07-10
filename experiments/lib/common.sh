@@ -142,7 +142,7 @@ berl::write_summary_md() {
     echo "- **Model:** \`${MODEL_PATH}\` (${MODEL_TAG})"
     echo "- **Data (train):** \`${DATA_TRAIN}\`"
     echo "- **Val files:** \`${VAL_FILES}\`"
-    echo "- **Knobs:** reward=${REWARD_TYPE:-n/a} power_k=${POWER_K:-n/a} ll_min=${POWER_LL_MIN:-n/a} rm_mode=$( [ "${USE_ACTOR_AS_RM:-False}" = "True" ] && echo actor || echo frozen ) baseline=${SUBTRACT_BASELINE:-n/a} kl=${KL} lr=${LR} rollout_n=${ROLLOUT_N} epochs=${TOTAL_EPOCHS} max_ctx=${MAX_PROMPT}/${MAX_RESP} cot_var=${COT_VAR:-cot_eval} require_answer_tags=${REQUIRE_ANSWER_TAGS}"
+    echo "- **Knobs:** reward=${REWARD_TYPE:-n/a} power_k=${POWER_K:-n/a} ll_min=${POWER_LL_MIN:-n/a} rm_mode=$( [ "${USE_ACTOR_AS_RM:-False}" = "True" ] && echo actor || echo frozen ) baseline=${SUBTRACT_BASELINE:-n/a} kl=${KL} lr=${LR} rollout_n=${ROLLOUT_N} epochs=${TOTAL_EPOCHS} max_ctx=${MAX_PROMPT}/${MAX_RESP} cot_var=${COT_VAR:-cot_eval} require_answer_tags=${REQUIRE_ANSWER_TAGS} entropy_coeff=${ENTROPY_COEFF:-0.001} think_only_pg=${THINK_ONLY_PG:-False} format_penalty=${FORMAT_PENALTY:-0.0}"
     echo "- **Env:** VLLM_ATTENTION_BACKEND=${VLLM_ATTENTION_BACKEND} GPU_MEM_UTIL=${GPU_MEM_UTIL} TP=${TP_SIZE:-2} n_gpus=${NUM_GPUS}"
     echo "- **WandB:** project=${PROJECT_NAME} run=${RUN_NAME} _(paste link after launch)_"
     echo "- **Log path:** \`logs/${TODAY}/${RUN_NAME}.log\`"
@@ -222,6 +222,12 @@ berl::run() {
   # (e.g. val/test_score/tomi_sub300) never overwrites the full-suite series.
   VAL_METRIC_SUFFIX="${VAL_METRIC_SUFFIX:-}"
 
+  # Anti-collapse / policy-shaping knobs (added 238137a). Defaults mirror ppo_trainer.yaml
+  # so unset behavior is unchanged; the phase-stability sweep varies these per cell.
+  ENTROPY_COEFF="${ENTROPY_COEFF:-0.001}"   # actor_rollout_ref.actor.entropy_coeff
+  THINK_ONLY_PG="${THINK_ONLY_PG:-False}"   # actor_rollout_ref.actor.think_only_pg
+  FORMAT_PENALTY="${FORMAT_PENALTY:-0.0}"   # actor.format_penalty (+ reward_model.format_penalty)
+
   if [ "$TASK" = "behavior" ]; then
     KL="${KL:-0.05}"
     REWARD_TYPE="${REWARD_TYPE:-power}"
@@ -268,6 +274,9 @@ berl::run() {
     actor_rollout_ref.actor.kl_loss_type=low_var_kl
     actor_rollout_ref.actor.clip_ratio=0.2
     actor_rollout_ref.actor.grad_clip=1.0
+    actor_rollout_ref.actor.entropy_coeff="$ENTROPY_COEFF"
+    actor_rollout_ref.actor.think_only_pg="$THINK_ONLY_PG"
+    actor_rollout_ref.actor.format_penalty="$FORMAT_PENALTY"
     actor_rollout_ref.model.enable_gradient_checkpointing="$GRAD_CKPT"
     actor_rollout_ref.actor.fsdp_config.param_offload=True
     actor_rollout_ref.actor.fsdp_config.grad_offload=True
@@ -305,6 +314,7 @@ berl::run() {
       +reward_model.reward_type="$REWARD_TYPE"
       +reward_model.power_k="$POWER_K"
       +reward_model.power_ll_min="$POWER_LL_MIN"
+      reward_model.format_penalty="$FORMAT_PENALTY"
     )
     # Actor-as-RM reads the reward config off actor_rollout_ref (fsdp_workers.py:171),
     # while the frozen RewardModelWorker reads it off reward_model.*. Wire BOTH for every
