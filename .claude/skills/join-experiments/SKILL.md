@@ -58,6 +58,13 @@ write.
    silently changing shared code. Generate data once per `dcfg_*` (shared parquet); if it already
    exists, reuse it — don't regenerate over a file another run is reading.
 
+5. **One node, one experiment at a time.** Each agent uses **exactly one compute node** and runs
+   **exactly one experiment at a time**. Claim a single `Not-started` row, launch it on your single
+   node, and **monitor it to `Completed`/`Failed` before claiming the next row** — never claim or
+   launch a second row while your current run is still `Processing`/`Training`. Do not acquire a
+   second allocation to parallelize; parallelism across the queue comes from *other* agents each
+   holding their own single node, not from one agent grabbing multiple nodes.
+
 ## Per-run log file (mandatory)
 
 Every experiment gets its own markdown file at **`experiments_logs/<RUN_NAME_BASE>.md`**, where
@@ -90,10 +97,12 @@ the run from it alone.
 4. On completion, verify evals, append findings to `experiments_logs/<RUN_NAME>.md`, write the
    tracker `Results summary`, set `Status=Completed`; propagate any winner values that unblock
    `Backlog` rows for the user to promote (`log-results`).
-5. Repeat with the next ready row.
+5. Repeat with the next ready row **only after the current run has reached `Completed`/`Failed`** —
+   one experiment on one node at a time (Golden rule #5).
 
 ## Never
 
+- Never run more than one experiment at a time or hold more than one compute node as a single agent.
 - Never bulk-rewrite or reorder the tracker table; edit only your own row, and re-read first.
 - Never claim `Backlog` rows or rows owned by others.
 - Never ask the user without first flipping your row to `Awaiting-input`.
