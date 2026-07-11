@@ -79,3 +79,24 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+#### Findings (r1 — completed 2026-07-11, exit 0, 191 steps / 1 epoch)
+
+**Verdict: Below-baseline, moderate late decline. Adding fp5+ec0.001 to actor-RM slightly HURT vs PS017 (fp0/ec0.0) — opposite of the frozen-RM case.**
+
+Config-selection score (HM of 26 subsample300 benchmarks):
+- **HM(last-3) = 0.337**; HM(last-5) = 0.347. Mean-of-means(last-3)=0.417.
+- **Step-0 baseline HM = 0.426.** Holds ~0.43–0.48 through step 100 (peak 0.475 @ step50), then declines to **0.323 @ step190**.
+- Parseable-answer rate ≈ **100%** (`format_error_ratio`=0).
+
+Eval HM trajectory:
+`0:0.426 10:0.455 20:0.462 30:0.465 40:0.460 50:0.475(peak) 60:0.449 70:0.435 80:0.437 90:0.431 100:0.428 110:0.378 120:0.363 130:0.362 140:0.366 150:0.354 160:0.360 170:0.356 180:0.328 190:0.323`
+
+Health: reward −75 → ~−2 to −7; KL drifts to ~0.64–0.84; entropy rises to 3.2; resp_len ~99–113; 100% parseable.
+
+**Comparisons (HM last-3):**
+- actor-RM @ kl0.01: PS017 (fp0,ec0.0)=**0.400** > PS020 (fp5,ec0.001)=**0.337** — here fp5+ec0.001 *hurts* (opposite of frozen, where PS004 fp5>PS001 fp0). Suggests fp/ec interaction is RM-mode-dependent and small.
+- vs frozen @ same knobs: PS020 (actor,fp5,ec0.001)=0.337 ≈ PS004 (frozen,fp5,ec0.001)=0.351 — comparable at kl0.01 with fp5.
+- All KL=0.01 cells (0.169–0.400) remain below the KL=0.05 stable cells (0.432–0.435).
+
+**Implication:** confirms KL=0.05 dominance; actor-RM helps most in the fp0/ec0.0 corner (PS017), and format_penalty is not a reliable win. Not a stable-config candidate on its own.
+
