@@ -160,3 +160,25 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+#### Findings (r2 authoritative — completed 2026-07-11, exit 0, 191 steps / 1 epoch)
+
+Attempts: **r1 aborted at startup** (launched with plain `&` instead of setsid-detached; killed mid model-load, never trained — no metrics). **r2** is authoritative.
+
+**Verdict: WORST cell so far — higher LR (1e-6) accelerates the KL drift and causes severe negative transfer.**
+
+Config-selection score (HM of 26 subsample300 benchmarks):
+- **HM(last-3, steps 170/180/190) = 0.169**; HM(last-5) = 0.195 (avg-then-HM). Mean-of-means(last-3)=0.236.
+- **Step-0 baseline HM = 0.426.** Peak at **step 10 (HM=0.470)** only, then steep decline to **step 190 HM=0.170** (~60% below baseline).
+- Parseable-answer rate ≈ **100%** (`format_error_ratio`=0).
+
+Eval HM trajectory:
+`0:0.426 10:0.470(peak) 20:0.467 30:0.462 40:0.399 50:0.365 60:0.371 70:0.368 80:0.261 90:0.185 100:0.230 110:0.268 120:0.217 130:0.242 140:0.302 150:0.227 160:0.227 170:0.137 180:0.189 190:0.170`
+
+Health / hacking:
+- Reward optimized very fast: `reward/mean` −78 → ~−2 by step 40; `response_length/mean` 33 → ~187.
+- Drift faster/larger than the 5e-7 cells: entropy hits 3.2 by step 40, KL to ~0.6 quickly. 100% parseable; drift/negative-transfer, not degeneracy.
+
+**Comparison (log_prob/frozen/kl0.01, HM last-3):** PS004 (lr5e-7,fp5,ec0.001)=0.351 > PS001 (lr5e-7,fp0,ec0.0)=0.254 > **PS007 (lr1e-6,fp5,ec0.0)=0.169**. LR=1e-6 clearly worse than 5e-7 at KL=0.01.
+
+**Implication:** losing cell. At KL=0.01, raising LR to 1e-6 amplifies policy drift and destroys held-out ToM. Not a stable-config candidate.
+
