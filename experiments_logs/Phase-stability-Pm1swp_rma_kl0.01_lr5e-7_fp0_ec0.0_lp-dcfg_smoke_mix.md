@@ -79,3 +79,21 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+#### Findings (r1 — completed 2026-07-11, exit 0, 191 steps / 1 epoch)
+
+**Verdict: Near-baseline, mild decline — actor-as-RM is markedly MORE robust than frozen-RM at KL=0.01 (0.400 vs PS001's 0.254), but still below the KL=0.05 stable cells.**
+
+Config-selection score (HM of 26 subsample300 benchmarks):
+- **HM(last-3) = 0.400**; HM(last-5) = 0.409. Mean-of-means(last-3)=0.466.
+- **Step-0 baseline HM = 0.426.** Holds ~0.43–0.47 through step 70, mild decline to **0.397 @ step190**.
+- Parseable-answer rate ≈ **100%** (`format_error_ratio`=0).
+
+Eval HM trajectory:
+`0:0.426 10:0.452 20:0.470(peak) 30:0.467 40:0.455 50:0.465 60:0.455 70:0.450 80:0.394 90:0.424 100:0.433 110:0.436 120:0.424 130:0.432 140:0.432 150:0.427 160:0.411 170:0.397 180:0.392 190:0.397`
+
+Health: reward −69 → ~−2 to −7; but **KL drifts high** — 0.6 @ step80, **0.85 @ step160, 1.03 @ step189** (higher than any frozen cell); entropy peaks 3.2 then 2.4; resp_len rises to ~104 then falls back to ~57. 100% parseable, no format collapse.
+
+**RM-mode comparison at KL=0.01/lr5e-7/fp0/ec0.0 (HM last-3):** actor-RM (PS017)=**0.400** ≫ frozen-RM (PS001)=0.254. The actor-as-RM (reward = actor's own LL of the next utterance) tracks the policy and gives much milder negative transfer at low KL, despite larger KL divergence.
+
+**Implication:** actor-RM substantially mitigates the KL=0.01 drift problem seen with frozen-RM, but does not fully match the KL=0.05 frozen cells (0.432–0.435). Worth checking actor-RM @ KL=0.05 (PS025-ish) — likely a top candidate.
+
