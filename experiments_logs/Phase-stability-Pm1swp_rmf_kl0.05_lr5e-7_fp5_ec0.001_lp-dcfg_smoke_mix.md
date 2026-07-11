@@ -79,3 +79,21 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+#### Findings (r1 — completed 2026-07-11, exit 0, 191 steps / 1 epoch)
+
+**Verdict: STABLE — statistically indistinguishable from PS010 (the fp=0 KL=0.05 cell). format_penalty=5 is second-order once KL=0.05 provides stability.**
+
+Config-selection score (HM of 26 subsample300 benchmarks):
+- **HM(last-3) = 0.433**; HM(last-5) = 0.433. Mean-of-means(last-3)=0.492.
+- **Step-0 baseline HM = 0.426.** HM holds **flat 0.43–0.47 across the whole run** (peak 0.472 @ step40), ends **0.432 @ step190**. No decline/collapse.
+- Parseable-answer rate ≈ **100%** (`format_error_ratio`=0).
+
+Eval HM trajectory:
+`0:0.426 10:0.460 20:0.467 30:0.466 40:0.472(peak) 50:0.461 60:0.455 70:0.454 80:0.459 90:0.449 100:0.446 110:0.448 120:0.433 130:0.437 140:0.428 150:0.433 160:0.431 170:0.428 180:0.436 190:0.432`
+
+Health: reward −67 → ~−2.6; KL contained ~0.3 (same as PS010, vs 0.5–0.6 at KL=0.01); entropy ~2.6; resp_len ~127; 100% parseable.
+
+**Comparison:** PS012 (kl0.05, **fp5**, ec0.001) HM(last-3)=0.433 ≈ PS010 (kl0.05, **fp0**, ec0.001) HM(last-3)=0.432 — adding format_penalty=5 changes nothing meaningful. Both ≫ all KL=0.01 cells (0.169–0.351).
+
+**Implication:** confirms **KL=0.05 is the stability lever** for the log_prob/frozen behavior reward on Qwen2.5-3B; format_penalty is not needed for stability (parseable is already ~100%). Stable-config candidate, tied with PS010.
+
