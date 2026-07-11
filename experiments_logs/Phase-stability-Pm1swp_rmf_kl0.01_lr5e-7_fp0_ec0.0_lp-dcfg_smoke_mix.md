@@ -79,3 +79,23 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+#### Findings (r1 — completed 2026-07-11, exit 0, 191 steps / 1 epoch)
+
+**Verdict: POOR config — evals degrade below baseline; behavior reward optimizes but anti-correlates with benchmark ToM.**
+
+Config-selection score (HM of 26 subsample300 benchmark scores over the last eval iterations):
+- **HM over last 3 evals (steps 170/180/190) = 0.254**; last 5 = 0.279 (avg-then-HM).
+- **Step-0 baseline HM = 0.425, mean = 0.509.** Peak at **step 20–30 (HM≈0.468, mean≈0.526)**, then steady decline to **step 190 HM=0.240, mean=0.347**.
+- Parseable-answer rate ≈ **100%** throughout (`reward/format_error_ratio`=0 at every step) — tracked separately, not in the score.
+
+Eval HM trajectory (step: HM):
+`0:0.425  10:0.449  20:0.467  30:0.468(peak)  40:0.463  50:0.453  60:0.450  70:0.394  80:0.328  90:0.318  100:0.314  110:0.355  120:0.359  130:0.335  140:0.249  150:0.288  160:0.321  170:0.266  180:0.249  190:0.240`
+
+Health / hacking observations:
+- **Behavior-prediction reward IS optimized:** `reward/mean` −63 → ~−5 to −10; `response_length/mean` 51 → ~125 (longer CoT, no truncation collapse; `clip_ratio`≈0).
+- **But reward↑ anti-correlates with benchmark ToM↓** — classic reward/eval divergence.
+- **Entropy rises** 1.26 → ~3.0 and **KL drifts to ~0.5** despite `kl_loss_coef=0.01` — the weak KL fails to hold the policy near base, so the policy diffuses.
+- No hard collapse (100% parseable, entropy high not zero, format intact), but strong **negative transfer** to held-out ToM/reasoning benchmarks.
+
+**Implication:** log_prob reward + frozen RM + KL=0.01 + LR=5e-7 + fp=0 + ec=0.0 is a losing Phase −1 cell for Qwen2.5-3B: peak is transient/early and end-of-run quality is well below the untrained baseline. KL=0.01 likely too weak. Not a stable-config candidate.
+
