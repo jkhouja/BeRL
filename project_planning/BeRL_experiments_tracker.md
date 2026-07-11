@@ -49,10 +49,14 @@ assume the Qwen2.5 winner generalizes — Wave 2 keeps all non-terrible cells. P
 Qwen2.5-3B (workhorse); Gemma rows confirm cross-family. **Batch gating:** only Phase −1 Wave-1
 (`PS001–PS096`) starts as `Not-started`; Wave-2 (`PS097–PS098`) and everything else is `Backlog`.
 After you review a completed batch, flip the next batch's rows `Backlog → Not-started`.
-**Launch mechanism (Phase −1):** the `PS###` rows are launched **as a batch via the driver**
-`experiments/phase_stability_sweep.sh` (which reproduces `PS001–PS096` in order and matches each
-`Exp ID`), **not** by claiming individual `PS###` rows. Preview with `BERL_DRY_RUN=1`; chunk/resume
-with `IDX_START`/`IDX_END`/`ONLY_IDX`; run Wave 2 with `FAMILY={gemma,qwen3}`. See
+**Launch mechanism (Phase −1):** `PS###` rows are **claimed and launched individually** like every
+other row — they parallelize across agents/nodes via the standard tracker protocol (claim the lowest
+`Not-started` `PS###`, set `Status=Processing`+`Owner_host`, then launch). To resolve each cell's
+exact knobs and matching `Exp ID`, launch that single cell through the driver in **single-cell mode**:
+`ONLY_IDX=<n>` (where `<n>` is the `PS` number, e.g. `ONLY_IDX="7"` runs `PS007`) —
+`experiments/phase_stability_sweep.sh` reproduces the sweep enumeration so the generated `EXP_ID`
+matches the row exactly. Preview with `BERL_DRY_RUN=1`. A node can run several cells at once by pinning
+disjoint GPUs per cell (`GPU_IDS=0,1 ONLY_IDX="7"` …). Run Wave 2 with `FAMILY={gemma,qwen3}`. See
 `experiments/README.md` §"Phase −1 sweep". Fixed: 1 epoch (191 steps), `TEST_FREQ=10`, WandB
 project `TOM_EXP`.
 **Causal gate:** if A1 (E048–E050) does not beat the controls A3-shuffled (E052) and A4-no-CoT
