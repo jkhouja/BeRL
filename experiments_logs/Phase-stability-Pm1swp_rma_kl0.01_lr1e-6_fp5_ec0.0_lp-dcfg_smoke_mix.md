@@ -79,3 +79,22 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+#### Findings (r1 — completed 2026-07-11, exit 0, 191 steps / 1 epoch)
+
+**Verdict: Poor, volatile late decline — LR=1e-6 hurts actor-RM (as it did frozen), but actor-RM still degrades less than frozen at the same LR.**
+
+Config-selection score (HM of 26 subsample300 benchmarks):
+- **HM(last-3) = 0.259**; HM(last-5) = 0.240. Mean-of-means(last-3)=0.329.
+- **Step-0 baseline HM = 0.424.** Peaks step 10–40 (~0.47) then **volatile decline** (0.175 @ step160, bouncing to 0.294 @ step190).
+- Parseable-answer rate ≈ **100%** (`format_error_ratio`=0).
+
+Eval HM trajectory:
+`0:0.424 10:0.469 20:0.467 30:0.461 40:0.466 50:0.427 60:0.397 70:0.400 80:0.403 90:0.412 100:0.370 110:0.269 120:0.267 130:0.314 140:0.199 150:0.221 160:0.175 170:0.263 180:0.210 190:0.294`
+
+Health: reward −67 → ~−2; KL drifts to ~0.5–0.65; entropy jumps to ~3.0 by step40 (fast, like other lr1e-6 cells); resp_len swings 104→155→118; 100% parseable.
+
+**LR effect for actor-RM @ kl0.01 (HM last-3):** lr5e-7 fp0 (PS017)=0.400, lr5e-7 fp5 (PS020)=0.337 → **lr1e-6 fp5 (PS023)=0.259**. Higher LR degrades actor-RM.
+**RM-mode @ kl0.01/lr1e-6:** actor (PS023)=0.259 > frozen (PS007)=0.169 — actor-RM again more robust than frozen.
+
+**Implication:** reinforces two consistent patterns — (1) KL=0.05 needed for real stability; (2) actor-RM > frozen-RM at low KL; (3) lr5e-7 > lr1e-6. Not a stable-config candidate.
+
