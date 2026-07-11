@@ -160,3 +160,25 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+#### Findings (r2 authoritative — completed 2026-07-11, exit 0, 191 steps / 1 epoch)
+
+Attempts: **r1 aborted at startup** (plain `&` launch instead of setsid-detached; killed mid model-load, never trained). **r2** authoritative.
+
+**Verdict: STABLE — actor-RM × KL=0.05 is stable and LR-robust, matching the frozen KL=0.05 cells. KL=0.05 confers stability for BOTH RM modes.**
+
+Config-selection score (HM of 26 subsample300 benchmarks):
+- **HM(last-3) = 0.428**; HM(last-5) = 0.430. Mean-of-means(last-3)=0.492.
+- **Step-0 baseline HM = 0.426.** HM holds **flat 0.42–0.47 across the whole run** (peak 0.467 @ step20), ends **0.424 @ step190**. No decline.
+- Parseable-answer rate ≈ **100%** (`format_error_ratio`=0).
+
+Eval HM trajectory:
+`0:0.426 10:0.466 20:0.467(peak) 30:0.459 40:0.454 50:0.450 60:0.441 70:0.443 80:0.451 90:0.449 100:0.440 110:0.443 120:0.445 130:0.449 140:0.446 150:0.435 160:0.429 170:0.431 180:0.427 190:0.424`
+
+Health: reward −72 → ~−2 to −5; **KL contained ~0.3** (like frozen KL=0.05); entropy ~2.4; resp_len ~127; 100% parseable.
+
+**Key comparisons (HM last-3):**
+- actor-RM: kl0.01/lr1e-6 (PS023)=0.259 → **kl0.05/lr1e-6 (PS031)=0.428** — KL=0.05 rescues actor-RM at high LR, same as it did frozen (PS007 0.169 → PS015 0.435).
+- KL=0.05 stable band now spans both RM modes: frozen PS010/PS012/PS015 (0.432–0.435) ≈ actor PS031 (0.428). RM mode is second-order once KL=0.05.
+
+**Implication:** the Phase −1 stability lever is **KL=0.05**, robust across RM mode and LR. actor-RM × KL=0.05 is a co-leading stable-config candidate alongside the frozen KL=0.05 cells.
+
