@@ -79,3 +79,23 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+#### Findings (r1 — completed 2026-07-11, exit 0, 191 steps / 1 epoch)
+
+**Verdict: STABLE even at LR=1e-6 — KL=0.05 rescues the higher LR that cratered at KL=0.01 (PS007). Strongest confirmation that KL is the stability lever.**
+
+Config-selection score (HM of 26 subsample300 benchmarks):
+- **HM(last-3) = 0.435**; HM(last-5) = 0.438. Mean-of-means(last-3)=0.497.
+- **Step-0 baseline HM = 0.427.** Brief early dip (steps 40–90 to ~0.42) then recovers; ends **0.438 @ step190**. Flat-to-slightly-positive; no collapse.
+- Parseable-answer rate ≈ **100%** (`format_error_ratio`=0).
+
+Eval HM trajectory:
+`0:0.427 10:0.465 20:0.470(peak) 30:0.457 40:0.446 50:0.429 60:0.421 70:0.429 80:0.416 90:0.422 100:0.424 110:0.427 120:0.435 130:0.420 140:0.429 150:0.440 160:0.443 170:0.433 180:0.433 190:0.438`
+
+Health: reward −70 → ~−2.4 to −7.5; KL contained ~0.25–0.41; entropy ~2.5–2.6; resp_len ~110; 100% parseable.
+
+**Key comparison (LR effect at each KL, HM last-3):**
+- KL=0.01: lr5e-7 (PS004)=0.351 → lr1e-6 (PS007)=**0.169** (collapse worsens with LR).
+- KL=0.05: lr5e-7 (PS012)=0.433 → lr1e-6 (PS015)=**0.435** (stable, LR-insensitive).
+
+**Implication:** KL=0.05 makes the log_prob/frozen behavior reward **robust to LR** on Qwen2.5-3B — no drift/negative-transfer at either 5e-7 or 1e-6. Stable-config candidate; the KL=0.05 frozen/log_prob cells (PS010/PS012/PS015) are all tied ~0.432–0.435.
+
