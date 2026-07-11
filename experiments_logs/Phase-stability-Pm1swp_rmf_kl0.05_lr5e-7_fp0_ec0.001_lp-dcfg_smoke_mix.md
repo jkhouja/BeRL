@@ -79,3 +79,23 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+#### Findings (r1 — completed 2026-07-11, exit 0, 191 steps / 1 epoch)
+
+**Verdict: FIRST STABLE cell — KL=0.05 contains the drift; behavior reward optimizes while held-out ToM is PRESERVED. Best of the log_prob/frozen cells run so far.**
+
+Config-selection score (HM of 26 subsample300 benchmarks):
+- **HM(last-3, steps 170/180/190) = 0.432**; HM(last-5) = 0.433 (avg-then-HM). Mean-of-means(last-3)=0.493.
+- **Step-0 baseline HM = 0.423, mean = ~0.49.** HM stays **flat 0.43–0.47 across the whole run** (peak 0.469 @ step40), ends at **0.431 @ step190** — essentially holds/slightly beats baseline. No decline, no collapse.
+- Parseable-answer rate ≈ **100%** (`format_error_ratio`=0).
+
+Eval HM trajectory:
+`0:0.423 10:0.462 20:0.464 30:0.466 40:0.469(peak) 50:0.465 60:0.463 70:0.457 80:0.438 90:0.437 100:0.451 110:0.446 120:0.434 130:0.449 140:0.432 150:0.433 160:0.433 170:0.429 180:0.434 190:0.431`
+
+Health:
+- Reward optimized: `reward/mean` −69 → ~−4.5; `response_length/mean` 53 → ~120.
+- **KL contained at ~0.3** (vs 0.5–0.6 for the KL=0.01 cells) — the stronger KL penalty holds the policy near base, so the behavior-prediction gains do NOT come at the cost of ToM. Entropy rises modestly to ~2.7. 100% parseable.
+
+**Comparison (log_prob/frozen, HM last-3):** **PS010 (kl0.05,lr5e-7,fp0,ec0.001)=0.432 (STABLE)** ≫ PS004 (kl0.01,fp5,ec0.001)=0.351 > PS001 (kl0.01,fp0,ec0.0)=0.254 > PS007 (kl0.01,lr1e-6)=0.169. KL=0.05 is decisively better than KL=0.01 at fixed LR=5e-7.
+
+**Implication:** KL=0.05 is the stability lever for the log_prob behavior reward on Qwen2.5-3B — it prevents the policy drift / negative-transfer seen at KL=0.01 while still optimizing the reward. Strong stable-config candidate for the Phase −1 winner (subject to comparison vs the remaining KL=0.05 / power-reward / actor-RM cells).
+
