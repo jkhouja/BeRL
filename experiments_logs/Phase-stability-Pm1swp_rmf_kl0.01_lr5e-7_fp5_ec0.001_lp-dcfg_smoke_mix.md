@@ -79,3 +79,22 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+#### Findings (r1 — completed 2026-07-11, exit 0, 191 steps / 1 epoch)
+
+**Verdict: BELOW-BASELINE cell, but noticeably less degrading than PS001 — format_penalty=5 + entropy_coeff=0.001 damps the late decline.**
+
+Config-selection score (HM of 26 subsample300 benchmark scores):
+- **HM(last-3, steps 170/180/190) = 0.351**; HM(last-5) = 0.337 (avg-then-HM). Mean-of-means(last-3)=0.424.
+- **Step-0 baseline HM = 0.424, mean = 0.507.** Peak plateau **steps 20–60 (HM≈0.47, mean≈0.52)**, then decline to **step 190 HM=0.327, mean=0.403**.
+- Parseable-answer rate ≈ **100%** throughout (`format_error_ratio`=0).
+
+Eval HM trajectory (step: HM):
+`0:0.424 10:0.446 20:0.470 30:0.468 40:0.467 50:0.473(peak) 60:0.467 70:0.455 80:0.412 90:0.391 100:0.387 110:0.407 120:0.404 130:0.317 140:0.277 150:0.325 160:0.299 170:0.361 180:0.361 190:0.327`
+
+Health / hacking:
+- Behavior reward optimized: `reward/mean` −72 → ~−3 to −5; `response_length/mean` 41 → ~145 (up to 191 at step 160); `format_error_ratio`=0.
+- Same drift signature as PS001: entropy rises 1.0 → ~2.9, KL climbs to ~0.5–0.74 despite `kl_loss_coef=0.01`. No hard collapse; 100% parseable.
+- **Comparison to PS001** (identical except fp=0/ec=0.0): PS004 HM(last-3)=0.351 vs 0.254 — the fp=5 + ec=0.001 combo cuts the end-of-run degradation roughly in half, but end quality is still below the untrained baseline.
+
+**Implication:** log_prob + frozen RM + KL=0.01 + LR=5e-7 with fp=5/ec=0.001 is still a losing Phase −1 cell for Qwen2.5-3B (net-negative transfer), though better-behaved than the fp=0/ec=0.0 corner. The KL=0.01 drift issue persists; not a stable-config candidate.
+
