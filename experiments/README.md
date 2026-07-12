@@ -103,6 +103,26 @@ for uncoordinated runs. A failed cell logs and (in multi-cell mode) the driver c
 WandB project `TOM_EXP`. Wave 2 runs only cells whose Qwen2.5 counterpart was not very poor (gated
 post-Wave-1).
 
+### Scoring a completed run (canonical — use for every row)
+
+Runs are eval-only (no checkpoints); score **post-hoc from the log** with the shared scorer so all
+rows are comparable:
+
+```bash
+python scripts/score_run.py <Log path>          # ToM HM(last5/last3) + gsm8k/mmlu (separate) + health
+python scripts/score_run.py <Log path> --json    # machine-readable
+```
+
+`scripts/score_run.py` is the **single source of truth** for the config-selection metric:
+- **ToM HM** = harmonic mean over the **24 ToM benchmarks**, **excluding `gsm8k` and `mmlu`**
+  (avg-then-HM over the last N eval iters; reports HM(last5) primary + HM(last3) + step-0 baseline).
+- **gsm8k** (math reasoning) and **mmlu** (general knowledge) are reported **separately** as
+  capability-regression evals with `delta vs step0` — never inside the HM.
+- **parseable rate** and **health** (kl / entropy / resp_len) are tracked separately.
+
+Paste its output into the row's `experiments_logs/<RUN_NAME_BASE>.md` findings and summarise in the
+tracker `Results summary` (see the `log-results` skill).
+
 See `tests/launcher/test_launcher_knobs.sh` for dry-run assertions that the swept knobs propagate.
 
 See the `launch-experiment` / `claim-experiment` / `check-training` / `log-results` skills for the

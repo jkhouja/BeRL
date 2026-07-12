@@ -13,13 +13,35 @@ Results live in **two** places (the old `grpo_tuning_changelog.md` round-format 
    (base stem `<RQ>-<expid>-<data_name>`, no `-r<N>`; exact command, knobs, env, WandB/log, findings,
    rerun line) written by the launcher; all resubmission attempts (`-r1`, `-r2`, …) append here.
 
+## Canonical scoring (MANDATORY — use the shared script, do NOT hand-roll HM)
+
+All rows must report the **same** metric so numbers are comparable across agents. Compute it with:
+
+```bash
+python scripts/score_run.py <Log path>            # human-readable block
+python scripts/score_run.py <Log path> --json      # machine-readable
+```
+
+Convention enforced by the script (`scripts/score_run.py` is the single source of truth):
+- **ToM HM** = harmonic mean over the **24 Theory-of-Mind benchmarks**, **excluding `gsm8k` and
+  `mmlu`**. Aggregation = *avg-then-HM*: average each benchmark over the last N eval iters, then take
+  the harmonic mean across benchmarks. Report **HM(last5)** (primary) and **HM(last3)**, plus the
+  step-0 baseline HM.
+- **gsm8k** and **mmlu** are reported **SEPARATELY** as capability-regression evals (math reasoning /
+  general knowledge) with `delta vs step0`. They are **never** folded into the HM.
+- **parseable rate** (= 1 − `reward/format_error_ratio`) and **health** (kl / entropy / resp_len) are
+  tracked separately, never inside the HM.
+
+Paste the script's output into the `experiments_logs/<RUN_NAME_BASE>.md` findings, and put
+`ToM HM(last5)=… HM(last3)=… (base …); gsm8k Δ…; mmlu Δ…; health …` into the tracker `Results summary`.
+
 ## Instructions
 
 1. **Identify the experiment** (`Exp #` / `Run name`) and read its tracker row + `Log path`.
 
-2. **Extract final/peak metrics** from the log (`val/test_score/` lines) for every benchmark in the
-   row's `Target evals`. Compute deltas vs the model's baseline (`A0`/baseline row or
-   `project_planning/HISTORY_rounds_1-20.md`).
+2. **Compute metrics with `python scripts/score_run.py <Log path>`** — this yields the canonical
+   ToM HM(last5)/HM(last3), the separate gsm8k/mmlu regression numbers, the HM trajectory, and the
+   health snapshot. Do not eyeball or re-derive HM by hand.
 
 3. **Verify before marking `Completed`** (per tracker protocol): eval ran on the target set, WandB
    link + Log path are present, and health checks pass (no collapse/hacking — see `check-training`).
@@ -45,4 +67,5 @@ Results live in **two** places (the old `grpo_tuning_changelog.md` round-format 
 ## Never
 
 - Never invent metrics — read them from the log.
+- Never hand-roll HM or include gsm8k/mmlu in it — always use `scripts/score_run.py`.
 - Never mark `Completed` without WandB link + Log path + passing health check.

@@ -16,7 +16,9 @@ allowed-tools: Bash Read Grep Glob Edit
 2. **Progress.** Current step = the last `step:N - global_seqlen` line (filter out `timing_s/step:N`
    false matches). Report `step / total`.
 
-3. **Eval metrics.** Latest `val/test_score/` lines. Parse per-benchmark scores present in this run's
+3. **Eval metrics.** Latest `val/test_score/` lines. For a completed run, prefer the canonical scorer
+   `python scripts/score_run.py <log>` (ToM HM excl. gsm8k/mmlu, with gsm8k/mmlu reported separately;
+   see `log-results`). For an in-flight run, parse the per-benchmark scores present in this run's
    `Target evals` (dev split, or the full suite: tomi / explore_tom / hi_tom / fantom_* / OOD /
    Behavior-PPL / guardrail). Present as a markdown table with the trend (improving / flat /
    degrading / collapsed).
