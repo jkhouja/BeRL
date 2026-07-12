@@ -77,7 +77,7 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **How to rerun:** `EXP_ID=Phase-stability-Pm1swp_rma_kl0.05_lr5e-7_fp0_ec0.001_pk5_llm4 DATA_NAME=dcfg_smoke_mix MODEL_PATH=Qwen/Qwen2.5-3B-Instruct DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix.parquet RUN_INDEX=1 bash experiments/train_behavior_qwen2.5.sh`
 
-**Findings:** _(fill on completion via log-results skill)_
+**Findings:** _(N/A — dry-run preview block; see real-run block below.)_
 
 ### Attempt r1 — 2026-07-12T20:11:06+00:00
 
@@ -158,5 +158,11 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **How to rerun:** `EXP_ID=Phase-stability-Pm1swp_rma_kl0.05_lr5e-7_fp0_ec0.001_pk5_llm4 DATA_NAME=dcfg_smoke_mix MODEL_PATH=Qwen/Qwen2.5-3B-Instruct DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix.parquet RUN_INDEX=1 bash experiments/train_behavior_qwen2.5.sh`
 
-**Findings:** _(fill on completion via log-results skill)_
+**Findings** (2026-07-12, via `scripts/score_run.py`; authoritative attempt = real-run r1):
+
+- **Canonical score:** ToM **HM(last5)=0.4413** / HM(last3)=0.4417 (step0 baseline HM=0.4189, so **+0.022**) — ToM **avg(last5)=0.5024** / avg(last3)=0.5023 (step0 avg=0.5041, ~flat). 20 eval iters (0..190).
+- **Capability (separate):** gsm8k=0.572 (**Δ −0.088** vs step0 — mild reasoning regression), mmlu=0.589 (Δ +0.126).
+- **Health:** kl=0.268 (elevated but contained — cf. wave-1 healthy ~0.05–0.13, collapse ~1.75), entropy=2.371 (healthy, high exploration), resp_len=103, reward=+24.8, parseable=1.0. HM trajectory flat 0.42–0.46 across all 20 iters. **No collapse.**
+- **Experiment question — does k=5 with a higher LL floor (ll_min=-4) climb better than the ll_min=-6 winner?** **No.** HM-last5 0.441 is **below** the base power winner PS074 (ll_min=-6, HM-last5 0.462) by −0.021, and the avg is flat. Raising the floor from −6 to −4 does not help (and slightly hurts).
+- **Verdict:** STABLE + HEALTHY but **no improvement** — keep **ll_min=-6** as the power-reward floor for k=5. `Completed`.
 
