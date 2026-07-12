@@ -14,7 +14,6 @@ the shared engine `lib/common.sh`, plus a dispatcher that resolves a tracker row
 | `train_sft_qwen2.5.sh` | SFT baseline (Q0 A2). **[build] — not wired yet.** |
 | `smoke_{qwen2.5,qwen3,gemma}.sh` | Short smoke runs (`EXP_ID=test-…`, 1 epoch, `test_freq=5`). |
 | `phase_stability_sweep.sh` | Phase −1 one-shot HP+reward sweep driver: resolves each of the 96 Wave-1 cells' knobs + matching `EXP_ID` (tracker `PS001–PS096`). Cells are claimed/launched per-row (`ONLY_IDX="<n>"`) and parallelize across agents/nodes; sequential `IDX_START`/`IDX_END` chunking is a single-node convenience. See "Phase −1 sweep" below. |
-| `run_experiment.sh <EXP_ID>` | Dispatcher: reads `project_planning/experiments.tsv`, maps knobs → env, calls the right launcher. |
 
 ## Usage
 
@@ -24,13 +23,6 @@ Direct launcher (env-driven; required: `EXP_ID`, `DATA_NAME`, `DATA_TRAIN`):
 EXP_ID=Phase0-p0_power DATA_NAME=dcfg_default \
   DATA_TRAIN=$HOME/repo/BeRL/data/dcfg_default.parquet \
   bash experiments/train_behavior_qwen2.5.sh
-```
-
-Dispatcher (resolves a tracker row via the sidecar):
-
-```bash
-python scripts/tracker_to_sidecar.py          # regenerate sidecar when tracker knobs change
-bash experiments/run_experiment.sh <EXP_ID>   # env vars you export first WIN over the sidecar
 ```
 
 Preview without launching:

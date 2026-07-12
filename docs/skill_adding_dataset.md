@@ -93,7 +93,7 @@ CONVERTERS = {
 
 Data configs live in `scripts/configs/` and are named `dcfg_<name>.yaml`. The config
 **filename stem = `output_name` = the tracker's `Data config name` = the output parquet stem**
-(`data/dcfg_<name>.parquet`). The `run_experiment.sh` dispatcher relies on this 1:1 mapping.
+(`data/dcfg_<name>.parquet`). The generic launchers rely on this 1:1 mapping.
 
 Rather than repeating the full parameter block, **inherit shared defaults from `dcfg_base.yaml`**
 via `extends:` and declare only your `datasets:` list plus any per-source overrides:
@@ -244,9 +244,10 @@ EXP_ID=<exp_id> DATA_NAME=<dcfg_stem> \
 BERL_DRY_RUN=1 EXP_ID=... DATA_NAME=... DATA_TRAIN=... bash experiments/train_behavior_qwen2.5.sh
 ```
 
-Or, if the dataset is tied to a tracker row, run it through the dispatcher:
-`bash experiments/run_experiment.sh <EXP_ID>`. See `experiments/README.md` for the full launcher
-reference and `experiments/lib/common.sh` for the env-knob surface.
+Or, if the dataset is tied to a tracker row, launch it via the matching per-family launcher with
+explicit knobs (`EXP_ID=<row Exp ID> … bash experiments/train_behavior_<class>.sh`). See
+`experiments/README.md` for the full launcher reference and `experiments/lib/common.sh` for the
+env-knob surface.
 
 ## Best Practices
 

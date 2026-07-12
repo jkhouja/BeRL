@@ -99,8 +99,8 @@ the run from it alone.
    **not** in the sweep's 96-cell enumeration (they add `k=7`, `ll_min=-4`, a winner-anchored `fp×ec`
    grid), so `ONLY_IDX` will not launch them — use the per-family launcher with explicit knobs
    (`EXP_ID=… REWARD_TYPE=… POWER_K=… POWER_LL_MIN=… USE_ACTOR_AS_RM=… KL=… LR=… FORMAT_PENALTY=…
-   ENTROPY_COEFF=… bash experiments/smoke_{gemma,qwen3,qwen2.5}.sh`) or the `run_experiment.sh
-   <EXP_ID>` dispatcher (see `launch-experiment` and the tracker §"Launch mechanism").
+   ENTROPY_COEFF=… bash experiments/smoke_{gemma,qwen3,qwen2.5}.sh`; see `launch-experiment` and the
+   tracker §"Launch mechanism").
 3. Monitor health; on any user-decision need, `Awaiting-input`-then-ask (`check-training`).
 4. On completion, verify evals, append findings to `experiments_logs/<RUN_NAME>.md`, write the
    tracker `Results summary`, set `Status=Completed`; propagate any winner values that unblock

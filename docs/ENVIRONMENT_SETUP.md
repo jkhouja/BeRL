@@ -119,7 +119,6 @@ Once `tom` is set up:
 ```bash
 conda activate tom
 bash experiments/smoke_qwen2.5.sh   # quick smoke test (Qwen2.5 behavior GRPO)
-# or dispatch a tracker row: bash experiments/run_experiment.sh <EXP_ID>
 # or a generic launcher directly, e.g.:
 #   EXP_ID=... DATA_NAME=... DATA_TRAIN=... bash experiments/train_behavior_qwen2.5.sh
 ```

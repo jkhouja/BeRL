@@ -35,13 +35,7 @@ The row must already be **claimed** (`Status=Processing`, `Owner_host` set) — 
    `python build_dataset.py --config scripts/configs/<dcfg_name>.yaml`. See `docs/skill_adding_dataset.md`.
 
 3. **Launch via a generic launcher** (task × model-class), in the background, passing knobs as
-   env — never create a per-experiment script. Two equivalent entry points:
-   - **Dispatcher (preferred):** `bash experiments/run_experiment.sh <EXP_ID>`. It reads the
-     machine-readable sidecar `project_planning/experiments.tsv` (regenerate from the tracker with
-     `python scripts/tracker_to_sidecar.py` whenever knob cells change), maps the row's knobs to
-     env vars, and calls the right launcher. Env vars you export first **win** over the sidecar —
-     use this to resolve placeholders (e.g. `KL=0.05 LR=5e-7 REWARD_TYPE=power TASK=behavior`).
-     Provide `DATA_TRAIN=` if `data/<dcfg>.parquet` isn't the resolved path.
+   env — never create a per-experiment script. Use the direct launcher:
    - **Direct launcher:** `EXP_ID=<id> DATA_NAME=<dcfg> DATA_TRAIN=<parquet> bash experiments/<launcher>.sh`
      where `<launcher>` is `train_<task>_<class>.sh`:
      - task `behavior` (log_prob/neg_perplexity/power, frozen/actor RM) → `train_behavior_{qwen2.5,qwen3,gemma}.sh`
@@ -53,9 +47,8 @@ The row must already be **claimed** (`Status=Processing`, `Owner_host` set) — 
        `power k3 ll_min-6` / `power k5 ll_min-6`). It is valid **only for the original Wave-1
        Qwen2.5 rows `PS001–PS096`** (n = `PS` number). The expanded Wave-2 rows `PS097–PS176`
        (Gemma-2/Qwen3) and Qwen2.5 power-extension rows `PS177–PS182` add `k=7`/`ll_min=-4`/a
-       winner-anchored `fp×ec` grid that are **not** in that enumeration — launch them via the
-       dispatcher or a per-family `smoke_*`/`train_behavior_*` launcher with explicit knobs, **not**
-       `ONLY_IDX`.
+       winner-anchored `fp×ec` grid that are **not** in that enumeration — launch them via a
+       per-family `smoke_*`/`train_behavior_*` launcher with explicit knobs, **not** `ONLY_IDX`.
    All launchers source `experiments/lib/common.sh`, which sets env (conda `tom`, WandB online),
    applies model-family specifics (attention backend, `require_answer_tags`, chat template,
    `+data.fold_system_prompt` for gemma), the hard default `+data.truncation=left`, builds the
