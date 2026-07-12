@@ -78,7 +78,7 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **How to rerun:** `EXP_ID=Phase-stability-Pm1w2gemma2_rmf_kl0.05_lr1e-6_fp0_ec0.001_lp DATA_NAME=dcfg_smoke_mix_gemma MODEL_PATH=google/gemma-2-2b-it DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix_gemma.parquet RUN_INDEX=1 bash experiments/train_behavior_gemma.sh`
 
-**Findings:** _(fill on completion via log-results skill)_
+**Findings:** _(N/A — this block is the dry-run preview; see the real-run block below.)_
 
 ### Attempt r1 — 2026-07-12T17:28:16+00:00
 
@@ -160,5 +160,11 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **How to rerun:** `EXP_ID=Phase-stability-Pm1w2gemma2_rmf_kl0.05_lr1e-6_fp0_ec0.001_lp DATA_NAME=dcfg_smoke_mix_gemma MODEL_PATH=google/gemma-2-2b-it DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix_gemma.parquet RUN_INDEX=1 bash experiments/train_behavior_gemma.sh`
 
-**Findings:** _(fill on completion via log-results skill)_
+**Findings** (2026-07-12, via `scripts/score_run.py`; authoritative attempt = this r1, 17:28:16):
+
+- **Canonical score:** ToM **HM(last5)=0.072** / HM(last3)=0.0642 (step0 baseline HM=0.093) — ToM **avg(last5)=0.3499** / avg(last3)=0.3461 (step0 avg=0.3148). 20 eval iters (step 0..190).
+- **Capability (separate):** gsm8k=0.299 (Δ +0.022 vs step0), mmlu=0.404 (Δ +0.014) — **no capability regression**.
+- **Health:** kl=0.003, entropy=1.513, resp_len=163.8, reward=-80.0 (log_prob scale), parseable=1.0. Coherent `<think>` reasoning throughout. **No collapse.**
+- **HM is degenerate for Gemma-2:** floored by two near-zero benchmarks the base cannot do — `fantom_info_list`=0.007 and `fantom_answerability_list`=0.008 (list-enumeration). With a 0.007 term the harmonic mean ≈ worst-benchmark, so HM ~flat vs an already-tiny 0.093 baseline and carries little signal. The other **22 ToM benchmarks span 0.11–0.82** (bigtom_forward_belief 0.82, bigtom_forward_action 0.66, tomi 0.61), and the **arithmetic avg rose +0.035 (0.315→0.350)** = modest positive ToM transfer. **⇒ For Gemma-2, read the avg, not the HM.**
+- **Verdict:** Gemma-2 log_prob, frozen-RM, kl0.05, lr1e-6, fp0, ec0.001 = **STABLE + HEALTHY**, weak-but-positive ToM signal (by avg). `Completed`. Strong data point that the canonical HM must be complemented by the avg — HM alone would mislabel a healthy, improving Gemma-2 run as a near-zero failure.
 
