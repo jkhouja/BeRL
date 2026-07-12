@@ -93,6 +93,14 @@ the run from it alone.
 1. Claim the next ready `Not-started` row (`claim-experiment`).
 2. Resolve placeholders + build data if missing + launch the generic launcher in the background;
    create `experiments_logs/<RUN_NAME>.md`; set `Status=Training`, paste WandB/log (`launch-experiment`).
+   **Launcher choice:** the `ONLY_IDX=<n>` shortcut through `experiments/phase_stability_sweep.sh`
+   works **only** for the original Wave-1 Qwen2.5 cells `PS001–PS096` (n = `PS` number). The expanded
+   Wave-2 rows `PS097–PS176` (Gemma-2/Qwen3) and the Qwen2.5 power-extension rows `PS177–PS182` are
+   **not** in the sweep's 96-cell enumeration (they add `k=7`, `ll_min=-4`, a winner-anchored `fp×ec`
+   grid), so `ONLY_IDX` will not launch them — use the per-family launcher with explicit knobs
+   (`EXP_ID=… REWARD_TYPE=… POWER_K=… POWER_LL_MIN=… USE_ACTOR_AS_RM=… KL=… LR=… FORMAT_PENALTY=…
+   ENTROPY_COEFF=… bash experiments/smoke_{gemma,qwen3,qwen2.5}.sh`) or the `run_experiment.sh
+   <EXP_ID>` dispatcher (see `launch-experiment` and the tracker §"Launch mechanism").
 3. Monitor health; on any user-decision need, `Awaiting-input`-then-ask (`check-training`).
 4. On completion, verify evals, append findings to `experiments_logs/<RUN_NAME>.md`, write the
    tracker `Results summary`, set `Status=Completed`; propagate any winner values that unblock

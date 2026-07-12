@@ -62,9 +62,24 @@ exact knobs and matching `Exp ID`, launch that single cell through the driver in
 `ONLY_IDX=<n>` (where `<n>` is the `PS` number, e.g. `ONLY_IDX="7"` runs `PS007`) —
 `experiments/phase_stability_sweep.sh` reproduces the sweep enumeration so the generated `EXP_ID`
 matches the row exactly. Preview with `BERL_DRY_RUN=1`. A node can run several cells at once by pinning
-disjoint GPUs per cell (`GPU_IDS=0,1 ONLY_IDX="7"` …). Run Wave 2 with `FAMILY={gemma,qwen3}`. See
+disjoint GPUs per cell (`GPU_IDS=0,1 ONLY_IDX="7"` …). See
 `experiments/README.md` §"Phase −1 sweep". Fixed: 1 epoch (191 steps), `TEST_FREQ=10`, WandB
 project `TOM_EXP`.
+> **⚠️ `phase_stability_sweep.sh`/`ONLY_IDX` is Wave-1-only.** The driver enumerates a **fixed
+> 96-cell grid** — reward families `log_prob` / `power k3 ll_min-6` / `power k5 ll_min-6` only — so
+> `ONLY_IDX=<n>` (n = `PS` number) is valid **only for the original `PS001–PS096` Qwen2.5 rows**.
+> Running it with `FAMILY={gemma,qwen3}` reproduces that *same* 96-cell grid on another model, which
+> **does NOT match** the current expanded Wave-2 rows. The expanded **Wave-2 rows (`PS097–PS176`,
+> Gemma-2/Qwen3)** and **Qwen2.5 power-extension rows (`PS177–PS182`)** add `k=7` and `ll_min=-4` and
+> a winner-anchored `fp×ec` factorial that are **not in the sweep enumeration**, so `ONLY_IDX` will
+> not (and cannot) launch them. **Launch these rows via the per-family launcher with explicit knobs**
+> (or the `run_experiment.sh <EXP_ID>` dispatcher — see `launch-experiment`):
+> `EXP_ID=<row Exp ID> REWARD_TYPE=<log_prob|power> POWER_K=<k|2.0> POWER_LL_MIN=<ll_min|-8.0>
+> USE_ACTOR_AS_RM=<True=actor|False=frozen> KL=<kl> LR=<lr> FORMAT_PENALTY=<fp> ENTROPY_COEFF=<ec>
+> bash experiments/smoke_{gemma,qwen3,qwen2.5}.sh`. The family launcher already sets `MODEL_PATH`,
+> attention backend, `require_answer_tags`, and the correct data config (`dcfg_smoke_mix_gemma` for
+> Gemma/Qwen3, `dcfg_smoke_mix` for Qwen2.5), so only the reward/RM/kl/lr/fp/ec knobs + `EXP_ID` are
+> needed.
 **Causal gate:** if A1 (E048–E050) does not beat the controls A3-shuffled (E052) and A4-no-CoT
 (E053), pause downstream and set A1 to `Awaiting-input`.
 

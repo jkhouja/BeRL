@@ -48,6 +48,14 @@ The row must already be **claimed** (`Status=Processing`, `Owner_host` set) — 
      - task `tom_rulebased` (direct rule-based ToM, no LM reward, KL=0.001) → `train_tom_{qwen2.5,qwen3,gemma}.sh`
      - task `sft` (Q0 A2) → `train_sft_qwen2.5.sh` **[build — not wired yet]**
      - quick smoke → `smoke_{qwen2.5,qwen3,gemma}.sh` (RQ=test, short run)
+     - **Phase −1 `PS###` batch driver** → `experiments/phase_stability_sweep.sh` with `ONLY_IDX=<n>`
+       is a convenience that reproduces a **fixed 96-cell grid** (reward families `log_prob` /
+       `power k3 ll_min-6` / `power k5 ll_min-6`). It is valid **only for the original Wave-1
+       Qwen2.5 rows `PS001–PS096`** (n = `PS` number). The expanded Wave-2 rows `PS097–PS176`
+       (Gemma-2/Qwen3) and Qwen2.5 power-extension rows `PS177–PS182` add `k=7`/`ll_min=-4`/a
+       winner-anchored `fp×ec` grid that are **not** in that enumeration — launch them via the
+       dispatcher or a per-family `smoke_*`/`train_behavior_*` launcher with explicit knobs, **not**
+       `ONLY_IDX`.
    All launchers source `experiments/lib/common.sh`, which sets env (conda `tom`, WandB online),
    applies model-family specifics (attention backend, `require_answer_tags`, chat template,
    `+data.fold_system_prompt` for gemma), the hard default `+data.truncation=left`, builds the

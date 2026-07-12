@@ -47,6 +47,7 @@ clip (-40,40), actor-as-RM; KL=0.05, LR=5e-7, batch=32, mini_batch=128, rollout_
 ## Conventions
 - **Change history:** ALWAYS update `docs/CHANGE_HISTORY.md` on every code change (commit hash, date,
   title, what, why).
+- **Change skills:** If during experiments you find out certain issues or gothcas that are generally important, update the relevant skills so that other agents pay attention.
 - **WandB online always:** `WANDB_API_KEY` is in `~/.bashrc`; use `trainer.logger=['console','wandb']`.
   Do not set `WANDB_MODE=offline` or unset the key.
 - **Secrets:** never hardcode tokens (HF_TOKEN etc.) in scripts — read from the environment.
