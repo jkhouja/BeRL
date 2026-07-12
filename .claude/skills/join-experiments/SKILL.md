@@ -99,6 +99,12 @@ the run from it alone.
    `Backlog` rows for the user to promote (`log-results`).
 5. Repeat with the next ready row **only after the current run has reached `Completed`/`Failed`** —
    one experiment on one node at a time (Golden rule #5).
+6. **If there are no ready `Not-started` rows to pick up, do not stop — keep checking every 10
+   minutes.** Stay idle on your free node and re-scan the tracker for a ready `Not-started` row on a
+   recurring 10-minute schedule (some in-flight rows may `Fail` and revert to `Not-started`, and the
+   user may promote `Backlog` rows). As soon as one appears, claim it (re-read first) and resume the
+   loop. Only stop the 10-minute polling once **all** rows are terminal (`Completed`/`Failed`, none
+   `Not-started`/`Training`/`Processing`) — then report the final summary.
 
 ## Never
 
