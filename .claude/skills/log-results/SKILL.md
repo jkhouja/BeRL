@@ -27,13 +27,17 @@ Convention enforced by the script (`scripts/score_run.py` is the single source o
   `mmlu`**. Aggregation = *avg-then-HM*: average each benchmark over the last N eval iters, then take
   the harmonic mean across benchmarks. Report **HM(last5)** (primary) and **HM(last3)**, plus the
   step-0 baseline HM.
+- **ToM avg** = arithmetic mean over the same 24 ToM benchmarks (avg(last5)/avg(last3) + step0
+  baseline). Report it **alongside** the HM — HM stays the primary selection score, avg is
+  complementary (HM penalises a single tanked benchmark; avg does not).
 - **gsm8k** and **mmlu** are reported **SEPARATELY** as capability-regression evals (math reasoning /
-  general knowledge) with `delta vs step0`. They are **never** folded into the HM.
+  general knowledge) with `delta vs step0`. They are **never** folded into the HM or avg.
 - **parseable rate** (= 1 − `reward/format_error_ratio`) and **health** (kl / entropy / resp_len) are
   tracked separately, never inside the HM.
 
 Paste the script's output into the `experiments_logs/<RUN_NAME_BASE>.md` findings, and put
-`ToM HM(last5)=… HM(last3)=… (base …); gsm8k Δ…; mmlu Δ…; health …` into the tracker `Results summary`.
+`ToM HM(last5)=… HM(last3)=…; ToM avg(last5)=… avg(last3)=… (base …); gsm8k Δ…; mmlu Δ…; health …`
+into the tracker `Results summary` (**both HM and avg are mandatory**).
 
 ## Instructions
 

@@ -6,6 +6,8 @@ row must record, so numbers are comparable across agents:
 
   * ToM HM        - harmonic mean over the 24 Theory-of-Mind benchmarks
                     (excludes gsm8k and mmlu). Primary config-selection score.
+  * ToM avg       - arithmetic mean over the same 24 ToM benchmarks (reported
+                    alongside HM; HM stays primary, avg is complementary).
   * gsm8k         - reported SEPARATELY as a math-reasoning regression eval.
   * mmlu          - reported SEPARATELY as a general-knowledge regression eval.
   * parseable     - answer-parse rate = 1 - reward/format_error_ratio (tracked,
@@ -15,8 +17,9 @@ row must record, so numbers are comparable across agents:
 Aggregation (fixed convention):
   For a window of the last N eval iterations, each benchmark score is first
   AVERAGED over those N iterations ("avg-then-HM"), then the harmonic mean is
-  taken across benchmarks. We report N=5 (primary) and N=3. The per-iteration HM
-  trajectory is also printed so dips/recoveries are visible.
+  taken across benchmarks. We report N=5 (primary) and N=3. The ToM arithmetic
+  mean is reported alongside the HM. The per-iteration HM trajectory is also
+  printed so dips/recoveries are visible.
 
 Usage:
   python scripts/score_run.py <training.log> [--last 5] [--json]
@@ -27,7 +30,7 @@ import argparse
 import json
 import re
 import sys
-from statistics import harmonic_mean
+from statistics import harmonic_mean, mean
 
 # --- Benchmark taxonomy (val/test_score/<name>_sub300) ------------------------
 # Non-ToM benchmarks are scored and reported SEPARATELY, never inside the HM.
@@ -111,11 +114,16 @@ def score(path, last_n=5):
         avg = window_avg(iters, tom, n)
         return hmean(avg.values()) if avg else float("nan")
 
+    def tom_avg(n):
+        avg = window_avg(iters, tom, n)
+        return mean(avg.values()) if avg else float("nan")
+
     def cap_avg(name, n):
         vals = [s[name] for _, s in iters[-n:] if name in s]
         return sum(vals) / len(vals) if vals else None
 
     step0 = iters[0][1]
+    step0_tom = [step0[b] for b in tom if b in step0]
     result = {
         "log": path,
         "n_eval_iters": len(iters),
@@ -125,6 +133,9 @@ def score(path, last_n=5):
         "tom_hm_last5": round(tom_hm(5), 4),
         "tom_hm_last3": round(tom_hm(3), 4),
         "tom_hm_step0": round(traj[0][1], 4),
+        "tom_avg_last5": round(tom_avg(5), 4),
+        "tom_avg_last3": round(tom_avg(3), 4),
+        "tom_avg_step0": round(mean(step0_tom), 4) if step0_tom else None,
         "tom_hm_trajectory": [(s, round(h, 3)) for s, h in traj],
     }
     for name in CAPABILITY_EVALS:
@@ -155,6 +166,10 @@ def fmt_human(r):
     lines.append(
         f"ToM HM(last5)={r['tom_hm_last5']}  HM(last3)={r['tom_hm_last3']}  "
         f"(baseline step0={r['tom_hm_step0']})"
+    )
+    lines.append(
+        f"ToM avg(last5)={r['tom_avg_last5']}  avg(last3)={r['tom_avg_last3']}  "
+        f"(baseline step0={r['tom_avg_step0']})"
     )
     for name in CAPABILITY_EVALS:
         k = next((x for x in r if x.startswith(name + "_last")), None)
