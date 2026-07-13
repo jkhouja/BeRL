@@ -34,10 +34,14 @@ Convention enforced by the script (`scripts/score_run.py` is the single source o
   general knowledge) with `delta vs step0`. They are **never** folded into the HM or avg.
 - **parseable rate** (= 1 − `reward/format_error_ratio`) and **health** (kl / entropy / resp_len) are
   tracked separately, never inside the HM.
+- **max_resp** (`max_response_length`) is printed on the health line. It is **NOT a tracker column**
+  and varies per launch (family default / manual `MAX_RESP` override: e.g. 512 for Qwen behavior,
+  1024 for Gemma, 4096 if unset), so it **must** be recorded in the `Results summary` — two runs of
+  the "same" row can differ in response cap with no other signal, breaking comparability.
 
 Paste the script's output into the `experiments_logs/<RUN_NAME_BASE>.md` findings, and put
-`ToM HM(last5)=… HM(last3)=…; ToM avg(last5)=… avg(last3)=… (base …); gsm8k Δ…; mmlu Δ…; health …`
-into the tracker `Results summary` (**both HM and avg are mandatory**).
+`ToM HM(last5)=… HM(last3)=…; ToM avg(last5)=… avg(last3)=… (base …); gsm8k Δ…; mmlu Δ…; health … max_resp=…`
+into the tracker `Results summary` (**HM, avg, and max_resp are all mandatory**).
 
 ## Instructions
 

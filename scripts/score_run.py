@@ -12,6 +12,8 @@ row must record, so numbers are comparable across agents:
   * mmlu          - reported SEPARATELY as a general-knowledge regression eval.
   * parseable     - answer-parse rate = 1 - reward/format_error_ratio (tracked,
                     NOT folded into HM).
+  * max_resp      - max_response_length used by the run (NOT a tracker column;
+                    varies per launch, so recorded here for comparability).
   * health        - KL / entropy / response-length snapshot for collapse checks.
 
 Aggregation (fixed convention):
@@ -43,6 +45,12 @@ HM_EPS = 1e-3
 VAL_RE = re.compile(r"val/test_score/(\w+?)_sub300:([0-9.]+)")
 STEP_RE = re.compile(r"step:(\d+) -")
 HEALTH_RE = re.compile(r"step:(\d+) - global_seqlen")
+# max_response_length is NOT a tracker column and varies per launch (family
+# default / manual MAX_RESP override), so surface it here to keep the canonical
+# Results string comparable across agents. See docs/CHANGE_HISTORY.md.
+# Matches both the hydra CLI echo (max_response_length=512) and the OmegaConf
+# config dump verl prints at startup ('max_response_length': 512).
+MAX_RESP_RE = re.compile(r"max_response_length['\"]?\s*[:=]\s*(\d+)")
 
 
 def hmean(scores):
@@ -91,6 +99,20 @@ def parse_health(path):
     return out
 
 
+def parse_max_resp(path):
+    """Return the max_response_length used by the run (int) or None.
+
+    Not a tracker column and varies per launch, so we extract it from the log's
+    hydra command echo so every canon Results string can record it.
+    """
+    with open(path, encoding="utf-8", errors="ignore") as fh:
+        for line in fh:
+            m = MAX_RESP_RE.search(line)
+            if m:
+                return int(m.group(1))
+    return None
+
+
 def window_avg(iters, benchmarks, last_n):
     """Average each benchmark over the last N eval iters; return {bench: avg}."""
     window = iters[-last_n:]
@@ -129,6 +151,7 @@ def score(path, last_n=5):
         "n_eval_iters": len(iters),
         "first_step": iters[0][0],
         "last_step": iters[-1][0],
+        "max_response_length": parse_max_resp(path),
         "n_tom_benchmarks": len(tom),
         "tom_hm_last5": round(tom_hm(5), 4),
         "tom_hm_last3": round(tom_hm(3), 4),
@@ -179,10 +202,12 @@ def fmt_human(r):
             lines.append(f"{name} (separate): {r[k]} (step0={r.get(name+'_step0')}{dtxt})")
     if "health_final" in r:
         h = r["health_final"]
+        mr = r.get("max_response_length")
+        mrtxt = f" max_resp={mr}" if mr is not None else ""
         lines.append(
             f"health(final): kl={h.get('kl')} entropy={h.get('entropy')} "
             f"resp_len={h.get('resp_len')} reward={h.get('reward')} "
-            f"parseable={r.get('parseable_final')}"
+            f"parseable={r.get('parseable_final')}{mrtxt}"
         )
     traj = " ".join(f"{s}:{h}" for s, h in r["tom_hm_trajectory"])
     lines.append(f"ToM HM trajectory: {traj}")
