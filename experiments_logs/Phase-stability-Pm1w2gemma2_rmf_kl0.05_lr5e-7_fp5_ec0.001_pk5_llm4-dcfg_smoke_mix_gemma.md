@@ -339,3 +339,35 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
   with the same reward/RM/kl/lr/fp/ec knobs + `MAX_PROMPT=2048 MAX_RESP=512`. Verified in log:
   `max_response_length=512`, `total_epochs=1`, `test_freq=5`. WandB run `gf3sa6x3`.
 - **How to rerun (authoritative form):** `EXP_ID=Phase-stability-Pm1w2gemma2_rmf_kl0.05_lr5e-7_fp5_ec0.001_pk5_llm4 MAX_PROMPT=2048 MAX_RESP=512 KL=0.05 LR=5e-7 REWARD_TYPE=power POWER_K=5 POWER_LL_MIN=-4 USE_ACTOR_AS_RM=False FORMAT_PENALTY=5 ENTROPY_COEFF=0.001 bash experiments/smoke_gemma.sh`
+
+---
+### Findings — r2 AUTHORITATIVE (2026-07-13, h100-189-003, WandB gf3sa6x3)
+Completed full 190 steps (1 epoch), 39 eval iters (step0..190). `scripts/score_run.py`:
+
+```
+ToM HM(last5)=0.1538  HM(last3)=0.1681  (baseline step0=0.093)
+ToM avg(last5)=0.3945  avg(last3)=0.4119 (baseline step0=0.3151)
+gsm8k (separate): 0.3174 (step0=0.277, delta=+0.040)
+mmlu  (separate): 0.4154 (step0=0.39,  delta=+0.025)
+health(final): kl=0.077 entropy=1.474 resp_len=113.24 parseable=1.0
+```
+
+**Verdict: STABLE + POSITIVE ToM transfer (use AM_tom; HM unreliable for Gemma).**
+AM_tom last-5 0.3945 vs baseline 0.3151 = **+7.9pp (+25% rel)**; last-3 0.4119 = +9.7pp. This is a
+clear, monotonic-ish gain (AM/HM trajectory rises across the run, peaking at the final step) — in
+contrast to sibling **PS105** (power k5, **ll_min=-6, fp=0**) which was FLAT (AM -3.2%). The
+differentiators here are **ll_min=-4 + fp=5 + ec=0.001**.
+
+End-state ToM subtypes (step190 vs step0): tomi 0.597→0.610, bigtom_fwd_belief 0.753→**0.853**,
+bigtom_fwd_action 0.600→0.750, simpletom_mental 0.463→**0.580**, simpletom_behavior 0.517→0.560,
+tombench 0.380→**0.547**, explore_tom 0.363→0.493, fantom_info_binary 0.423→0.473,
+hi_tom 0.130→0.223, opentom_multihop_so 0.047→0.277 — broad-based improvement, no tanked subtype.
+
+**Health/hacking:** no collapse or reward-hacking. reward noisy per-minibatch but with genuine
+group spread throughout; format_error=0 (parseable=1.0) the whole run; resp_len stable ~110-160 (no
+length-runaway, unlike PS097 log_prob); kl contained (0.077), entropy stable (~1.47, no
+over-sharpening). Capability evals preserved/up (gsm8k +0.040, mmlu +0.025).
+
+**Downstream implication:** Qwen2.5 power-winner geometry does NOT transfer to Gemma at ll_min=-6/fp0
+(PS105), but **ll_min=-4 + fp=5** DOES yield positive Gemma transfer — strong Wave-2 Gemma candidate;
+compare against PS110 (ll_min=-4, **fp=0**, ec=0.001) to isolate the fp=5 contribution.
