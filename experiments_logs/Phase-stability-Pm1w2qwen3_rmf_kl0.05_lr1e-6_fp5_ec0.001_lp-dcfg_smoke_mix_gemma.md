@@ -158,5 +158,16 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **How to rerun:** `EXP_ID=Phase-stability-Pm1w2qwen3_rmf_kl0.05_lr1e-6_fp5_ec0.001_lp DATA_NAME=dcfg_smoke_mix_gemma MODEL_PATH=Qwen/Qwen3-1.7B DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix_gemma.parquet RUN_INDEX=1 bash experiments/train_behavior_qwen3.sh`
 
-**Findings:** _(fill on completion via log-results skill)_
+**Findings:** COMPLETED (39 eval blocks, steps 0-190, WandB 4ovkyhyz). **FIRST Qwen3-1.7B Wave-2 result** — establishes Qwen3 baseline behavior.
+
+**Metric note:** Qwen3-1.7B HM IS RELIABLE (baseline HM=0.357, NO near-zero benches — unlike Gemma-2). Report both; HM is the standard config-selection metric here.
+
+- Baseline (step0): AM=0.4655, HM=0.3569 (n=26 benches).
+- **last-5: AM=0.4576 (delta-0.8pp), HM=0.3529 (delta-0.4pp).**
+- last-3: AM=0.4579 (delta-0.8pp), HM=0.3541 (delta-0.3pp).
+- **Verdict: essentially FLAT / slightly negative.** No collapse (healthy throughout: entropy 0.29-0.32 — LOW is normal for native-thinking Qwen3; format 0.000; response_length ~760-908 stable), but NO ToM gain either.
+- Trace: noisy-flat with a mild late-peak at step 145 (AM=0.4913, HM=0.3994) that decays back by step 190. No sustained improvement.
+- Key benches base->step190: gsm8k 0.890->0.903 (+1.3pp), mmlu 0.593->0.570 (-2.3pp), tomi 0.580->0.590 (+1.0pp), opentom_multihop_fo 0.497->0.417 (-8.0pp), opentom_multihop_so 0.443->0.387 (-5.6pp). ToM multihop benches actually DEGRADE.
+- **Interpretation:** log_prob reward (PS013 winner for Qwen2.5, HM 0.435) does NOT transfer to Qwen3-1.7B with fp5+ec0.001 — flat/neutral. Qwen3 starts from a higher base (AM 0.466 vs Qwen2.5 ~0.42) leaving little headroom, and log_prob gives no useful gradient. Suggests Qwen3 may need the power-family reward (as on Gemma/Qwen2.5) rather than raw log_prob.
+
 
