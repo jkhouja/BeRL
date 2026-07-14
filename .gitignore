@@ -122,3 +122,4 @@ ckpts/
 .venv/
 logs/
 data/
+analysis/cache/
