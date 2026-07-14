@@ -49,6 +49,7 @@ CACHE_DIR = os.path.join(REPO, "analysis", "cache")
 
 CAPABILITY_EVALS = ("gsm8k", "mmlu")  # reported separately, never inside the HM
 HM_EPS = 1e-3
+CACHE_VERSION = 2  # bump to invalidate cached extractions (v2: val samples keep source)
 
 VAL_RE = re.compile(r"val/test_score/(\w+?)_sub300:([0-9.]+)")
 STEP_RE = re.compile(r"step:(\d+) -")
@@ -110,7 +111,7 @@ def extract(path):
                 use_actor = (m.group(1) == "True")
         vs = VSAMPLE_RE.search(line)
         if vs:
-            vsamples.setdefault(int(vs.group(1)), []).append(float(vs.group(3)))
+            vsamples.setdefault(int(vs.group(1)), []).append([vs.group(2), float(vs.group(3))])
             continue
         sm = STEP_RE.search(line)
         if not sm:
@@ -130,6 +131,7 @@ def extract(path):
                 health[step] = rec
     return {
         "log": path,
+        "_v": CACHE_VERSION,
         "use_actor_as_rm": use_actor,
         "iters": sorted(iters.items()),
         "health": sorted(health.items()),
@@ -144,7 +146,9 @@ def load_cached(path):
     try:
         if os.path.getmtime(cache) >= os.path.getmtime(path):
             with open(cache) as fh:
-                return json.load(fh)
+                data = json.load(fh)
+            if data.get("_v") == CACHE_VERSION:
+                return data
     except OSError:
         pass
     data = extract(path)
@@ -163,6 +167,88 @@ def window_avg(iters, benches, n):
     present = set.intersection(*[set(s) for _, s in window])
     keys = [b for b in benches if b in present]
     return {b: sum(s[b] for _, s in window) / len(window) for b in keys}
+
+
+def eval_quality(vsamples, k=None):
+    """Decompose eval accuracy into format-pass vs conditional-accuracy from the
+    per-step ``[val sample | source | score]`` blocks (ToM sources only).
+
+    Score decomposition is exact: score = format(+/-1) + answer(+/-2), so
+        score == 3  -> parsed AND correct   (this is what val/test_score counts)
+        score  > -2 -> format-parseable     (parsed, right or wrong)
+        score <= -2 -> format failure        (unparseable, e.g. -3)
+
+    Compares an early window (first k eval steps) to a late window (last k) and
+    returns, ToM-only (excl gsm8k/mmlu):
+      * fmt_pass_early/late/d      - fraction of eval samples that parse
+      * cond_acc_early/late/d      - pooled P(correct | parsed)
+      * cavg_early/late/d          - per-benchmark P(correct|parsed) then
+                                     ARITHMETIC-MEANED across benchmarks
+                                     (= arithmetic-mean accuracy conditional on
+                                     correct format; the format-controlled ToM
+                                     signal used for the conditional re-ranking)
+      * ecorr_early/late/d         - pooled correct-rate (val-subset accuracy)
+      * fmt_pct / reason_pct       - multiplicative split of d_ecorr into the
+                                     part explained by rising format-pass vs by
+                                     rising conditional accuracy
+      * eq_n_early / eq_n_late     - ToM sample counts backing the windows
+    Everything here comes from the 24-sample/step debug blocks (small), so treat
+    magnitudes as estimates; the direction (format vs reasoning) is the point.
+    """
+    steps = [s for s, _ in vsamples]
+    if len(steps) < 2:
+        return {}
+    if k is None:
+        k = min(10, len(steps) // 2) or 1
+    early, late = vsamples[:k], vsamples[-k:]
+
+    def pool(win):
+        S = [(src, sc) for _, lst in win for src, sc in lst if src not in CAPABILITY_EVALS]
+        n = len(S)
+        if not n:
+            return None
+        parsed = sum(1 for _, sc in S if sc > -2)
+        cor = sum(1 for _, sc in S if sc == 3)
+        return {"n": n, "fp": parsed / n, "cor": cor / n,
+                "ca": (cor / parsed) if parsed else float("nan")}
+
+    def per_bench_cavg(win):
+        by = {}
+        for _, lst in win:
+            for src, sc in lst:
+                if src in CAPABILITY_EVALS:
+                    continue
+                p, c = by.get(src, (0, 0))
+                by[src] = (p + (1 if sc > -2 else 0), c + (1 if sc == 3 else 0))
+        return {src: c / p for src, (p, c) in by.items() if p > 0}
+
+    e, l = pool(early), pool(late)
+    if not e or not l:
+        return {}
+    ea, la = per_bench_cavg(early), per_bench_cavg(late)
+    common = sorted(set(ea) & set(la))
+    cavg_e = mean([ea[s] for s in common]) if common else float("nan")
+    cavg_l = mean([la[s] for s in common]) if common else float("nan")
+
+    d_ecorr = l["cor"] - e["cor"]
+    fmt_comp = (l["fp"] - e["fp"]) * e["ca"] if e["ca"] == e["ca"] else float("nan")
+    rea_comp = l["fp"] * (l["ca"] - e["ca"]) if e["ca"] == e["ca"] else float("nan")
+    out = {
+        "eq_window": k,
+        "eq_n_early": e["n"], "eq_n_late": l["n"],
+        "fmt_pass_early": round(e["fp"], 4), "fmt_pass_late": round(l["fp"], 4),
+        "d_fmt_pass": round(l["fp"] - e["fp"], 4),
+        "cond_acc_early": round(e["ca"], 4), "cond_acc_late": round(l["ca"], 4),
+        "d_cond_acc": round(l["ca"] - e["ca"], 4),
+        "cavg_early": round(cavg_e, 4), "cavg_late": round(cavg_l, 4),
+        "d_cavg": round(cavg_l - cavg_e, 4),
+        "ecorr_early": round(e["cor"], 4), "ecorr_late": round(l["cor"], 4),
+        "d_ecorr": round(d_ecorr, 4),
+    }
+    if abs(d_ecorr) > 1e-9 and fmt_comp == fmt_comp:
+        out["fmt_pct"] = round(100 * fmt_comp / d_ecorr, 1)
+        out["reason_pct"] = round(100 * rea_comp / d_ecorr, 1)
+    return out
 
 
 def compute_metrics(data):
@@ -209,19 +295,9 @@ def compute_metrics(data):
         if base is not None and last is not None:
             m[f"d_{name}"] = round(last - base, 4)
 
-    # eval-quality gate from [val sample] scores (format-pass = score>=0, correct = max)
-    vs = data.get("vsamples", [])
-    if vs:
-        last_steps = vs[-3:]
-        allsc = [x for _, lst in last_steps for x in lst]
-        if allsc:
-            mx = max(allsc)
-            m["eval_parseable"] = round(sum(1 for x in allsc if x >= 0) / len(allsc), 3)
-            m["eval_correct"] = round(sum(1 for x in allsc if x >= mx - 1e-6) / len(allsc), 3)
-        base0 = dict(vs).get(iters[0][0]) or (vs[0][1] if vs else [])
-        if base0:
-            mx0 = max(base0)
-            m["eval_correct_step0"] = round(sum(1 for x in base0 if x >= mx0 - 1e-6) / len(base0), 3)
+    # eval-quality decomposition (format-pass vs conditional accuracy) from
+    # the [val sample] debug blocks. See eval_quality() docstring.
+    m.update(eval_quality(data.get("vsamples", [])))
 
     # training-stability annotation from health
     health = [(s, d) for s, d in data["health"]]
@@ -348,6 +424,10 @@ def main():
     ap.add_argument("--logs", nargs="*", help="score specific logs instead of the tracker")
     ap.add_argument("--out", help="write full results CSV")
     ap.add_argument("--top", type=int, default=15, help="print top-N per family")
+    ap.add_argument("--rank", choices=["d_hm", "d_cavg", "d_cond_acc"], default="d_hm",
+                    help="ranking metric: d_hm (raw ToM HM gain, format-confounded) | "
+                         "d_cavg (arithmetic-mean accuracy CONDITIONAL on correct format, "
+                         "the format-controlled ToM signal) | d_cond_acc (pooled P(correct|parsed) gain)")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 
@@ -369,7 +449,11 @@ def main():
         head = [c for c in ["exp_id", "run", "model", "reward", "power_k", "ll_min",
                             "rm_mode", "kl", "lr", "ec", "fp", "baseline",
                             "d_hm", "d_avg", "hm_step0", "hm_last3", "hm_best",
-                            "hm_late_std", "eval_correct", "eval_parseable",
+                            "hm_late_std",
+                            "d_cavg", "cavg_early", "cavg_late",
+                            "d_cond_acc", "cond_acc_early", "cond_acc_late",
+                            "d_fmt_pass", "fmt_pass_early", "fmt_pass_late",
+                            "d_ecorr", "fmt_pct", "reason_pct", "eq_n_late",
                             "d_gsm8k", "d_mmlu", "kl_final", "resp_len_min",
                             "n_iters", "log"] if c in cols]
         head += [c for c in cols if c not in head]
@@ -381,19 +465,23 @@ def main():
         print(f"wrote {len(rows)} rows -> {args.out}", file=sys.stderr)
 
     # leaderboard per family
-    scored = [r for r in rows if r.get("n_iters", 0) >= 2 and "d_hm" in r]
+    rk = args.rank
+    label = {"d_hm": "raw ToM HM gain (format-confounded)",
+             "d_cavg": "arithmetic-mean accuracy CONDITIONAL on correct format",
+             "d_cond_acc": "pooled P(correct|parsed) gain"}[rk]
+    scored = [r for r in rows if r.get("n_iters", 0) >= 2 and rk in r
+              and isinstance(r.get(rk), (int, float))]
     for fam in ("Qwen2.5", "Qwen3", "Gemma-2"):
         fr = sorted([r for r in scored if r["model"] == fam],
-                    key=lambda r: r["d_hm"], reverse=True)
-        print(f"\n===== {fam}: top {args.top} by dHM (HM last3 - step0) =====")
-        print(f"{'dHM':>7} {'dAvg':>7} {'hm0':>6} {'hm3':>6} {'std':>6} "
-              f"{'ecorr':>5} {'dgsm':>6} {'reward':>7} {'kl_f':>6} {'rl_min':>6}  run")
+                    key=lambda r: r[rk], reverse=True)
+        print(f"\n===== {fam}: top {args.top} by {rk} = {label} =====")
+        print(f"{rk:>8} {'d_hm':>6} {'d_cavg':>7} {'d_cndac':>7} {'d_fmtp':>7} "
+              f"{'fmt%':>5} {'rsn%':>5} {'dgsm':>6} {'kl_f':>6} {'rl_min':>6}  run")
         for r in fr[:args.top]:
-            print(f"{r['d_hm']:>7.3f} {r.get('d_avg',0):>7.3f} {r['hm_step0']:>6.3f} "
-                  f"{r['hm_last3']:>6.3f} {r.get('hm_late_std',0):>6.3f} "
-                  f"{r.get('eval_correct','-'):>5} {r.get('d_gsm8k',0):>6.3f} "
-                  f"{r.get('reward_final',0):>7.2f} {r.get('kl_final',0):>6.2f} "
-                  f"{str(r.get('resp_len_min','-')):>6}  {r['run'][:52]}")
+            g = lambda k: (f"{r[k]:.3f}" if isinstance(r.get(k), (int, float)) else "  -")
+            print(f"{g(rk):>8} {g('d_hm'):>6} {g('d_cavg'):>7} {g('d_cond_acc'):>7} "
+                  f"{g('d_fmt_pass'):>7} {str(r.get('fmt_pct','-')):>5} {str(r.get('reason_pct','-')):>5} "
+                  f"{g('d_gsm8k'):>6} {g('kl_final'):>6} {str(r.get('resp_len_min','-')):>6}  {r['run'][:50]}")
 
 
 if __name__ == "__main__":
