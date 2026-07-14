@@ -1,0 +1,10 @@
+extends: dcfg_base_notags.yaml
+
+# Tag-free (Gemma/Qwen3) variant of dcfg_thoughttrace.
+# ThoughtTrace is human<->AI; predict only the human (user) turns.
+datasets:
+  - source: "thoughttrace"
+    target_speaker: "user"
+
+pipeline:
+  output_name: "dcfg_thoughttrace_gemma"

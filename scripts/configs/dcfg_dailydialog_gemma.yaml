@@ -1,0 +1,8 @@
+extends: dcfg_base_notags.yaml
+
+# Tag-free (Gemma/Qwen3) variant of dcfg_dailydialog.
+pipeline:
+  output_name: "dcfg_dailydialog_gemma"
+
+datasets:
+  - source: "dailydialog"

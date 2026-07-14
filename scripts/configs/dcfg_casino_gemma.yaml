@@ -1,0 +1,9 @@
+extends: dcfg_base_notags.yaml
+
+# Tag-free (Gemma/Qwen3) variant of dcfg_casino.
+pipeline:
+  output_name: "dcfg_casino_gemma"
+
+datasets:
+  - source: "casino"
+    min_response_words: 1   # negotiation: short utterances (e.g. "Deal!")

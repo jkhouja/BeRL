@@ -1,0 +1,8 @@
+extends: dcfg_base_notags.yaml
+
+# Tag-free (Gemma/Qwen3) variant of dcfg_p4g.
+pipeline:
+  output_name: "dcfg_p4g_gemma"
+
+datasets:
+  - source: "persuasionforgood"

@@ -1,0 +1,8 @@
+extends: dcfg_base_notags.yaml
+
+# Tag-free (Gemma/Qwen3) variant of dcfg_cga.
+pipeline:
+  output_name: "dcfg_cga_gemma"
+
+datasets:
+  - source: "conversations_gone_awry"

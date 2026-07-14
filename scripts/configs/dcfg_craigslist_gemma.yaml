@@ -1,0 +1,9 @@
+extends: dcfg_base_notags.yaml
+
+# Tag-free (Gemma/Qwen3) variant of dcfg_craigslist.
+pipeline:
+  output_name: "dcfg_craigslist_gemma"
+
+datasets:
+  - source: "craigslist_bargain"
+    min_response_words: 1   # negotiation: short utterances (e.g. "Deal!")

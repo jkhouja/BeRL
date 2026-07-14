@@ -1,0 +1,8 @@
+extends: dcfg_base_notags.yaml
+
+# Tag-free (Gemma/Qwen3) variant of dcfg_empathetic.
+pipeline:
+  output_name: "dcfg_empathetic_gemma"
+
+datasets:
+  - source: "empathetic_dialogues"
