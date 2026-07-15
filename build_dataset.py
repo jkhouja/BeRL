@@ -398,11 +398,23 @@ def _length_matched_random(
 def apply_turn_filter(parquet_path: str, filter_cfg: dict) -> None:
     """Filter the merged corpus by *ToM-dependence / surprise* of each human turn.
 
+    Surprisal is derived from the ``answer_pp`` column, which — in *this*
+    pipeline (:func:`compute_perplexity` → :func:`_answer_avg_log_prob`,
+    "log scale, no exp") — stores the frozen scorer's **average log-probability**
+    of the turn (always ``<= 0``; higher/near-0 = more predictable, more-negative
+    = higher perplexity = more surprising). We therefore define::
+
+        surprisal = -answer_pp        # higher = more surprising / high baseline-PPL
+
+    and select the *highest-surprisal* turns (= lowest ``answer_pp``). A hard
+    guard rejects a parquet whose ``answer_pp`` looks like raw *perplexity*
+    (positive values, as written by the legacy ``merge_tom.py`` path) so the
+    selection can never silently invert on a differently-encoded column.
+
     Modes (config key ``turn_filter.mode``):
       * ``off``      — no filtering (control / full mix).
-      * ``surprise`` — keep the ``keep_fraction`` of turns the frozen scorer LM
-        finds *least* predictable (lowest ``answer_pp`` = avg log-prob; low
-        log-prob = high perplexity = surprising / info-asymmetric / ToM-dependent).
+      * ``surprise`` — keep the ``keep_fraction`` of turns with the **highest
+        surprisal** (least predictable / info-asymmetric / ToM-dependent).
       * ``randlen``  — keep the same number of turns as ``surprise``, drawn at
         random but *length-matched* to the surprise set's response-length
         distribution (the quantity/length-controlled comparison for ``surprise``).
@@ -425,12 +437,28 @@ def apply_turn_filter(parquet_path: str, filter_cfg: dict) -> None:
     if not (0.0 < keep_fraction <= 1.0):
         raise ValueError(f"turn_filter.keep_fraction must be in (0,1], got {keep_fraction}")
 
+    answer_pp = df["answer_pp"].to_numpy(dtype=float)
+    # Guard: this pipeline's answer_pp is an average LOG-PROB (<= 0). Positive
+    # values mean the column holds raw perplexity (legacy merge_tom.py encoding),
+    # for which surprisal = +answer_pp, not -answer_pp — fail loudly rather than
+    # select the exact opposite (most-predictable) turns.
+    if np.nanmax(answer_pp) > 1e-6:
+        raise ValueError(
+            f"turn_filter expects answer_pp to be avg LOG-PROB (all <= 0), but found "
+            f"positive values (max={np.nanmax(answer_pp):.3f}). This column looks like "
+            f"raw perplexity (legacy encoding); surprisal selection would invert. "
+            f"Rebuild the parquet with the current build_dataset.py perplexity stage."
+        )
+
+    # surprisal = -log_prob: higher = less predictable = more surprising / high PPL.
+    surprisal = -answer_pp
+
     n = len(df)
     n_keep = max(1, round(n * keep_fraction))
     lengths = _response_word_lengths(df)
 
-    # Surprise set = lowest answer_pp (avg log-prob) first = least predictable.
-    order = np.argsort(df["answer_pp"].to_numpy(), kind="stable")
+    # Surprise set = highest surprisal (lowest answer_pp) first.
+    order = np.argsort(-surprisal, kind="stable")
     surprise_pos = order[:n_keep]
 
     if mode == "surprise":
@@ -447,7 +475,8 @@ def apply_turn_filter(parquet_path: str, filter_cfg: dict) -> None:
     k_len = _response_word_lengths(kept)
     print(
         f"\n  ✓ turn_filter '{mode}': kept {len(kept)}/{n} rows "
-        f"(keep_fraction={keep_fraction}); "
+        f"(keep_fraction={keep_fraction}); surprisal(-log_prob) surprise-set "
+        f"mean={surprisal[surprise_pos].mean():.3f} vs corpus {surprisal.mean():.3f}; "
         f"resp-words mean surprise-set={s_len.mean():.1f} / kept={k_len.mean():.1f}"
     )
 
