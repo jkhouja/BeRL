@@ -1,0 +1,19 @@
+extends: dcfg_base_notags.yaml
+
+# Tag-free (Gemma) Phase-0 S2 "best-3" mix. The 3 top single domains from the
+# Gemma S1 arm, selected on d_avg (primary) + d_cavg (format-controlled
+# cross-check), clean runs only (casino excluded: KL exploded to 9.65 =
+# reward-hacking): craigslist (#2 d_avg, high gsm8k), dailydialog (positive
+# d_cavg + highest gsm8k), empathetic (best positive d_cavg). Per-source caps
+# mirror dcfg_mix_all_gemma for a balanced, comparable mixture.
+pipeline:
+  output_name: "dcfg_mix_best3_gemma"
+
+datasets:
+  - source: "craigslist_bargain"
+    min_response_words: 1   # negotiation: short utterances (e.g. "Deal!")
+    sample_size: 3000
+  - source: "dailydialog"
+    sample_size: 4000
+  - source: "empathetic_dialogues"
+    sample_size: 4000

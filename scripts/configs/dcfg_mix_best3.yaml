@@ -1,0 +1,18 @@
+extends: dcfg_base.yaml
+
+# Phase-0 S2 "best-3" mix (Qwen2.5 arm). The 3 top single domains from S1,
+# selected on d_avg (primary) + d_cavg (format-controlled cross-check), clean
+# runs only: casino (#1 d_avg & best d_cavg), empathetic (best combined rank),
+# dailydialog (high d_avg + highest gsm8k transfer). Per-source caps mirror
+# dcfg_mix_all so the mixture is balanced and comparable.
+pipeline:
+  output_name: "dcfg_mix_best3"
+
+datasets:
+  - source: "casino"
+    min_response_words: 1   # negotiation: short utterances (e.g. "Deal!")
+    sample_size: 3000
+  - source: "empathetic_dialogues"
+    sample_size: 4000
+  - source: "dailydialog"
+    sample_size: 4000
