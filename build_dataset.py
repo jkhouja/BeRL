@@ -412,10 +412,13 @@ def apply_turn_filter(parquet_path: str, filter_cfg: dict) -> None:
     selection can never silently invert on a differently-encoded column.
 
     Modes (config key ``turn_filter.mode``):
-      * ``off``      — no filtering (control / full mix).
-      * ``surprise`` — keep the ``keep_fraction`` of turns with the **highest
+      * ``off``         — no filtering (control / full mix).
+      * ``surprise``    — keep the ``keep_fraction`` of turns with the **highest
         surprisal** (least predictable / info-asymmetric / ToM-dependent).
-      * ``randlen``  — keep the same number of turns as ``surprise``, drawn at
+      * ``predictable`` — keep the ``keep_fraction`` of turns with the **lowest
+        surprisal** (most predictable / high ``answer_pp``) — the opposite pole
+        of ``surprise`` (does removing ToM-dependent turns hurt?).
+      * ``randlen``     — keep the same number of turns as ``surprise``, drawn at
         random but *length-matched* to the surprise set's response-length
         distribution (the quantity/length-controlled comparison for ``surprise``).
 
@@ -463,21 +466,25 @@ def apply_turn_filter(parquet_path: str, filter_cfg: dict) -> None:
 
     if mode == "surprise":
         keep_pos = surprise_pos
+    elif mode == "predictable":
+        # Least surprising = lowest surprisal (highest answer_pp) = end of `order`.
+        keep_pos = order[-n_keep:]
     elif mode == "randlen":
         keep_pos = _length_matched_random(df, lengths, surprise_pos, n_keep, seed)
     else:
-        raise ValueError(f"Unknown turn_filter.mode '{mode}' (off|surprise|randlen).")
+        raise ValueError(
+            f"Unknown turn_filter.mode '{mode}' (off|surprise|predictable|randlen)."
+        )
 
     kept = df.iloc[np.sort(keep_pos)].reset_index(drop=True)
     kept.to_parquet(parquet_path, index=False)
 
-    s_len = lengths[surprise_pos]
     k_len = _response_word_lengths(kept)
     print(
         f"\n  ✓ turn_filter '{mode}': kept {len(kept)}/{n} rows "
-        f"(keep_fraction={keep_fraction}); surprisal(-log_prob) surprise-set "
-        f"mean={surprisal[surprise_pos].mean():.3f} vs corpus {surprisal.mean():.3f}; "
-        f"resp-words mean surprise-set={s_len.mean():.1f} / kept={k_len.mean():.1f}"
+        f"(keep_fraction={keep_fraction}); surprisal(-log_prob) kept "
+        f"mean={surprisal[keep_pos].mean():.3f} vs corpus {surprisal.mean():.3f}; "
+        f"resp-words mean kept={k_len.mean():.1f} / corpus={lengths.mean():.1f}"
     )
 
 

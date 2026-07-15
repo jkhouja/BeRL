@@ -1,0 +1,13 @@
+extends: dcfg_mix_best_gemma.yaml
+
+# Phase-0 S3 PREDICTABLE filter (Gemma-2 arm, tag-free) — opposite pole of
+# dcfg_mix_best_surprise_gemma. Keeps the 50% of turns with the highest
+# answer_pp (lowest surprisal), scored by the shared Qwen2.5-3B perplexity
+# model. Tag-free variant of dcfg_mix_best_predictable.
+pipeline:
+  output_name: "dcfg_mix_best_predictable_gemma"
+
+turn_filter:
+  mode: "predictable"
+  keep_fraction: 0.5
+  seed: 42

@@ -1,0 +1,15 @@
+extends: dcfg_mix_best.yaml
+
+# Phase-0 S3 PREDICTABLE filter (Qwen2.5 arm) — the opposite pole of
+# dcfg_mix_best_surprise. Keeps the 50% of human turns the frozen scorer LM
+# finds MOST predictable (highest answer_pp = lowest surprisal). Tests whether
+# removing ToM-dependent / info-asymmetric turns (keeping only easy ones) hurts
+# transfer. Compare vs dcfg_mix_best_surprise (high-surprisal), dcfg_mix_best
+# (full corpus) and dcfg_mix_best_randlen (random length-matched control).
+pipeline:
+  output_name: "dcfg_mix_best_predictable"
+
+turn_filter:
+  mode: "predictable"
+  keep_fraction: 0.5
+  seed: 42

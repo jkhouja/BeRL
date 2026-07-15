@@ -119,19 +119,22 @@ Best-3 chosen on `d_avg` (primary) + `d_cavg` (cross-check), **clean runs only**
 ### S3 — turn filtering (surprise / off / random-length)  ✅ BUILT — READY TO RUN
 The surprise-filter datagen feature is now **implemented** (`build_dataset.py` `turn_filter` stage;
 commit pending). It scores each human turn by the frozen Qwen2.5-3B scorer's `answer_pp` (avg
-log-prob) and offers three modes:
+log-prob) and offers four modes:
 - **surprise** — keep the 50% least-predictable (lowest `answer_pp`) turns (ToM-dependent / info-asymmetric).
+- **predictable** — keep the 50% most-predictable (highest `answer_pp`) turns (opposite pole).
 - **randlen** — same count, random but length-matched to the surprise set (quantity/length control).
 - **off** — full winning mix (control).
 
 Configs (both arms, extend the S2 winner `dcfg_mix_best3{,_gemma}`):
-`dcfg_mix_best{,_surprise,_randlen}` (Qwen) + `_gemma` variants. Validated end-to-end on a 160-row
-real build: surprise lowers mean `answer_pp` (−7.6 vs −7.1 random) at equal response length.
+`dcfg_mix_best{,_surprise,_predictable,_randlen}` (Qwen) + `_gemma` variants. Validated end-to-end
+on a 160-row real build: surprise lowers mean `answer_pp` (−7.6 vs −7.1 random) at equal length;
+surprise/predictable sets are disjoint opposite poles.
 
-Rows **Not-started** for the pool: Qwen **E026** (surprise) / **E027** (off) / **E028** (randlen);
-Gemma **E103** / **E104** / **E105**. Recipes = locked Phase-0 (Qwen actor·k5·ll_min−6·kl0.05·lr5e-7;
+Rows **Not-started** for the pool (surprise/off already `Processing`): Qwen **E026** (surprise) /
+**E027** (off) / **E028** (randlen) / **E106** (predictable); Gemma **E103** / **E104** / **E105** /
+**E107**. Recipes = locked Phase-0 (Qwen actor·k5·ll_min−6·kl0.05·lr5e-7;
 Gemma frozen·k5·ll_min−4·kl0.05·lr5e-7). Directly probes the S1 "smalltalk-not-null" puzzle:
-does selecting ToM-dependent turns beat quantity / random?
+does selecting ToM-dependent turns beat quantity / random, and does keeping only predictable turns hurt?
 
 ### S6 — confirm chosen recipe on Gemma (top-2)  ⬜ PENDING
 Rows E029/E030 — Backlog; locks the A1 corpus once the winner is chosen.
