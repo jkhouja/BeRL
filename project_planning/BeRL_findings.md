@@ -5,7 +5,7 @@
 tracker `Results` column (`BeRL_experiments_tracker.md`). Companion to the plan (which holds design)
 and the tracker (which holds live status).
 
-**Last updated:** 2026-07-15 (Phase 0 mid-flight: S1 done both arms, S2 Qwen done / Gemma training).
+**Last updated:** 2026-07-15 (Phase 0: S1 ✅ both arms · S2 ✅ both arms — mix_best3 wins · S3 ⛔ build-blocked).
 
 **Reading the metrics.** Each run is scored vs **its own step-0 baseline** on the `subsample300`
 eval suite. Two ToM aggregates over the 24 ToM benchmarks: **HM** (harmonic mean, min-dominated) and
@@ -42,7 +42,7 @@ comparison. (Rows `PS001–PS182`; full re-assessment in `notebooks/BeRL_run_rea
 
 ---
 
-## Phase 0 — Training-data recipe search  ◀ IN PROGRESS (S1 ✅ · S2 partial · S3 pending)
+## Phase 0 — Training-data recipe search  ◀ IN PROGRESS (S1 ✅ · S2 ✅ mix_best3 wins · S3 ⛔ build-blocked)
 Fixes the corpus for A1/Q0/Q1. Search on Qwen2.5-3B (workhorse), confirm on Gemma-2. Both arms run
 the same recipes with their locked family config.
 
@@ -89,7 +89,7 @@ the same recipes with their locked family config.
 - **Reward-hacking is dataset-dependent, not just config-dependent:** identical Gemma config is
   stable on dailydialog/craigslist but KL-blows-up on casino at full-epoch length.
 
-### S2 — greedy mixes (best-3, all)  ◀ PARTIAL
+### S2 — greedy mixes (best-3, all)  ✅ COMPLETE (both arms, 686/686)
 
 Best-3 chosen on `d_avg` (primary) + `d_cavg` (cross-check), **clean runs only**:
 - **Qwen2.5:** casino + empathetic + dailydialog  (`dcfg_mix_best3`)
@@ -100,16 +100,31 @@ Best-3 chosen on `d_avg` (primary) + `d_cavg` (cross-check), **clean runs only**
 | Qwen mix_all | E025 | Completed | (results not yet logged to tracker) |
 | Qwen mix_best3 | E024 | ✅ Completed | **+5.3pp HM / +2.3pp avg** — MATCHES but does **not beat** casino single (E017). **No mixture synergy**; casino alone captures the gain. |
 | Gemma mix_all | E101 | Completed | **POSITIVE — ~doubles ToM HM** (+8.0pp HM / +9.7pp avg); no capability regression. Caveat: peaked ~step620 then declined; final KL 6.9 (high, no collapse). |
-| Gemma mix_best3 | E102 | ⏳ Training | pending |
+| Gemma mix_best3 | E102 | ✅ Completed (686/686) | **best3 WINS Gemma arm** — d_avg **+0.106** (> mix_all +0.099) and **STABLE (kl 0.117)** vs mix_all's KL-blowup **6.9**. d_cavg −0.035 (format-controlled ≈ null). |
 
-**S2 finding so far:** on **Qwen**, mixing gives **no synergy over the best single domain** (casino).
-Gemma `mix_all` is strongly positive but shows the same late-decline/KL-drift as its casino single.
-Awaiting E102 + the head-to-head (best3 vs all) to pick the composition.
+**Head-to-head reassessment (independent, `scripts/reassess_runs.py` on the 686/686 logs):**
 
-### S3 — turn filtering (surprise / off / random-length)  ⬜ PENDING
-Rows E026 (`filter_surprise`), E027 (`filter_off`), E028 (`filter_randlen`) — Backlog; built once S2
-picks the best mix. Will test whether ToM-dependence/surprise turn-selection beats quantity, and
-directly probes the smalltalk-is-not-null puzzle from S1.
+| Arm | mix | d_avg | d_cavg | d_cond_acc | kl_final | resp_len_min |
+|---|---|---|---|---|---|---|
+| Qwen | mix_all (E025) | 0.024 | 0.053 | 0.046 | 0.107 | 38.9 |
+| Qwen | **mix_best3 (E024)** | 0.023 | 0.046 | 0.046 | **0.055** | 45.8 |
+| Gemma | mix_all (E101) | 0.099 | 0.030 | −0.057 | **6.9 ⚠** | 47.6 |
+| Gemma | **mix_best3 (E102)** | **0.106** | −0.035 | −0.080 | **0.117** | 85.2 |
+
+**S2 decision — `mix_best3` is the winning mix for BOTH arms → `dcfg_mix_best := dcfg_mix_best3{,_gemma}`.**
+- **Qwen:** best3 ≈ mix_all on ToM gain (d_avg/d_cavg/cond_acc all within noise) but **cleaner** (kl 0.055 vs 0.107, longer responses) → **no mixture synergy**; best3 is the more principled, healthier pick.
+- **Gemma:** best3 is **strictly better** — higher d_avg AND stable, whereas `mix_all` KL-exploded to 6.9 (a reward-hack / late-collapse), so mix_all's headline HM gain is not trustworthy.
+- **Format caveat unchanged:** format-controlled gain (d_cavg) is ≈0 on Gemma and small-positive (+0.046) on Qwen — the honest ToM effect remains modest.
+
+### S3 — turn filtering (surprise / off / random-length)  ⛔ BLOCKED ON `[build]`
+Rows E026 (`filter_surprise`), E027 (`filter_off` = `dcfg_mix_best`), E028 (`filter_randlen`) — Backlog.
+**The surprise-filter data feature is NOT yet implemented** (no `surprise`/`baseline_ppl`/`turn_filter`
+knobs anywhere in `build_dataset.py`/`scripts/`). S3 needs a new data-gen stage: (1) score each
+candidate human turn by frozen-base-LM PPL / info-asymmetry, (2) select high-surprisal turns,
+(3) build a length-matched random control. This is a methodology-defining `[build]` item, not a
+config edit — **cannot be auto-advanced by the monitor**; needs implementation + validation.
+`filter_off` (E027) is launchable now (it is just `dcfg_mix_best` = the S2 winner), but is only
+meaningful as the control arm once surprise/randlen exist.
 
 ### S6 — confirm chosen recipe on Gemma (top-2)  ⬜ PENDING
 Rows E029/E030 — Backlog; locks the A1 corpus once the winner is chosen.
