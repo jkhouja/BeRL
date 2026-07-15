@@ -1,0 +1,13 @@
+extends: dcfg_mix_best_gemma.yaml
+
+# Phase-0 S3 RANDOM length-matched control (Gemma-2 arm, tag-free). Same number
+# of turns as dcfg_mix_best_surprise_gemma, drawn at random but length-matched
+# to the surprise set's response-length distribution. Tag-free variant of
+# dcfg_mix_best_randlen. Isolates surprise selection from quantity/length.
+pipeline:
+  output_name: "dcfg_mix_best_randlen_gemma"
+
+turn_filter:
+  mode: "randlen"
+  keep_fraction: 0.5
+  seed: 42

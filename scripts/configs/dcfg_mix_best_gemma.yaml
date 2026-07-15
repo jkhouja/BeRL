@@ -1,0 +1,13 @@
+extends: dcfg_mix_best3_gemma.yaml
+
+# Phase-0 S3 winning mix (Gemma-2 arm, tag-free) = the S2 winner
+# `dcfg_mix_best3_gemma` (craigslist + dailydialog + empathetic), re-emitted
+# under the canonical `dcfg_mix_best_gemma` name. filter_off control arm of the
+# S3 turn-filtering ablation. Datasets + params inherited from
+# dcfg_mix_best3_gemma (tag-free); surprisal scored by the shared Qwen2.5-3B
+# perplexity model (dcfg_base) for cross-arm comparability.
+pipeline:
+  output_name: "dcfg_mix_best_gemma"
+
+turn_filter:
+  mode: "off"

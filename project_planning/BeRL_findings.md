@@ -5,7 +5,7 @@
 tracker `Results` column (`BeRL_experiments_tracker.md`). Companion to the plan (which holds design)
 and the tracker (which holds live status).
 
-**Last updated:** 2026-07-15 (Phase 0: S1 ✅ both arms · S2 ✅ both arms — mix_best3 wins · S3 ⛔ build-blocked).
+**Last updated:** 2026-07-15 (Phase 0: S1 ✅ both arms · S2 ✅ both arms — mix_best3 wins · S3 ✅ built, ready to run).
 
 **Reading the metrics.** Each run is scored vs **its own step-0 baseline** on the `subsample300`
 eval suite. Two ToM aggregates over the 24 ToM benchmarks: **HM** (harmonic mean, min-dominated) and
@@ -42,7 +42,7 @@ comparison. (Rows `PS001–PS182`; full re-assessment in `notebooks/BeRL_run_rea
 
 ---
 
-## Phase 0 — Training-data recipe search  ◀ IN PROGRESS (S1 ✅ · S2 ✅ mix_best3 wins · S3 ⛔ build-blocked)
+## Phase 0 — Training-data recipe search  ◀ IN PROGRESS (S1 ✅ · S2 ✅ mix_best3 wins · S3 ✅ built/ready)
 Fixes the corpus for A1/Q0/Q1. Search on Qwen2.5-3B (workhorse), confirm on Gemma-2. Both arms run
 the same recipes with their locked family config.
 
@@ -116,15 +116,22 @@ Best-3 chosen on `d_avg` (primary) + `d_cavg` (cross-check), **clean runs only**
 - **Gemma:** best3 is **strictly better** — higher d_avg AND stable, whereas `mix_all` KL-exploded to 6.9 (a reward-hack / late-collapse), so mix_all's headline HM gain is not trustworthy.
 - **Format caveat unchanged:** format-controlled gain (d_cavg) is ≈0 on Gemma and small-positive (+0.046) on Qwen — the honest ToM effect remains modest.
 
-### S3 — turn filtering (surprise / off / random-length)  ⛔ BLOCKED ON `[build]`
-Rows E026 (`filter_surprise`), E027 (`filter_off` = `dcfg_mix_best`), E028 (`filter_randlen`) — Backlog.
-**The surprise-filter data feature is NOT yet implemented** (no `surprise`/`baseline_ppl`/`turn_filter`
-knobs anywhere in `build_dataset.py`/`scripts/`). S3 needs a new data-gen stage: (1) score each
-candidate human turn by frozen-base-LM PPL / info-asymmetry, (2) select high-surprisal turns,
-(3) build a length-matched random control. This is a methodology-defining `[build]` item, not a
-config edit — **cannot be auto-advanced by the monitor**; needs implementation + validation.
-`filter_off` (E027) is launchable now (it is just `dcfg_mix_best` = the S2 winner), but is only
-meaningful as the control arm once surprise/randlen exist.
+### S3 — turn filtering (surprise / off / random-length)  ✅ BUILT — READY TO RUN
+The surprise-filter datagen feature is now **implemented** (`build_dataset.py` `turn_filter` stage;
+commit pending). It scores each human turn by the frozen Qwen2.5-3B scorer's `answer_pp` (avg
+log-prob) and offers three modes:
+- **surprise** — keep the 50% least-predictable (lowest `answer_pp`) turns (ToM-dependent / info-asymmetric).
+- **randlen** — same count, random but length-matched to the surprise set (quantity/length control).
+- **off** — full winning mix (control).
+
+Configs (both arms, extend the S2 winner `dcfg_mix_best3{,_gemma}`):
+`dcfg_mix_best{,_surprise,_randlen}` (Qwen) + `_gemma` variants. Validated end-to-end on a 160-row
+real build: surprise lowers mean `answer_pp` (−7.6 vs −7.1 random) at equal response length.
+
+Rows **Not-started** for the pool: Qwen **E026** (surprise) / **E027** (off) / **E028** (randlen);
+Gemma **E103** / **E104** / **E105**. Recipes = locked Phase-0 (Qwen actor·k5·ll_min−6·kl0.05·lr5e-7;
+Gemma frozen·k5·ll_min−4·kl0.05·lr5e-7). Directly probes the S1 "smalltalk-not-null" puzzle:
+does selecting ToM-dependent turns beat quantity / random?
 
 ### S6 — confirm chosen recipe on Gemma (top-2)  ⬜ PENDING
 Rows E029/E030 — Backlog; locks the A1 corpus once the winner is chosen.

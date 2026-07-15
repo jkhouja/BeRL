@@ -1,0 +1,14 @@
+extends: dcfg_mix_best.yaml
+
+# Phase-0 S3 RANDOM length-matched control (Qwen2.5 arm). Keeps the same number
+# of turns as dcfg_mix_best_surprise, drawn at random but matched to the
+# surprise set's response-length distribution — isolates the effect of surprise
+# selection from mere quantity/length. Compare against dcfg_mix_best_surprise
+# (same size, selected by surprisal) and dcfg_mix_best (full corpus).
+pipeline:
+  output_name: "dcfg_mix_best_randlen"
+
+turn_filter:
+  mode: "randlen"
+  keep_fraction: 0.5
+  seed: 42

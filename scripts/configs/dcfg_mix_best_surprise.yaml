@@ -1,0 +1,15 @@
+extends: dcfg_mix_best.yaml
+
+# Phase-0 S3 SURPRISE filter (Qwen2.5 arm). Keeps the 50% of human turns the
+# frozen scorer LM finds least predictable (lowest answer_pp = avg log-prob =
+# highest perplexity = most surprising / info-asymmetric / ToM-dependent).
+# Tests whether turn *quality* (ToM-dependence) beats quantity. Compare against
+# dcfg_mix_best (filter_off, full corpus) and dcfg_mix_best_randlen (same size,
+# length-matched random control).
+pipeline:
+  output_name: "dcfg_mix_best_surprise"
+
+turn_filter:
+  mode: "surprise"
+  keep_fraction: 0.5
+  seed: 42

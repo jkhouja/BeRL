@@ -1,0 +1,12 @@
+extends: dcfg_mix_best3.yaml
+
+# Phase-0 S3 winning mix (Qwen2.5 arm) = the S2 winner `dcfg_mix_best3`
+# (casino + empathetic + dailydialog), re-emitted under the canonical
+# `dcfg_mix_best` name. This is the **filter_off** control arm of the S3
+# turn-filtering ablation (full corpus, no surprise selection).
+# Datasets + all params are inherited from dcfg_mix_best3.
+pipeline:
+  output_name: "dcfg_mix_best"
+
+turn_filter:
+  mode: "off"

@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import numpy as np
 import pandas as pd
 import yaml
 
@@ -338,6 +339,120 @@ def compute_perplexity(parquet_path: str, model_name: str, batch_size: int) -> N
 
 
 # ---------------------------------------------------------------------------
+# Turn filtering (surprise sampling + length-matched random control)
+# ---------------------------------------------------------------------------
+
+def _response_word_lengths(df: pd.DataFrame) -> np.ndarray:
+    """Per-row response length in words (from the reward_model ground truth)."""
+    gts = [
+        r["ground_truth"] if isinstance(r, dict) else r
+        for r in df["reward_model"].tolist()
+    ]
+    return np.array([len(str(g).split()) for g in gts], dtype=int)
+
+
+def _length_matched_random(
+    df: pd.DataFrame,
+    lengths: np.ndarray,
+    surprise_pos: np.ndarray,
+    n_keep: int,
+    seed: int,
+    n_bins: int = 10,
+) -> np.ndarray:
+    """Randomly pick ``n_keep`` rows whose response-length distribution matches
+    that of the surprise-selected set (``surprise_pos``), selected *without*
+    regard to surprisal — the length-matched random control for the S3 ablation.
+
+    Strategy: bin the full corpus by response-length quantiles, count how many
+    surprise-selected rows fall in each bin, then randomly draw that many rows
+    from the *full* pool within the same bin. If a bin lacks enough rows, take
+    what is available and top up the shortfall with a random draw from the rest,
+    so the control always has the same total size as the surprise set.
+    """
+    rng = np.random.default_rng(seed)
+    edges = np.unique(np.quantile(lengths, np.linspace(0.0, 1.0, n_bins + 1)))
+    # digitize into bins 0..len(edges)-2 (interior edges only)
+    bin_idx = np.digitize(lengths, edges[1:-1])
+    surprise_bin_counts = np.bincount(bin_idx[surprise_pos], minlength=len(edges) - 1)
+
+    all_pos = np.arange(len(df))
+    chosen: List[int] = []
+    for b, cnt in enumerate(surprise_bin_counts):
+        if cnt == 0:
+            continue
+        pool = all_pos[bin_idx == b]
+        take = int(min(cnt, len(pool)))
+        if take > 0:
+            chosen.extend(rng.choice(pool, size=take, replace=False).tolist())
+
+    chosen_arr = np.array(chosen, dtype=int)
+    if len(chosen_arr) < n_keep:
+        remaining = np.setdiff1d(all_pos, chosen_arr)
+        need = min(n_keep - len(chosen_arr), len(remaining))
+        if need > 0:
+            extra = rng.choice(remaining, size=need, replace=False)
+            chosen_arr = np.concatenate([chosen_arr, extra])
+    return chosen_arr
+
+
+def apply_turn_filter(parquet_path: str, filter_cfg: dict) -> None:
+    """Filter the merged corpus by *ToM-dependence / surprise* of each human turn.
+
+    Modes (config key ``turn_filter.mode``):
+      * ``off``      — no filtering (control / full mix).
+      * ``surprise`` — keep the ``keep_fraction`` of turns the frozen scorer LM
+        finds *least* predictable (lowest ``answer_pp`` = avg log-prob; low
+        log-prob = high perplexity = surprising / info-asymmetric / ToM-dependent).
+      * ``randlen``  — keep the same number of turns as ``surprise``, drawn at
+        random but *length-matched* to the surprise set's response-length
+        distribution (the quantity/length-controlled comparison for ``surprise``).
+
+    ``answer_pp`` must already exist on the parquet (enable ``perplexity``).
+    """
+    mode = str(filter_cfg.get("mode", "off")).lower()
+    if mode == "off":
+        return
+
+    keep_fraction = float(filter_cfg.get("keep_fraction", 0.5))
+    seed = int(filter_cfg.get("seed", 42))
+    df = pd.read_parquet(parquet_path)
+
+    if "answer_pp" not in df.columns:
+        raise ValueError(
+            "turn_filter requires the 'answer_pp' column. Enable perplexity "
+            "computation (perplexity.enabled: true) so surprisal can be scored."
+        )
+    if not (0.0 < keep_fraction <= 1.0):
+        raise ValueError(f"turn_filter.keep_fraction must be in (0,1], got {keep_fraction}")
+
+    n = len(df)
+    n_keep = max(1, round(n * keep_fraction))
+    lengths = _response_word_lengths(df)
+
+    # Surprise set = lowest answer_pp (avg log-prob) first = least predictable.
+    order = np.argsort(df["answer_pp"].to_numpy(), kind="stable")
+    surprise_pos = order[:n_keep]
+
+    if mode == "surprise":
+        keep_pos = surprise_pos
+    elif mode == "randlen":
+        keep_pos = _length_matched_random(df, lengths, surprise_pos, n_keep, seed)
+    else:
+        raise ValueError(f"Unknown turn_filter.mode '{mode}' (off|surprise|randlen).")
+
+    kept = df.iloc[np.sort(keep_pos)].reset_index(drop=True)
+    kept.to_parquet(parquet_path, index=False)
+
+    s_len = lengths[surprise_pos]
+    k_len = _response_word_lengths(kept)
+    print(
+        f"\n  ✓ turn_filter '{mode}': kept {len(kept)}/{n} rows "
+        f"(keep_fraction={keep_fraction}); "
+        f"resp-words mean surprise-set={s_len.mean():.1f} / kept={k_len.mean():.1f}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Main pipeline
 # ---------------------------------------------------------------------------
 
@@ -354,6 +469,7 @@ def main():
     cfg = load_config(args.config)
     pipeline_cfg = cfg.get("pipeline", {})
     perplexity_cfg = cfg.get("perplexity", {})
+    turn_filter_cfg = cfg.get("turn_filter", {})
     dataset_defaults = cfg.get("dataset_defaults", {})
     datasets_cfg: List[dict] = cfg.get("datasets", [])
 
@@ -438,6 +554,12 @@ def main():
                     f"(perplexity.enabled: true) or pre-compute answer_pp "
                     f"before training."
                 )
+
+    # ------------------------------------------------------------------
+    # Step 5b – Turn filtering (surprise / length-matched random / off)
+    # ------------------------------------------------------------------
+    if str(turn_filter_cfg.get("mode", "off")).lower() != "off":
+        apply_turn_filter(output_path, turn_filter_cfg)
 
     # ------------------------------------------------------------------
     # Step 6 – Summary

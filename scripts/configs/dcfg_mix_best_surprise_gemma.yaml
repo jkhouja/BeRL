@@ -1,0 +1,14 @@
+extends: dcfg_mix_best_gemma.yaml
+
+# Phase-0 S3 SURPRISE filter (Gemma-2 arm, tag-free). Keeps the 50% of human
+# turns with the lowest answer_pp (most surprising / ToM-dependent), scored by
+# the shared Qwen2.5-3B perplexity model. Tag-free variant of
+# dcfg_mix_best_surprise. Compare vs dcfg_mix_best_gemma (filter_off) and
+# dcfg_mix_best_randlen_gemma (length-matched random control).
+pipeline:
+  output_name: "dcfg_mix_best_surprise_gemma"
+
+turn_filter:
+  mode: "surprise"
+  keep_fraction: 0.5
+  seed: 42
