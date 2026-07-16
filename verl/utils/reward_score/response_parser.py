@@ -137,6 +137,23 @@ class ModelResponseParser:
         answer = parts[1] if len(parts) > 1 else ""
         return thinking, answer
 
+    def is_invalid_response(self, response: str) -> bool:
+        """Model-aware HARD-invalid check for a model's own rollout.
+
+        Tagged recipes (``REQUIRE_ANSWER_TAGS`` — Qwen2.5) require a literal closing
+        ``</think>``: the model is explicitly instructed to emit it and reliably does,
+        so its absence is a genuine malformation. Tag-free / native-thinking recipes
+        (Gemma-2, Qwen3) end their reasoning in prose and essentially never emit
+        ``</think>``; there, any NON-EMPTY response is valid — ``split_thinking`` supplies
+        the missing ``</think>`` and the whole response becomes CoT context. Hard-
+        invalidating those floored every reward at the invalid sentinel (min=max=mean →
+        zero GRPO advantage → no learning); genuine malformation is handled by the
+        graded ``has_format_violation`` penalty instead.
+        """
+        if self.REQUIRE_ANSWER_TAGS:
+            return self.THINK_CLOSE not in response
+        return len(response.strip()) == 0
+
     def has_format_violation(self, response: str) -> bool:
         """True if the model's OWN response is malformed.
 
@@ -146,7 +163,23 @@ class ModelResponseParser:
         the eval depends on. For REQUIRE_ANSWER_TAGS parsers a proper non-empty
         <answer>...</answer> is required; otherwise any non-empty content after
         </think> (with stray answer tags stripped) is accepted.
+
+        Tag-free / native-thinking parsers (REQUIRE_ANSWER_TAGS=False) do NOT demand a
+        closing </think> (the model legitimately reasons in prose without it), so a
+        missing </think> is not a violation; only an empty response, a duplicated
+        <think>/</think>, or a present-but-empty answer after </think> counts.
         """
+        if not self.REQUIRE_ANSWER_TAGS:
+            if len(response.strip()) == 0:
+                return True
+            if response.count(self.THINK_OPEN) > 1 or response.count(self.THINK_CLOSE) > 1:
+                return True
+            if self.THINK_CLOSE in response:
+                _, answer_part = self.split_thinking(response)
+                ans = self.strip_special_tokens(answer_part)
+                ans_clean = re.sub(r'</?answer>', '', ans).strip()
+                return len(ans_clean) == 0
+            return False
         if response.count(self.THINK_OPEN) != 1 or response.count(self.THINK_CLOSE) != 1:
             return True
         _, answer_part = self.split_thinking(response)
@@ -236,7 +269,17 @@ _PARSERS = {
 }
 
 
-def get_parser(model_type: str) -> ModelResponseParser:
-    """Factory function to get the right parser for a model type."""
+def get_parser(model_type: str,
+               require_answer_tags: Optional[bool] = None) -> ModelResponseParser:
+    """Factory function to get the right parser for a model type.
+
+    ``require_answer_tags`` optionally overrides the parser class default
+    (e.g. running Qwen2.5 on a tag-free / native-thinking recipe where the actor
+    emits no closing ``</think>``). When ``None`` (default) the class default is
+    kept, so existing runs are unaffected — this is backward compatible.
+    """
     parser_cls = _PARSERS.get(model_type, QwenResponseParser)
-    return parser_cls(model_type)
+    parser = parser_cls(model_type)
+    if require_answer_tags is not None:
+        parser.REQUIRE_ANSWER_TAGS = require_answer_tags
+    return parser

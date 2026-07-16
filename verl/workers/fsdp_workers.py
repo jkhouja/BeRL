@@ -447,7 +447,8 @@ class ActorRolloutRefWorker(Worker):
             self.flops_counter = FlopsCounter(self.actor_model_config)
             # Initialize response parser from model config
             from verl.utils.reward_score.response_parser import get_parser
-            self._parser = get_parser(self.actor_model_config.model_type)
+            self._parser = get_parser(self.actor_model_config.model_type,
+                                      require_answer_tags=self.require_answer_tags)
 
         torch.cuda.empty_cache()
 
@@ -702,10 +703,14 @@ class ActorRolloutRefWorker(Worker):
             valid_response_ids = response_ids[:valid_response_length]
             response = tokenizer.decode(valid_response_ids)
 
-            # Check for valid format
-            invalid_response = torch.tensor([False])
-            if self._parser.THINK_CLOSE not in response:
-                invalid_response = torch.tensor([True])
+            # Model-aware hard-invalid check (is_invalid_response): tagged recipes
+            # (Qwen2.5, REQUIRE_ANSWER_TAGS) require a literal </think>; tag-free /
+            # native-thinking recipes (Gemma-2, Qwen3) accept any non-empty response
+            # (split_thinking supplies the missing </think> so the whole response
+            # becomes CoT context). Hard-invalidating tag-free rollouts on a missing
+            # </think> floored every reward at the invalid sentinel (zero GRPO
+            # advantage); the graded format_penalty handles genuine malformation.
+            invalid_response = torch.tensor([self._parser.is_invalid_response(response)])
 
             # Fix 2: format-structure violation on the model's OWN response
             format_violation = torch.tensor([self._parser.has_format_violation(response)])
@@ -1150,6 +1155,11 @@ class RewardModelWorker(Worker):
         # is malformed (missing/duplicate <think>/</think> or empty/malformed answer).
         # 0.0 = disabled (default). Anchors the <think>/answer structure the eval needs.
         self.format_penalty = self.config.get("format_penalty", 0.0)
+        # Whether the recipe requires explicit <think></think>/<answer> tags. Tagged
+        # recipes (Qwen2.5) reliably emit </think> so a missing close tag is a hard
+        # invalid; tag-free / native-thinking recipes (Gemma-2, Qwen3) do NOT, so we
+        # must not hard-invalidate them — the graded format_penalty handles it instead.
+        self.require_answer_tags = self.config.get("require_answer_tags", True)
 
         # build device mesh for Ulysses Sequence Parallel
         world_size = torch.distributed.get_world_size()
@@ -1190,7 +1200,8 @@ class RewardModelWorker(Worker):
 
         # Initialize response parser from model config
         from verl.utils.reward_score.response_parser import get_parser
-        self._parser = get_parser(model_config.model_type)
+        self._parser = get_parser(model_config.model_type,
+                                  require_answer_tags=self.require_answer_tags)
 
         use_remove_padding = config.model.get('use_remove_padding', False)
         if use_remove_padding:
@@ -1368,10 +1379,14 @@ class RewardModelWorker(Worker):
             # decode
             response = src_tokenizer.decode(valid_response_ids)
 
-            # Extract thinking part
-            invalid_response = torch.tensor([False])
-            if self._parser.THINK_CLOSE not in response:
-                invalid_response = torch.tensor([True])
+            # Model-aware hard-invalid check (is_invalid_response): tagged recipes
+            # (Qwen2.5, REQUIRE_ANSWER_TAGS) require a literal </think>; tag-free /
+            # native-thinking recipes (Gemma-2, Qwen3) accept any non-empty response
+            # (split_thinking supplies the missing </think> so the whole response
+            # becomes CoT context). Hard-invalidating tag-free rollouts on a missing
+            # </think> floored every reward at the invalid sentinel (zero GRPO
+            # advantage); the graded format_penalty handles genuine malformation.
+            invalid_response = torch.tensor([self._parser.is_invalid_response(response)])
 
             # Fix 2: format-structure violation on the model's OWN response
             format_violation = torch.tensor([self._parser.has_format_violation(response)])
