@@ -78,7 +78,12 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **How to rerun:** `EXP_ID=data-recipe-P0g_filter_randlen DATA_NAME=dcfg_mix_best_randlen_gemma MODEL_PATH=google/gemma-2-2b-it DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_mix_best_randlen_gemma.parquet RUN_INDEX=1 bash experiments/train_behavior_gemma.sh`
 
-**Findings:** _(fill on completion via log-results skill)_
+**Findings:** BLOCKED / HALTED — shared-code bug, NOT a valid result (r1, WandB rb4pp8rr, killed at ~step 53/171).
+- **Symptom:** ALL rewards = -45.000 (invalid sentinel = valid_floor 0 - format_penalty 5 - INVALID_MARGIN 40), constant max=min=mean from step 1; critic/advantages == 0 (std 0) => ZERO gradient, no learning. format_error_ratio=0.000, resp_len ~165, entropy ~1.36 (responses generate fine; the RM universally rejects them).
+- **Root cause (same as E103 surprise + E104 filter_off, diagnosed by other agents):** the **frozen-RM Gemma path floors at the invalid sentinel for EVERY rollout on the NEW S3-pipeline parquets (populated answer_pp)**. The frozen-RM path reads `data.batch['answer_pp']` raw (`fsdp_workers.py:1264,1468`) / scores an empty ground_truth region (response_token_count==0 -> NaN -> invalid, `fsdp_workers.py:837`), whereas the actor-RM path None-guards it (`fsdp_workers.py:774`). Old parquets (mix_best3) + frozen RM work; new parquet + actor-RM (Qwen E026) works; **new parquet + frozen RM (Gemma filter arm) is broken.**
+- **Scope:** blocks the whole filtered/new-pipeline **frozen-RM Gemma** arm: E103 (surprise), E104 (filter_off), **E105 (randlen)**, and by extension E107 (predictable). E102 unfiltered (old parquet) passed +0.162. **Not a data-quality issue with randlen specifically** — the RM rejects all new-pipeline frozen-RM rollouts regardless of filter mode.
+- **Action:** killed the run, GPUs freed (1 MiB). Data build itself is fine (5500 rows, answer_pp non-null). Set tracker E105 -> **Awaiting-input** (mirrors E103/E104): needs a **shared-code fix decision from the user** (add the same None-guard / empty-region guard to the frozen-RM path). Rerun one-liner unchanged once the code is fixed.
+- **Verdict:** INVALID/NO-OP under current shared code; do not score or interpret as a control result.
 
 ### Attempt r1 — 2026-07-16T02:56:06+00:00
 
@@ -160,5 +165,10 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **How to rerun:** `EXP_ID=data-recipe-P0g_filter_randlen DATA_NAME=dcfg_mix_best_randlen_gemma MODEL_PATH=google/gemma-2-2b-it DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_mix_best_randlen_gemma.parquet RUN_INDEX=1 bash experiments/train_behavior_gemma.sh`
 
-**Findings:** _(fill on completion via log-results skill)_
+**Findings:** BLOCKED / HALTED — shared-code bug, NOT a valid result (r1, WandB rb4pp8rr, killed at ~step 53/171).
+- **Symptom:** ALL rewards = -45.000 (invalid sentinel = valid_floor 0 - format_penalty 5 - INVALID_MARGIN 40), constant max=min=mean from step 1; critic/advantages == 0 (std 0) => ZERO gradient, no learning. format_error_ratio=0.000, resp_len ~165, entropy ~1.36 (responses generate fine; the RM universally rejects them).
+- **Root cause (same as E103 surprise + E104 filter_off, diagnosed by other agents):** the **frozen-RM Gemma path floors at the invalid sentinel for EVERY rollout on the NEW S3-pipeline parquets (populated answer_pp)**. The frozen-RM path reads `data.batch['answer_pp']` raw (`fsdp_workers.py:1264,1468`) / scores an empty ground_truth region (response_token_count==0 -> NaN -> invalid, `fsdp_workers.py:837`), whereas the actor-RM path None-guards it (`fsdp_workers.py:774`). Old parquets (mix_best3) + frozen RM work; new parquet + actor-RM (Qwen E026) works; **new parquet + frozen RM (Gemma filter arm) is broken.**
+- **Scope:** blocks the whole filtered/new-pipeline **frozen-RM Gemma** arm: E103 (surprise), E104 (filter_off), **E105 (randlen)**, and by extension E107 (predictable). E102 unfiltered (old parquet) passed +0.162. **Not a data-quality issue with randlen specifically** — the RM rejects all new-pipeline frozen-RM rollouts regardless of filter mode.
+- **Action:** killed the run, GPUs freed (1 MiB). Data build itself is fine (5500 rows, answer_pp non-null). Set tracker E105 -> **Awaiting-input** (mirrors E103/E104): needs a **shared-code fix decision from the user** (add the same None-guard / empty-region guard to the frozen-RM path). Rerun one-liner unchanged once the code is fixed.
+- **Verdict:** INVALID/NO-OP under current shared code; do not score or interpret as a control result.
 
