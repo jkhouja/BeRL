@@ -184,6 +184,13 @@ berl::run() {
   LR="${LR:-5e-7}"
   MAX_PROMPT="${MAX_PROMPT:-2048}"
   TOTAL_EPOCHS="${TOTAL_EPOCHS:-1}"
+  # Guard: single-epoch is the enforced project-wide policy (cross-run comparability). A run
+  # that trains >1 epoch is invalid for comparison. Abort unless explicitly overridden with a
+  # user-approved ALLOW_MULTI_EPOCH=1 (which must be noted in the tracker row + repro-md).
+  if [ "$TOTAL_EPOCHS" != "1" ] && [ "${ALLOW_MULTI_EPOCH:-0}" != "1" ]; then
+    echo "ERROR: TOTAL_EPOCHS=$TOTAL_EPOCHS but policy is 1 epoch. Set ALLOW_MULTI_EPOCH=1 (user-approved) to override." >&2
+    exit 1
+  fi
   SAVE_FREQ="${SAVE_FREQ:-50}"
   TEST_FREQ="${TEST_FREQ:-30}"
   PROJECT_NAME="${PROJECT_NAME:-TOM_EXP}"

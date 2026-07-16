@@ -65,6 +65,15 @@ write.
    second allocation to parallelize; parallelism across the queue comes from *other* agents each
    holding their own single node, not from one agent grabbing multiple nodes.
 
+6. **Never override `TOTAL_EPOCHS` — every run is 1 epoch.** The launcher default is
+   `TOTAL_EPOCHS=1` (`experiments/lib/common.sh:186`); it is the enforced project-wide policy for
+   cross-run comparability, **not** a suggestion. Do **not** export or pass `TOTAL_EPOCHS` (do not
+   copy a pre-2026-07-15 command template that carried `TOTAL_EPOCHS=2`). After launch, **verify**
+   the run is single-epoch: the launcher aborts unless `TOTAL_EPOCHS=1` (override only with an
+   explicit `ALLOW_MULTI_EPOCH=1`, which must be user-approved and noted in the row + repro-md), and
+   the run log / repro-md must read `'total_epochs': 1` / `epochs=1`. A run that trained 2 epochs is
+   **invalid for comparison** — mark its row `Not-started` (note why) so it is relaunched at 1 epoch.
+
 ## Per-run log file (mandatory)
 
 Every experiment gets its own markdown file at **`experiments_logs/<RUN_NAME_BASE>.md`**, where
@@ -122,3 +131,5 @@ the run from it alone.
 - Never ask the user without first flipping your row to `Awaiting-input`.
 - Never regenerate/rename shared `dcfg_*` data or edit shared `verl/` code that live runs depend on.
 - Never set `WANDB_MODE=offline` or drop the wandb logger (WandB online is mandatory).
+- Never override `TOTAL_EPOCHS` or run more than 1 epoch (default `1`, `common.sh:186`) without an
+  explicit user-approved `ALLOW_MULTI_EPOCH=1`; verify `'total_epochs': 1` in the log after launch.
