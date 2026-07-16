@@ -145,7 +145,13 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **How to rerun:** `EXP_ID=data-recipe-P0_mix_best3 DATA_NAME=dcfg_mix_best3 MODEL_PATH=Qwen/Qwen2.5-3B-Instruct DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_mix_best3.parquet RUN_INDEX=1 bash experiments/train_behavior_qwen2.5.sh`
 
-**Findings:** _(fill on completion via log-results skill)_
+**Findings:** POSITIVE + STABLE (r1, WandB 33l79vjl, 343/343 steps, eval iters 70).
+- **ToM HM(last5)=0.4609 HM(last3)=0.4608** (baseline step0=0.4148) => **+4.61pp**.
+- **ToM avg/AM(last5)=0.5191 avg(last3)=0.52** (baseline step0=0.5036) => **+1.55pp**.
+- gsm8k=0.7128 (step0=0.653, **d+6.0pp**); mmlu=0.6302 (step0=0.48, **d+15.0pp**).
+- health(final): kl=0.059 entropy=1.231 resp_len=97.5 reward=38.97 parseable=1.0 max_resp=512 -- no collapse, no length inflation.
+- **Stability:** HM rises 0.415->~0.47 by step20 and holds flat 0.46-0.48 across the whole run; last-5 eval iters (325:0.458 330:0.462 335:0.458 340:0.46 343:0.463) all normal, resp_len ~97 (not inflated). **NOT contaminated** -- no late divergence. KL steady 0.05-0.09.
+- **Verdict:** best-3 mix (casino+empathetic+dailydialog, 11000 rows) transfers to held-out ToM (+4.61pp HM) with clean stability and general-capability gains (gsm8k/mmlu both up). Slightly below the 10-domain E025 mix_all (HM +5.45pp, AM +2.32pp, 26128 rows) on both ToM metrics => for Qwen2.5 the broader 10-domain mix edges the curated best-3 subset; mix_all remains the stronger dcfg_default candidate. Both POSITIVE+STABLE.
 
 ### Attempt r1 — 2026-07-15T23:16:57+00:00
 
@@ -226,5 +232,11 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **How to rerun:** `EXP_ID=data-recipe-P0_mix_best3 DATA_NAME=dcfg_mix_best3 MODEL_PATH=Qwen/Qwen2.5-3B-Instruct DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_mix_best3.parquet RUN_INDEX=1 bash experiments/train_behavior_qwen2.5.sh`
 
-**Findings:** _(fill on completion via log-results skill)_
+**Findings:** POSITIVE + STABLE (r1, WandB 33l79vjl, 343/343 steps, eval iters 70).
+- **ToM HM(last5)=0.4609 HM(last3)=0.4608** (baseline step0=0.4148) => **+4.61pp**.
+- **ToM avg/AM(last5)=0.5191 avg(last3)=0.52** (baseline step0=0.5036) => **+1.55pp**.
+- gsm8k=0.7128 (step0=0.653, **d+6.0pp**); mmlu=0.6302 (step0=0.48, **d+15.0pp**).
+- health(final): kl=0.059 entropy=1.231 resp_len=97.5 reward=38.97 parseable=1.0 max_resp=512 -- no collapse, no length inflation.
+- **Stability:** HM rises 0.415->~0.47 by step20 and holds flat 0.46-0.48 across the whole run; last-5 eval iters (325:0.458 330:0.462 335:0.458 340:0.46 343:0.463) all normal, resp_len ~97 (not inflated). **NOT contaminated** -- no late divergence. KL steady 0.05-0.09.
+- **Verdict:** best-3 mix (casino+empathetic+dailydialog, 11000 rows) transfers to held-out ToM (+4.61pp HM) with clean stability and general-capability gains (gsm8k/mmlu both up). Slightly below the 10-domain E025 mix_all (HM +5.45pp, AM +2.32pp, 26128 rows) on both ToM metrics => for Qwen2.5 the broader 10-domain mix edges the curated best-3 subset; mix_all remains the stronger dcfg_default candidate. Both POSITIVE+STABLE.
 
