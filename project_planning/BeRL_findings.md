@@ -111,46 +111,68 @@ filtering) → S6 (Gemma confirm).
 **RQ.** Which single dialogue domain transfers best to ToM (label-free), and does *any* domain
 transfer at all?
 
-**Runs.** 8 domains × 2 families = 16 rows. Qwen2.5 E016–E023; Gemma-2 E093–E100. All Completed
-(thoughttrace Qwen E023 excluded — degenerate, below reward floor).
+**Runs.** 8 domains × 2 families = 16 rows. Qwen2.5 E016–E023; Gemma-2 E093–E100. All Completed.
+**All 16 now scored** — the 3 previously "off-node" rows (Qwen craigslist, Gemma cga/p4g) were recovered
+2026-07-17: their logs exist but use an `E###-` filename the reassess resolver skipped; scored directly
+via `--logs`. (A concurrent-write cache-corruption bug that had blanked Qwen craigslist was also fixed —
+`load_cached` now writes atomically.)
 
-**Findings.** Standard table (Qwen2.5 base HM 0.416 / avg 0.503; Gemma-2 base avg ~0.315):
+**Findings.** Standard table (Qwen2.5 base HM 0.416 / avg 0.503; Gemma-2 base avg ~0.315).
+**Ranked by `d_cavg` (honest), not raw `d_avg`:**
 
 *Qwen2.5 (E016–E023):*
 | Exp | Domain | d_hm | d_avg | d_cavg | d_cvpk | d_cnd | kl_f | rl_min | Verdict |
 |---|---|--:|--:|--:|--:|--:|--:|--:|---|
-| E017 | casino | +0.055 | +0.026 | **+0.071** | +0.093 | +0.073 | 0.11 | 26.6 | best honest single but rl<30 (non-clean) |
-| E016 | empathetic | +0.053 | +0.024 | −0.014 | +0.094 | −0.015 | 0.04 | 64.0 | clean; raw+ honest flat |
-| E021 | p4g | +0.052 | +0.025 | −0.084 | 0.000 | −0.083 | 0.08 | 30.9 | raw+ honest− (format) |
-| E022 | dailydialog | +0.051 | +0.024 | −0.061 | +0.046 | −0.068 | 0.03 | 37.2 | smalltalk NOT null; honest− |
-| E018 | craigslist | — (log off-node; Results HM +4.9pp) | | | | | | | rock-stable, no collapse |
-| E019 | cga | +0.048 | +0.018 | −0.075 | 0.000 | −0.075 | 0.05 | 88.8 | +Qwen / −Gemma |
-| E020 | diplomacy | +0.039 | +0.011 | 0.000 | 0.000 | −0.045 | 0.10 | 42.7 | underpowered (3 iters) |
+| E017 | casino | +0.055 | +0.026 | **+0.071** | +0.093 | +0.073 | 0.11 | 26.6 | best honest but rl<30 (non-clean) |
 | E023 | thoughttrace | −0.004 | −0.007 | +0.036 | +0.057 | +0.031 | 1.28 | 9.7 | degenerate (kl>1, rl 10) — excluded |
+| E020 | diplomacy | +0.039 | +0.011 | 0.000 | 0.000 | −0.045 | 0.10 | 42.7 | clean but underpowered (3 iters) |
+| E019 | cga | +0.050 | +0.020 | −0.004 | +0.012 | −0.008 | 0.05 | 79.8 | clean; honest flat |
+| E016 | empathetic | +0.053 | +0.024 | −0.014 | +0.094 | −0.015 | 0.04 | 64.0 | clean; honest flat |
+| E018 | craigslist | +0.048 | +0.020 | −0.026 | +0.076 | −0.027 | 0.10 | 23.0 | recovered; honest− (rl<30) |
+| E022 | dailydialog | +0.051 | +0.024 | −0.061 | +0.046 | −0.068 | 0.03 | 37.2 | smalltalk NOT null; honest− |
+| E021 | p4g | +0.052 | +0.025 | −0.084 | 0.000 | −0.083 | 0.08 | 30.9 | raw+ honest− (format) |
 
-*Gemma-2 (E093–E100), use `d_avg`:*
+*Gemma-2 (E093–E100), use `d_avg` for raw:*
 | Exp | Domain | d_hm | d_avg | d_cavg | d_cvpk | d_cnd | kl_f | rl_min | Verdict |
 |---|---|--:|--:|--:|--:|--:|--:|--:|---|
-| E094 | casino | +0.195 | +0.119 | −0.105 | 0.000 | −0.111 | **9.65** | 66.8 | ❌ HACK (KL blowup) → excluded from best3 |
-| E098 | p4g | — (log off-node; Results avg +12.8pp) | | | | | | | best Gemma single (clean) per tracker |
-| E093 | empathetic | −0.004 | +0.054 | +0.013 | +0.060 | +0.049 | 0.05 | 102.3 | ✅ clean; best Gemma honest single |
-| E095 | craigslist | +0.060 | +0.098 | −0.081 | +0.085 | −0.067 | 0.33 | 34.4 | clean; raw+ honest− |
-| E099 | dailydialog | −0.072 | +0.059 | +0.005 | +0.106 | +0.058 | 0.03 | 99.6 | clean; honest+ small |
+| E098 | **p4g** | +0.162 | +0.129 | **+0.086** | +0.101 | **+0.076** | 0.09 | 73.0 | ✅ recovered; **best clean honest single** |
+| E100 | thoughttrace | −0.036 | −0.059 | +0.063 | +0.063 | +0.049 | 0.01 | 20.0 | honest+ but rl 20 (non-clean) |
+| E096 | cga | −0.067 | −0.011 | +0.028 | +0.058 | −0.052 | 0.14 | 63.1 | recovered; d_cavg+ but cond_acc− (mixed) |
+| E093 | empathetic | −0.004 | +0.054 | +0.013 | +0.060 | +0.049 | 0.05 | 102.3 | ✅ clean; both honest metrics + |
+| E099 | dailydialog | −0.072 | +0.059 | +0.005 | +0.106 | +0.058 | 0.03 | 99.6 | ✅ clean; both honest metrics + |
+| E095 | craigslist | +0.060 | +0.098 | −0.081 | +0.085 | −0.067 | 0.33 | 34.4 | clean but honest− (in OLD best3!) |
 | E097 | diplomacy | −0.030 | +0.011 | −0.083 | 0.000 | −0.024 | 0.005 | 159.3 | underpowered (3 iters) |
-| E096 | cga | — (log off-node; Results avg −1.6pp) | | | | | | | negative on Gemma |
-| E100 | thoughttrace | −0.036 | −0.059 | +0.063 | +0.063 | +0.049 | 0.01 | 20.0 | rl 20 (non-clean); poor domain |
+| E094 | casino | +0.195 | +0.119 | −0.105 | 0.000 | −0.111 | **9.65** | 66.8 | ❌ HACK (KL blowup) |
 
-- **Nearly every dialogue domain transfers positively on raw metrics with no ToM labels** (core BeRL
+- **Nearly every dialogue domain transfers positively on RAW metrics with no ToM labels** (core BeRL
   claim) — strongest/cleanest on Qwen2.5; larger but noisier on Gemma.
-- **Domain ranking is family-dependent** and partly reverses (cga +Qwen/−Gemma; thoughttrace bad both).
-- **Smalltalk-baseline (dailydialog) is NOT a null** (revisited & resolved in S3).
-- **Format caveat:** the honest `d_cavg` is mostly ≤0 at S1 — casino (Qwen, +0.071) is the only clearly
-  positive single, and it reward-hacks on Gemma → genuine format-controlled improvement not proven at S1.
-- **Reward-hacking is dataset-dependent:** identical Gemma config is stable on dailydialog/craigslist
+- **★ Honest (`d_cavg`) re-ranking flips the picture.** On the format-controlled metric, most Qwen
+  singles are ≤0 (casino +0.071 is the only positive, and it's non-clean) → **no robust honest ToM gain
+  from any single Qwen domain.** Gemma is better: **p4g (+0.086/+0.076), empathetic (+0.013/+0.049),
+  dailydialog (+0.005/+0.058)** are clean with BOTH honest metrics positive.
+- **The OLD `mix_best3` was picked on raw `d_avg`** and so included **craigslist (honest d_cavg −0.081,
+  cond_acc −0.067)** — actively harmful for format-controlled ToM, and **missed p4g** (its log was
+  off-CSV at selection time). → motivates the honest-reranked **`mix_top3`** below.
+- **Domain ranking is family-dependent** and partly reverses (cga +Qwen-raw/−Gemma; thoughttrace poor).
+- **Reward-hacking is dataset-dependent:** identical Gemma config is stable on dailydialog/empathetic
   but KL-blows-up on casino (9.65) at full-epoch length.
 
-**Key runs.** Qwen empathetic E016, casino E017; Gemma empathetic E093, p4g E098 (search WandB by run
-name `data-recipe-P0[g]_single_*`; full links in the tracker rows).
+**Key runs.** Gemma **p4g E098** ([c54ffnvl](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/c54ffnvl)) — best
+clean honest single; Gemma empathetic E093, dailydialog E099; Qwen casino E017.
+
+### S1b — honest-reranked mix (`mix_top3`)  ◀ QUEUED (Gemma)
+
+**RQ.** If we re-rank the S1 singles on the **honest** `d_cavg`/`d_cond_acc` (not raw `d_avg`) and mix
+the true top-3, does the format-controlled ToM gain (that appeared on the smoke mix but NOT on the
+raw-`d_avg` `mix_best3`) reproduce on the real corpus?
+
+**Runs.** Gemma `dcfg_mix_top3_gemma` = **persuasionforgood + empathetic_dialogues + dailydialog** (the
+3 clean Gemma singles with d_cavg>0 AND d_cond_acc>0; swaps craigslist→p4g vs `mix_best3_gemma`). Row
+queued Not-started for the pool. **Qwen NOT queued** — no clean Qwen single has positive honest d_cavg,
+so an honest Qwen mix isn't warranted (documented null).
+
+**Findings.** — (pending run). **Key runs.** — (TBD; compare d_cavg vs `mix_best3_gemma` E102 −0.035).
+
 
 ### S2 — greedy mixes (best-3, all)  ✅ COMPLETE (both arms)
 
@@ -158,9 +180,10 @@ name `data-recipe-P0[g]_single_*`; full links in the tracker rows).
 which mix is the corpus for downstream phases?
 
 **Runs.** 4 rows: Qwen mix_all E025 / mix_best3 E024; Gemma mix_all E101 / mix_best3 E102. All Completed.
-Best-3 chosen on `d_avg` (primary) + `d_cavg` (cross-check), clean runs only:
+Best-3 chosen on **raw `d_avg`** (primary) + `d_cavg` (cross-check), clean runs only:
 Qwen = casino+empathetic+dailydialog (`dcfg_mix_best3`); Gemma = craigslist+dailydialog+empathetic
-(casino excluded — KL exploded 9.65) (`dcfg_mix_best3_gemma`).
+(casino excluded — KL exploded 9.65) (`dcfg_mix_best3_gemma`). **NB:** this used *raw* d_avg, so the
+Gemma pick includes craigslist (honest d_cavg −0.081); the honest-reranked `mix_top3` (S1b) corrects this.
 
 **Findings.** Standard table (independent reassessment):
 

@@ -152,8 +152,10 @@ def load_cached(path):
     except OSError:
         pass
     data = extract(path)
-    with open(cache, "w") as fh:
+    tmp = f"{cache}.tmp.{os.getpid()}"
+    with open(tmp, "w") as fh:
         json.dump(data, fh)
+    os.replace(tmp, cache)  # atomic: avoids corruption from concurrent reassess runs
     return data
 
 

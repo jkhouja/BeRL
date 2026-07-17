@@ -1,0 +1,24 @@
+extends: dcfg_base_notags.yaml
+
+# Tag-free (Gemma) Phase-0 "top-3" mix, re-ranked on the HONEST format-controlled
+# metric (d_cavg, cross-checked by d_cond_acc), clean runs only, after recovering
+# the previously-missing p4g/cga single-domain reassessments (their logs used an
+# E###- filename the resolver had skipped). Unlike dcfg_mix_best3_gemma (which was
+# picked on raw d_avg and included craigslist, whose honest d_cavg is -0.081), the
+# honest re-ranking selects the three clean singles with BOTH d_cavg>0 AND
+# d_cond_acc>0:
+#   persuasionforgood (p4g): d_cavg +0.086, d_cond_acc +0.076  (best; was missing before)
+#   empathetic_dialogues:    d_cavg +0.013, d_cond_acc +0.049
+#   dailydialog:             d_cavg +0.005, d_cond_acc +0.058
+# (craigslist dropped: d_cavg -0.081; casino excluded: reward-hack KL 9.65.)
+# Per-source caps mirror dcfg_mix_all_gemma for a balanced, comparable mixture.
+pipeline:
+  output_name: "dcfg_mix_top3_gemma"
+
+datasets:
+  - source: "persuasionforgood"
+    sample_size: 3000
+  - source: "empathetic_dialogues"
+    sample_size: 4000
+  - source: "dailydialog"
+    sample_size: 4000
