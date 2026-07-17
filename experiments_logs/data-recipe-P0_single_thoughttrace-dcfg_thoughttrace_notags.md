@@ -79,3 +79,37 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+
+---
+
+## Findings (r3 — tag-free relaunch, COMPLETED)
+
+**Verdict: NEGATIVE / NULL transfer.** The tag-free path fixed the mechanics (run trained
+to completion, parseable=1.0, gradients flowed all 177 steps — no −45 floor), but the
+ThoughtTrace single domain does **not** induce ToM transfer.
+
+Canonical scorer (`scripts/score_run.py`):
+```
+eval iters: 37 (step 0..177); ToM benchmarks: 24 (excl gsm8k, mmlu)
+ToM HM(last5)=0.4048  HM(last3)=0.4132  (baseline step0=0.4167)
+ToM avg(last5)=0.4925  avg(last3)=0.4962  (baseline step0=0.503)
+gsm8k (separate): 0.5218 (step0=0.67, delta=-0.148)
+mmlu  (separate): 0.474  (step0=0.47, delta=+0.004)
+health(final): kl=1.284 entropy=0.465 resp_len=15.834 reward=-0.021 parseable=1.0
+```
+- **ToM:** HM flat-to-slightly-down (−1.19pp), avg −1.05pp. HM trajectory hovers at/below
+  the step-0 baseline (0.417) for the entire run — never meaningfully exceeds it. No transfer.
+- **Capability:** gsm8k regresses hard (−14.8pp); mmlu flat. Training on short human↔AI
+  next-turn prediction erodes math reasoning without buying ToM.
+- **Health:** clean — parseable=1.0, moderate KL drift (1.28), short responses (resp_len≈16,
+  as expected for next-user-turn prediction). No collapse/hacking.
+
+**Interpretation (single-domain transfer picture):** ThoughtTrace is a POOR single-domain
+transfer source for ToM, in contrast to cga (E019, POSITIVE) and the 10-domain mix (E025,
+POSITIVE). Human↔AI dialogue predicting the human's short next turn does not carry the
+mental-state signal that human↔human negotiation/social dialogue does. Answers the
+"which single domain transfers best?" question in the negative for thoughttrace.
+
+**Mechanics note:** unblocked by the tag-free `is_invalid_response` fix (commit 8769467);
+ran on `dcfg_thoughttrace_notags` (cot_eval_notags, REQUIRE_ANSWER_TAGS=False, actor-RM,
+power k=5 ll_min=−6). Rerun: see `How to rerun` above with RUN_INDEX bumped.
