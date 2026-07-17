@@ -5,7 +5,15 @@
 tracker `Results` column (`BeRL_experiments_tracker.md`). Companion to the plan (which holds design)
 and the tracker (which holds live status).
 
-**Last updated:** 2026-07-15 (Phase 0: S1 ✅ both arms · S2 ✅ both arms — mix_best3 wins · S3 ✅ built, ready to run).
+**Last updated:** 2026-07-17 (Phase 0: S1 ✅ · S2 ✅ mix_best3 wins · S3 Qwen ✅ 4/4 · Gemma 3/4 — **surprisal filtering gives no benefit; recipe stays mix_best3/off**).
+
+### 🔑 Key runs to inspect (WandB project `jkhouja-oxford/TOM_EXP`)
+- **S3 Qwen predictable** `E106` — `hwld1qqz` (best Qwen S3, +5.4pp HM) — surprisal-selection *loser*.
+- **S3 Qwen surprise** `E026` — `ui2xm36n` (weakest, +4.1pp) — the "ToM-dependent" selection *hurts*.
+- **S3 Qwen off** `E027` — `x3xz6htr` (full-mix baseline, +5.0pp) — the recipe we keep.
+- **S3 Gemma off** `E104` — `4d3po0yz` (strong +18.8% avg; full corpus >> halved sets).
+- **S3 Gemma surprise** `E103` — `aa64z8gx` (in-progress `ll_min=−6` rerun; reward-floor bracketing).
+- **S2 Gemma mix_best3** `E102` — d_avg +0.106, stable (the winning mix); Qwen mix_best3 `E024`.
 
 **Reading the metrics.** Each run is scored vs **its own step-0 baseline** on the `subsample300`
 eval suite. Two ToM aggregates over the 24 ToM benchmarks: **HM** (harmonic mean, min-dominated) and
@@ -42,7 +50,7 @@ comparison. (Rows `PS001–PS182`; full re-assessment in `notebooks/BeRL_run_rea
 
 ---
 
-## Phase 0 — Training-data recipe search  ◀ IN PROGRESS (S1 ✅ · S2 ✅ mix_best3 wins · S3 ✅ built/ready)
+## Phase 0 — Training-data recipe search  ◀ IN PROGRESS (S1 ✅ · S2 ✅ mix_best3 · S3 Qwen ✅ · Gemma 3/4 — no filter benefit)
 Fixes the corpus for A1/Q0/Q1. Search on Qwen2.5-3B (workhorse), confirm on Gemma-2. Both arms run
 the same recipes with their locked family config.
 
@@ -116,25 +124,62 @@ Best-3 chosen on `d_avg` (primary) + `d_cavg` (cross-check), **clean runs only**
 - **Gemma:** best3 is **strictly better** — higher d_avg AND stable, whereas `mix_all` KL-exploded to 6.9 (a reward-hack / late-collapse), so mix_all's headline HM gain is not trustworthy.
 - **Format caveat unchanged:** format-controlled gain (d_cavg) is ≈0 on Gemma and small-positive (+0.046) on Qwen — the honest ToM effect remains modest.
 
-### S3 — turn filtering (surprise / off / random-length)  ✅ BUILT — READY TO RUN
-The surprise-filter datagen feature is now **implemented** (`build_dataset.py` `turn_filter` stage;
-commit pending). It scores each human turn by the frozen Qwen2.5-3B scorer's `answer_pp` (avg
-log-prob) and offers four modes:
-- **surprise** — keep the 50% least-predictable (lowest `answer_pp`) turns (ToM-dependent / info-asymmetric).
-- **predictable** — keep the 50% most-predictable (highest `answer_pp`) turns (opposite pole).
+### S3 — turn filtering (surprise / off / random-length / predictable)  ◀ Qwen ✅ · Gemma 3/4 (surprise rerunning)
+Four modes score each human turn by the frozen Qwen2.5-3B scorer's `answer_pp` (avg log-prob),
+extending the S2 winner `dcfg_mix_best3{,_gemma}`, keeping 50% except `off`:
+- **surprise** — keep 50% least-predictable (lowest `answer_pp`) turns (ToM-dependent / info-asymmetric).
+- **predictable** — keep 50% most-predictable (highest `answer_pp`) turns (opposite pole).
 - **randlen** — same count, random but length-matched to the surprise set (quantity/length control).
-- **off** — full winning mix (control).
+- **off** — full winning mix (control, all turns).
 
-Configs (both arms, extend the S2 winner `dcfg_mix_best3{,_gemma}`):
-`dcfg_mix_best{,_surprise,_predictable,_randlen}` (Qwen) + `_gemma` variants. Validated end-to-end
-on a 160-row real build: surprise lowers mean `answer_pp` (−7.6 vs −7.1 random) at equal length;
-surprise/predictable sets are disjoint opposite poles.
+All runs 1-epoch, locked Phase-0 recipes (Qwen actor·k5·ll_min−6·kl0.05·lr5e-7; Gemma
+frozen·k5·ll_min−4·kl0.05·lr5e-7). Each scored vs its own step-0 baseline on subsample300.
 
-Rows **Not-started** for the pool (surprise/off already `Processing`): Qwen **E026** (surprise) /
-**E027** (off) / **E028** (randlen) / **E106** (predictable); Gemma **E103** / **E104** / **E105** /
-**E107**. Recipes = locked Phase-0 (Qwen actor·k5·ll_min−6·kl0.05·lr5e-7;
-Gemma frozen·k5·ll_min−4·kl0.05·lr5e-7). Directly probes the S1 "smalltalk-not-null" puzzle:
-does selecting ToM-dependent turns beat quantity / random, and does keeping only predictable turns hurt?
+**Qwen2.5-3B — ✅ ALL 4 COMPLETE** (each vs own base; HM primary here since Qwen HM is reliable):
+
+| Filter | Row | WandB | ToM HM Δ | ToM avg Δ | Health | Verdict |
+|---|---|---|---|---|---|---|
+| **predictable** | E106 | `hwld1qqz` | **+5.4pp** (0.474) | +2.5pp | kl0.082 resp111 clean | strongest |
+| **off** (full mix) | E027 | `x3xz6htr` | +5.0pp (0.466) | +1.9pp | kl0.066 resp95 clean | baseline |
+| **randlen** | E028 | `52uf3h0i` | +4.8pp (0.466) | +2.0pp | kl0.061 resp97 clean | ≈ off |
+| **surprise** | E026 | `ui2xm36n` | +4.1pp (0.459) | +3.1%(AM) | kl clean, no floor | **weakest** |
+
+**Qwen S3 verdict — surprisal-SELECTION does NOT help; it slightly HURTS.** Ordering is
+predictable ≥ off ≥ randlen > surprise. Keeping only the "ToM-dependent" (highest-surprisal) turns
+(E026) is the *worst* of the four; keeping only *predictable* turns (E106) is the *best*. Halving the
+corpus randomly (randlen) barely hurts vs full (off). **→ ToM gain is driven by corpus exposure /
+quantity, not by turn surprisal.** This **resolves the S1 "smalltalk-not-null" puzzle**: turn
+*quality* (surprisal) is not what drives transfer, so smalltalk transferring as well as structured-ToM
+domains is consistent — the reward learns from broad dialogue prediction, not from a few high-ToM turns.
+
+**Gemma-2-2B — 3/4 complete** (metric: **avg**, HM unreliable for Gemma; base avg ~0.315):
+
+| Filter | Row | WandB | ToM avg Δ (last3/last5) | Health | Verdict |
+|---|---|---|---|---|---|
+| **off** (full mix) | E104 | `4d3po0yz` | **+0.059 / +0.064** (0.315→0.375, +18.8%) | kl clean, no −45 floor | **strong** |
+| **predictable** | E107 | `9x03dues` | +0.052 / +0.031 (HM flat) | kl0.15 resp219 clean | modest+ |
+| **randlen** | E105 | `cmc29n2w` | +0.024 / +0.013 | kl0.007 resp156 clean | modest+ |
+| **surprise** | E103 | rerunning | — (see below) | — | **pending** |
+
+**Gemma S3 (provisional)** — same qualitative story: **off (full 11k-turn mix) is far the strongest
+(+18.8%)**, well above halved sets (predictable +5.2%, randlen +2.4%) → **quantity/exposure dominates
+on Gemma too**. Consistent with Qwen: no evidence surprisal-selection helps.
+
+**Gemma-surprise (E103) — knob-BRACKETED reward-shaping problem (open).** The surprise filter keeps
+the highest-surprisal turns whose frozen-Gemma ground-truth LL is very negative, so the power reward
+is knife-edge in `ll_min`: **`ll_min=−4` floors ALL rollouts at 0** (no within-group variance → zero
+GRPO gradient, no learning — NOT the old −45 RM bug, which was fixed by shared commit `8769467`),
+while **`ll_min=−8` saturates the +40 clamp and brevity-hack collapses** (resp_len 108→15 tok, KL
+0.02→0.70, degenerate one-line echoes). An intermediate **`ll_min=−6` rerun is in progress**
+(WandB `aa64z8gx`, owned by another node). Note deepening `ll_min` for this arm alone **breaks
+knob-parity** with E104/E105/E107 (they stay `ll_min=−4`), so a clean `ll_min=−6` result is a
+sensitivity point, not a strict apples-to-apples filter comparison. If it also fails, the honest
+call is to report Gemma-surprise as a **documented reward-shaping null** — the finding itself is that
+selecting the lowest-probability turns pushes targets below any usable reward floor.
+
+**S3 bottom line (both arms agree):** turn-level surprisal filtering provides **no benefit** over
+using the full winning mix — on Qwen it slightly hurts, on Gemma the full corpus wins by a wide
+margin. **→ The Phase-0 data recipe stays `dcfg_mix_best3{,_gemma}` with NO turn filter (`off`).**
 
 ### S6 — confirm chosen recipe on Gemma (top-2)  ⬜ PENDING
 Rows E029/E030 — Backlog; locks the A1 corpus once the winner is chosen.
@@ -160,7 +205,9 @@ QG (Gemma cross-family headline). All gated on the Phase-0 default recipe; no ru
 2. **Gemma late instability:** KL-drift/length-inflation at full-epoch on some datasets (casino,
    mix_all). The **`TOTAL_EPOCHS` default is now 1** (commit `8629133`) which both speeds iteration
    and may sidestep the late-epoch blowup — watch whether 1-epoch Gemma runs stay clean.
-3. **Smalltalk not null (S1):** dailydialog transfers as well as structured-ToM domains — S3 surprise
-   filter is the designed test of whether turn *quality* (not just dialogue exposure) drives ToM.
+3. **Smalltalk not null — RESOLVED (S3):** the surprise filter shows turn *surprisal* does **not**
+   drive transfer (Qwen: surprise is the *weakest* filter; both arms: full corpus wins). So
+   dailydialog transferring as well as structured-ToM domains is expected — the reward learns from
+   broad dialogue-prediction exposure, not from a few high-ToM turns. Corpus *quantity* > turn quality.
 4. **No mixture synergy (Qwen S2):** if confirmed after Gemma E102, the "best recipe" may be a single
    strong domain (casino/p4g) rather than a broad mix.
