@@ -416,5 +416,12 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **How to rerun:** `EXP_ID=data-recipe-P0g_filter_randlen DATA_NAME=dcfg_mix_best_randlen_gemma MODEL_PATH=google/gemma-2-2b-it DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_mix_best_randlen_gemma.parquet RUN_INDEX=1 bash experiments/train_behavior_gemma.sh`
 
-**Findings:** r2 RELAUNCH (WandB cmc29n2w) after shared frozen-RM bug fixed (commit 8769467 — model-aware invalid check; tag-free Gemma2/Qwen3 rollouts no longer force-invalid on missing </think>). Startup HEALTHY: steps 1-3 reward/mean=0.000 (NOT the -45 invalid floor), critic/advantages have real variance (max~3.57, min~-0.49), grad_norm nonzero (0.04-0.08), format_error_ratio=0.000, resp_len ~160-172. Zero "-45" occurrences => gradient flows, learning underway. Monitoring to 171 steps; will score + finalize on completion. _(metrics on completion via log-results skill)_
+**Findings:** r2 RELAUNCH (WandB cmc29n2w) after shared frozen-RM bug fixed (commit 8769467 — model-aware invalid check; tag-free Gemma2/Qwen3 rollouts no longer force-invalid on missing </think>). Startup HEALTHY: steps 1-3 reward/mean=0.000 (NOT the -45 invalid floor), critic/advantages have real variance (max~3.57, min~-0.49), grad_norm nonzero (0.04-0.08), format_error_ratio=0.000, resp_len ~160-172. Zero "-45" occurrences => gradient flows, learning underway. Monitoring to 171 steps; will score + finalize on completion. r2 COMPLETE (WandB cmc29n2w, 171/171 steps) — **POSITIVE-modest + STABLE** on the reliable metric.
+- **Scorer:** scripts/score_run.py; 7 eval iters (step 0..171); 24 ToM benchmarks (excl gsm8k/mmlu).
+- **AM_tom (LEAD — Gemma HM is unreliable):** avg(last5)=0.3282, avg(last3)=0.3386 vs baseline(step0)=0.315 => **+1.32pp (last5) / +2.36pp (last3)**.
+- **ToM HM:** HM(last5)=0.0444 vs base 0.0931 — DROPPED, but NOT meaningful: Gemma HM is dominated by near-zero benchmarks (fantom_info_list=0.000, fantom_answerability_list=0.013) that zero out the harmonic mean. Use AM.
+- **gsm8k:** 0.3154 vs 0.28 = **+3.5pp**;  **mmlu:** 0.398 vs 0.387 = **+1.1pp** (no general-capability regression).
+- **Health (final):** kl=0.007, entropy=1.348, resp_len=155.5, reward=0.007, parseable=1.0, max_resp=1024. NO -45 floor at any step (bug fix 8769467 held).
+- **Stability:** trajectory clean end-to-end — KL 0.004-0.008, resp_len 148-169 (no collapse-to-zero, no 512-cap inflation), reward near 0 with normal sparse spikes. NOT contaminated.
+- **Verdict:** VALID result (fix confirmed working). RANDOM control (length-matched, non-surprisal-selected). Modest positive ToM transfer. Compare vs E103 surprise (Processing) & E104 filter-off (Awaiting-input) once those complete to assess whether surprisal selection beats random.
 
