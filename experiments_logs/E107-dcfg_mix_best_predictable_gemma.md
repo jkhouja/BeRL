@@ -403,3 +403,24 @@ Qwen2.5 behavior byte-for-byte unchanged. Unblocks E103/E104/E105 (whole Gemma-m
 
 Non-zero `pg_loss`/`grad_norm` (0.07–0.26), gradient flowing, no collapse. Run continuing;
 canonical ToM HM/avg to be scored on completion via `scripts/score_run.py` (log-results skill).
+
+### r2 canonical score (scripts/score_run.py) — Completed 2026-07-17
+
+```
+eval iters: 7 (step 0..171); ToM benchmarks: 24 (excl gsm8k, mmlu)
+ToM HM(last5)=0.0719  HM(last3)=0.0906  (baseline step0=0.093)
+ToM avg(last5)=0.3457  avg(last3)=0.3673  (baseline step0=0.3152)
+gsm8k (separate): 0.3574 (step0=0.28, delta vs step0=+0.077)
+mmlu  (separate): 0.4006 (step0=0.387, delta vs step0=+0.014)
+health(final): kl=0.148 entropy=0.76 resp_len=218.965 reward=0.11 parseable=1.0 max_resp=512
+ToM HM trajectory: 0:0.093 30:0.02 60:0.046 90:0.02 120:0.02 150:0.106 171:0.118
+```
+
+**Verdict:** Fix VERIFIED end-to-end — reward flowed (0.005→1.27 with variance, never -45), model
+learned, parseable=1.0, healthy (kl 0.148, resp_len 219, no collapse/hacking). **ToM avg improved
++2.9pp (last5) / +5.2pp (last3)** and gsm8k +7.7pp; **ToM HM is flat (0.072/0.091 vs base 0.093)**
+because two near-zero fantom-list benchmarks (fantom_info_list 0.013, fantom_answerability_list
+0.017) dominate the harmonic mean. The predictable Gemma pole underperforms the Qwen predictable
+E106 (HM +5.4pp) on HM but shows a genuine broad avg lift. Primary purpose (verify shared fix
+`8769467`) achieved; the fix unblocks E103/E104/E105 (whole Gemma-mix frozen arm) and the peer's
+PS097–PS176 Gemma/Qwen3 Wave-2 family.
