@@ -230,6 +230,28 @@ def eval_quality(vsamples, k=None):
     cavg_e = mean([ea[s] for s in common]) if common else float("nan")
     cavg_l = mean([la[s] for s in common]) if common else float("nan")
 
+    # peak-window conditional-average gain: slide a k-step window across ALL
+    # eval steps and keep the one with the largest format-controlled gain vs the
+    # early window (paired over benchmarks common to that window AND early). This
+    # reports the BEST format-controlled ToM the run reached in training, not the
+    # end-of-training value (which may have degraded / collapsed). Single-step
+    # cavg is too noisy (~24 ToM samples/step), hence the same k-step smoothing.
+    d_cavg_peak = float("nan")
+    cavg_peak = float("nan")
+    cavg_peak_step = None
+    for i in range(len(vsamples) - k + 1):
+        win = vsamples[i:i + k]
+        cw = per_bench_cavg(win)
+        common_i = set(ea) & set(cw)
+        if not common_i:
+            continue
+        cavg_w = mean([cw[s] for s in common_i])
+        delta_w = cavg_w - mean([ea[s] for s in common_i])
+        if not (d_cavg_peak == d_cavg_peak) or delta_w > d_cavg_peak:
+            d_cavg_peak = delta_w
+            cavg_peak = cavg_w
+            cavg_peak_step = win[-1][0]
+
     d_ecorr = l["cor"] - e["cor"]
     fmt_comp = (l["fp"] - e["fp"]) * e["ca"] if e["ca"] == e["ca"] else float("nan")
     rea_comp = l["fp"] * (l["ca"] - e["ca"]) if e["ca"] == e["ca"] else float("nan")
@@ -242,6 +264,9 @@ def eval_quality(vsamples, k=None):
         "d_cond_acc": round(l["ca"] - e["ca"], 4),
         "cavg_early": round(cavg_e, 4), "cavg_late": round(cavg_l, 4),
         "d_cavg": round(cavg_l - cavg_e, 4),
+        "cavg_peak": round(cavg_peak, 4) if cavg_peak == cavg_peak else float("nan"),
+        "d_cavg_peak": round(d_cavg_peak, 4) if d_cavg_peak == d_cavg_peak else float("nan"),
+        "cavg_peak_step": cavg_peak_step,
         "ecorr_early": round(e["cor"], 4), "ecorr_late": round(l["cor"], 4),
         "d_ecorr": round(d_ecorr, 4),
     }
@@ -424,10 +449,12 @@ def main():
     ap.add_argument("--logs", nargs="*", help="score specific logs instead of the tracker")
     ap.add_argument("--out", help="write full results CSV")
     ap.add_argument("--top", type=int, default=15, help="print top-N per family")
-    ap.add_argument("--rank", choices=["d_hm", "d_cavg", "d_cond_acc"], default="d_hm",
+    ap.add_argument("--rank", choices=["d_hm", "d_cavg", "d_cavg_peak", "d_cond_acc"], default="d_hm",
                     help="ranking metric: d_hm (raw ToM HM gain, format-confounded) | "
                          "d_cavg (arithmetic-mean accuracy CONDITIONAL on correct format, "
-                         "the format-controlled ToM signal) | d_cond_acc (pooled P(correct|parsed) gain)")
+                         "the format-controlled ToM signal) | d_cavg_peak (same but at the "
+                         "best training window, not end-of-training) | "
+                         "d_cond_acc (pooled P(correct|parsed) gain)")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 
@@ -452,6 +479,7 @@ def main():
                             "d_hm", "d_avg", "hm_step0", "hm_last3", "hm_best",
                             "hm_late_std",
                             "d_cavg", "cavg_early", "cavg_late",
+                            "d_cavg_peak", "cavg_peak", "cavg_peak_step",
                             "d_cond_acc", "cond_acc_early", "cond_acc_late",
                             "d_fmt_pass", "fmt_pass_early", "fmt_pass_late",
                             "d_ecorr", "fmt_pct", "reason_pct", "eq_n_late",
@@ -469,6 +497,7 @@ def main():
     rk = args.rank
     label = {"d_hm": "raw ToM HM gain (format-confounded)",
              "d_cavg": "arithmetic-mean accuracy CONDITIONAL on correct format",
+             "d_cavg_peak": "format-controlled ToM gain at BEST training window",
              "d_cond_acc": "pooled P(correct|parsed) gain"}[rk]
     scored = [r for r in rows if r.get("n_iters", 0) >= 2 and rk in r
               and isinstance(r.get(rk), (int, float))]
@@ -476,11 +505,11 @@ def main():
         fr = sorted([r for r in scored if r["model"] == fam],
                     key=lambda r: r[rk], reverse=True)
         print(f"\n===== {fam}: top {args.top} by {rk} = {label} =====")
-        print(f"{rk:>8} {'d_hm':>6} {'d_cavg':>7} {'d_cndac':>7} {'d_fmtp':>7} "
+        print(f"{rk:>8} {'d_hm':>6} {'d_cavg':>7} {'dcvpk':>7} {'d_cndac':>7} {'d_fmtp':>7} "
               f"{'fmt%':>5} {'rsn%':>5} {'dgsm':>6} {'kl_f':>6} {'rl_min':>6}  run")
         for r in fr[:args.top]:
             g = lambda k: (f"{r[k]:.3f}" if isinstance(r.get(k), (int, float)) else "  -")
-            print(f"{g(rk):>8} {g('d_hm'):>6} {g('d_cavg'):>7} {g('d_cond_acc'):>7} "
+            print(f"{g(rk):>8} {g('d_hm'):>6} {g('d_cavg'):>7} {g('d_cavg_peak'):>7} {g('d_cond_acc'):>7} "
                   f"{g('d_fmt_pass'):>7} {str(r.get('fmt_pct','-')):>5} {str(r.get('reason_pct','-')):>5} "
                   f"{g('d_gsm8k'):>6} {g('kl_final'):>6} {str(r.get('resp_len_min','-')):>6}  {r.get('run', os.path.basename(r.get('log','?')))[:50]}")
 
