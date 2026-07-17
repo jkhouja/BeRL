@@ -1,116 +1,136 @@
 # BeRL Paper — Findings Log
 
 **Purpose:** Living record of *results* per phase, mirroring the phase structure of
-`BeRL_paper_plan.md`. Populated by inspecting per-run summaries (`experiments_logs/*.md`) and the
-tracker `Results` column (`BeRL_experiments_tracker.md`). Companion to the plan (which holds design)
-and the tracker (which holds live status).
+`BeRL_paper_plan.md`. Populated by inspecting per-run summaries (`experiments_logs/*.md`), the
+tracker `Results` column (`BeRL_experiments_tracker.md`), and the independent format-controlled
+re-assessment `analysis/reassess.csv` (`scripts/reassess_runs.py`). Companion to the plan (design)
+and the tracker (live status).
 
-**Last updated:** 2026-07-17 (Phase 0: S1 ✅ · S2 ✅ mix_best3 wins · S3 Qwen ✅ 4/4 · Gemma 3/4 — **surprisal filtering gives no benefit; recipe stays mix_best3/off**).
+**Last updated:** 2026-07-17 — Phase −1 ✅ · Phase 0: S1 ✅ · S2 ✅ (mix_best3) · S3 Qwen ✅ / Gemma 3-4
+(**surprisal filtering gives no benefit; recipe = mix_best3, no filter**) · format-controlled
+(`d_cavg`) cross-run analysis added.
 
-### 🔑 Key runs to inspect (WandB project `jkhouja-oxford/TOM_EXP`)
-- **S3 Qwen predictable** `E106` — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/hwld1qqz (best Qwen S3, +5.4pp HM) — surprisal-selection *loser*.
-- **S3 Qwen surprise** `E026` — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/ui2xm36n (weakest, +4.1pp) — the "ToM-dependent" selection *hurts*.
-- **S3 Qwen off** `E027` — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/x3xz6htr (full-mix baseline, +5.0pp) — the recipe we keep.
-- **S3 Gemma off** `E104` — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/4d3po0yz (strong +18.8% avg; full corpus >> halved sets).
-- **S3 Gemma surprise** `E103` — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/aa64z8gx (in-progress `ll_min=−6` rerun; reward-floor bracketing).
-- **S2 Gemma mix_best3** `E102` — https://wandb.ai/jkhouja-oxford/TOM_EXP (d_avg +0.106, stable, the winning mix); Qwen mix_best3 `E024`.
+**Each section below is organised as:** **RQ** (the question) · **Runs** (what was kicked off +
+status) · **Findings** · **Key runs** (WandB links to track). WandB project = `jkhouja-oxford/TOM_EXP`.
 
-**Reading the metrics.** Each run is scored vs **its own step-0 baseline** on the `subsample300`
-eval suite. Two ToM aggregates over the 24 ToM benchmarks: **HM** (harmonic mean, min-dominated) and
-**avg** (arithmetic mean). `gsm8k`/`mmlu` are reported separately as capability guardrails, never
-folded into ToM. **For the weak Gemma-2 base, HM is unreliable** (near-0 floor benchmarks make HM
-jump on format-compliance alone) — prefer **avg** for Gemma. A parallel **format-controlled** read
-(`d_cavg` = Δ conditional accuracy `P(correct|parsed)`, from `scripts/reassess_runs.py`) strips out
-"learned to emit parseable tags" gains; small/noisy (val-subset, SE≈0.05) but the honest ToM signal.
-"Clean" = final KL < 1.0 AND min rollout resp_len ≥ 30 (excludes reward-hacked / collapsed runs).
+---
+
+## Metric legend (read first)
+Every run is scored vs **its own step-0 baseline** on the `subsample300` eval suite (25 subtypes).
+- **HM / avg** — harmonic / arithmetic mean over the 24 ToM benchmarks (raw accuracy). `gsm8k`/`mmlu`
+  are capability guardrails, never folded into ToM. **For the weak Gemma-2 base HM is unreliable**
+  (near-0 floor benchmarks make HM jump on format alone) → prefer **avg** for Gemma.
+- **d_hm / d_avg** — raw ToM gain (last-3 window − step 0). **Format-confounded.**
+- **d_cavg** — Δ of *arithmetic-mean* `P(correct | parseable)` across benchmarks, late window vs
+  early. The **format-controlled** honest ToM signal (strips "learned to emit a parseable answer").
+- **d_cavg_peak** — same, but at the **best** k-step training window (not end-of-training). Captures
+  peak honest ToM before any late collapse. ⚠️ It is a **max over ~20 windows → upward-biased**; use
+  as an optimistic upper bound, and always read next to `kl_final`/`resp_len_min`.
+- **d_cond_acc** — *pooled* (sample-weighted) `P(correct|parsed)` gain; more conservative than d_cavg.
+- **Noise:** all conditional metrics come from the 24-sample/step val-debug blocks → **SE ≈ 0.05**.
+  Direction is trustworthy; magnitude is an estimate.
+- **"Clean"** = final KL < 1.0 AND min rollout resp_len ≥ 30 (excludes reward-hacked / collapsed runs).
 
 ---
 
 ## Phase −1 — Setup & stability  ✅ COMPLETE
-**Goal:** a non-collapsing, non-reward-hacking config (reward family + stability HPs) before any data
-comparison. (Rows `PS001–PS182`; full re-assessment in `notebooks/BeRL_run_reassessment.ipynb`.)
 
-**Findings**
-- **Reward family + stability:** clean per-family winners share **kl=0.05, lr=5e-7**. Raw-HM
-  ranking is **format-confounded** — the biggest raw gains (e.g. Gemma actor-k7 PS129, dHM +0.344)
-  are **reward-hacks** (KL→9.85, rollout collapses to ~1.5 tokens) with real eval gains that are
-  *not adoptable*. **actor-RM blew up KL in 12/72 runs vs 0/80 frozen.**
-- **Format penalty (`fp`):** format-controlled (`d_cavg`) ranking favors a **training format penalty
-  `fp=5`** — it suppresses format-only gains and is the most defensible genuine-reasoning signal.
-- **Cross-family (memory):** a winning recipe does **not** generalize across families; each family
-  needs its own recipe (Qwen2.5 ≠ Qwen3 ≠ Gemma-2).
-- **Known Gemma tag-free gate bug:** the invalid-detector hard-requires a literal `</think>`, which
-  the Gemma tag-free native-thinking recipe never emits → some `log_prob`/`power` Gemma sweep cells
-  100% INVALID (zero gradient). Isolated; the Phase-0 Gemma **power** arm runs fine. (3 stale cells
-  PS099/103/106 skipped=Failed.)
+**RQ.** What reward family + stability HPs give a non-collapsing, non-reward-hacking config per model
+family, *before* any data comparison — and once format is controlled for, does ToM improve at all?
+
+**Runs.** Rows `PS001–PS182` (~182 sweep cells across Qwen2.5-3B, Qwen3-1.7B, Gemma-2-2B; reward ∈
+{log_prob, power k3/k5/k7}, RM ∈ {frozen, actor}, kl, lr, fp, ec grid). All Completed/assessed;
+full re-assessment in `analysis/reassess.csv` (171 scored logs) + `notebooks/BeRL_run_reassessment.ipynb`.
+
+**Findings.**
+- **Reward family + stability:** clean per-family winners share **kl=0.05, lr=5e-7, fp=5**. Raw-HM
+  ranking is **format-confounded** — the biggest raw gains are **reward-hacks**. Canonical example:
+  Gemma **actor-k7** (PS129-class) shows `d_hm +0.344` yet is a hack — KL→9.85, rollouts collapse to
+  ~1.5 tokens; format-controlled `d_cavg` is only **+0.004** (~82% of the raw gain is format-pass, not
+  reasoning). **actor-RM blew up KL in 12/72 runs vs 0/80 frozen.**
+- **Format penalty (`fp`):** format-controlled ranking favors a **training `fp=5`** — suppresses
+  format-only gains, most defensible genuine-reasoning signal.
+- **Cross-family:** a winning recipe does **not** generalize across families; each needs its own recipe.
+- **Known Gemma tag-free gate bug (fixed `8769467`):** the invalid-detector hard-required a literal
+  `</think>` the Gemma tag-free recipe never emits → some cells 100% INVALID (zero gradient). Fixed;
+  Phase-0 Gemma **power** arm runs fine.
+- **★ Does format-controlled ToM actually improve? (d_cavg / d_cavg_peak over 171 runs.)** YES, but the
+  honest effect is **modest, noisy, and concentrated in the kl0.05/lr5e-7/fp5 recipe.** On the
+  **unbiased late** metric only a **minority** of clean runs clear the SE≈0.05 floor: Qwen2.5 **4/89**,
+  Qwen3 **7/36**, Gemma-2 **6/24**. (`d_cavg_peak>0.05` hits many more — 11/89, 20/36, 17/24 — but that
+  is max-selection bias, not evidence.) The **trustworthy positives** (clean AND late>+0.05 AND
+  late≈peak, i.e. a *stable* gain): 3/89 Qwen2.5, 6/36 Qwen3, 4/24 Gemma-2. Best per family:
+  - **Gemma-2 `rmf·kl0.05·lr5e-7·fp5`: d_cavg +0.148, cond_acc +0.091, KL 0.08, rlmin 84, late==peak**
+    — the single most convincing honest ToM gain (clean, stable, strong on *both* cavg and pooled
+    cond_acc; even d_hm +0.075). Matches the locked default.
+  - **Qwen3 `rma·kl0.05·lr5e-7·fp5`: d_cavg +0.118** (but pooled cond_acc only +0.014 — cavg rides a
+    few easy benchmarks; weaker than it looks).
+  - **Qwen2.5 `rmf·kl0.05·lr5e-7·fp5`: d_cavg +0.097, cond_acc +0.093, KL 0.22** — modest but real.
+  Bottom line: **BeRL's honest signal is real (not purely format) but small (+0.07–0.15 conditional
+  accuracy)**; the winners across all three families converge on the locked stable recipe.
 
 **→ Locked "stable default config" carried into Phase 0** (selected on format-controlled `d_cavg`):
 - **Qwen2.5-3B:** `power · k=5 · ll_min=−6 · actor-RM · fp=5 · ec=0.0 · kl=0.05 · lr=5e-7`
 - **Gemma-2-2B:** `power · k=5 · ll_min=−4 · frozen-RM · fp=5 · ec=0.001 · kl=0.05 · lr=5e-7`
 
+**Key runs.**
+- Reward-hack exemplar (raw looks great, honest ~0): Gemma actor-k7 — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/dhdtyhev (`d_hm +0.344`, `d_cavg +0.004`, KL 9.85).
+- Best honest gain / Gemma default: https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/5re3xzap (`rmf·kl0.05·lr5e-7·fp5`, `d_cavg +0.148`).
+- Best Qwen3 honest: https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/omduwrua (`rma·kl0.05·lr5e-7·fp5`, `d_cavg +0.118`).
+- Best Qwen2.5 honest: https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/5ikvh817 (`rmf·kl0.05·lr5e-7·fp5`, `d_cavg +0.097`).
+- Reproduce leaderboard: `python scripts/reassess_runs.py --rank d_cavg` (or `--rank d_cavg_peak`).
+
 ---
 
-## Phase 0 — Training-data recipe search  ◀ IN PROGRESS (S1 ✅ · S2 ✅ mix_best3 · S3 Qwen ✅ · Gemma 3/4 — no filter benefit)
+## Phase 0 — Training-data recipe search  ◀ IN PROGRESS
 Fixes the corpus for A1/Q0/Q1. Search on Qwen2.5-3B (workhorse), confirm on Gemma-2. Both arms run
-the same recipes with their locked family config.
+the same recipes with their locked family config. Stages: S1 (singletons) → S2 (mixes) → S3 (turn
+filtering) → S6 (Gemma confirm).
 
 ### S1 — single-domain singletons  ✅ COMPLETE (both arms)
 
-**Qwen2.5-3B** (metric: ToM HM/avg pp gain vs base ~0.417/0.503; all clean unless noted):
+**RQ.** Which single dialogue domain transfers best to ToM (label-free), and does *any* domain
+transfer at all?
 
-| Domain | Row | Verdict | ToM HM Δ | ToM avg Δ | gsm8k/mmlu Δ | Notes |
-|---|---|---|---|---|---|---|
-| casino | E017 | **STRONG+** | +5.5pp | +2.5pp | +3.3/+16.8 | Best raw + best format-controlled (d_cavg +0.071), but short responses (resp_len 26.6) → flagged non-clean |
-| p4g | E021 | **STRONG+** | +5.45pp | +2.5pp | +3.0/+14.0 | Fast rise, holds; d_cavg −0.084 (format-confounded) |
-| craigslist | E018 | POS | +4.9pp | +2.0pp | +6.2/+17.7 | Rock-stable full epoch; Qwen fp5 immune to Gemma fp-collapse |
-| cga | E019 | POS | +4.8pp | +1.8pp | +0.0/+15.0 | Smooth, no collapse |
-| dailydialog | E022 | POS | +4.8pp | +2.4pp | +9.4/+18.0 | On par w/ diplomacy → **smalltalk-baseline hypothesis NOT supported** |
-| diplomacy | E020 | POS | +5.0pp | +1.4pp | +5.6/+15.7 | Best d_cavg (0.000, neutral); only 38 steps |
-| empathetic | E016 | POS | +12.1pp | +4.4pp | +7.6/+35.9 | First clearly-positive P0 cell |
-| thoughttrace | E023 | **DEGENERATE** | — | — | — | All targets below ll_min=−6 floor → 0 gradient (`Awaiting-input`, excluded) |
+**Runs.** 8 domains × 2 families = 16 rows. Qwen2.5 E016–E023; Gemma-2 E093–E100. All Completed
+(thoughttrace Qwen E023 excluded — degenerate, below reward floor).
 
-**Gemma-2-2B** (metric: **avg** — HM unreliable for Gemma; base avg ~0.315):
+**Findings.** Qwen2.5 (base HM/avg ~0.417/0.503) and Gemma-2 (base avg ~0.315):
 
-| Domain | Row | Verdict | ToM avg Δ | gsm8k/mmlu Δ | Notes |
+| Domain | Qwen row | Qwen ToM HM Δ | Gemma row | Gemma ToM avg Δ | Note |
 |---|---|---|---|---|---|
-| p4g | E098 | **BEST+** | +12.8pp | +11.5/+8.7 | Best Gemma single; clean full epoch |
-| casino | E094 | POS-but-UNSTABLE | +11.9pp | +16.2/+8.6 | **Late KL-blowup→~10 + length→512 cap** from step~362; last-5 contaminated → **excluded (unclean)** |
-| craigslist | E095 | STRONG+ | +10.2pp | +11.0/+10.4 | No fp5 collapse; avg robust |
-| dailydialog | E099 | POS | +6.9pp | +12.3/+4.4 | Stable full epoch (1723 steps); positive d_cavg (+0.005); instability is dataset-dependent |
-| empathetic | E093 | POS | +14.7pp | −0.6/+2.7 | Cross-family confirm of E016; best positive d_cavg (+0.013) |
-| diplomacy | E097 | NEUTRAL | +1.1pp | +0.8/+0.9 | Underpowered: only 612 rows→19 steps; needs upsampling |
-| cga | E096 | **NEGATIVE** | −1.6pp | +5.3/−0.6 | Does not transfer on weak Gemma base (not a training pathology) |
-| thoughttrace | E100 | **NEGATIVE** | −17.0pp | +9.0/−7.1 | Poor source domain for Gemma |
+| empathetic | E016 | **+12.1pp** | E093 | **+14.7pp** | clearest positive both families; best Gemma d_cavg +0.013 |
+| casino | E017 | **+5.5pp** | E094 | +11.9pp ⚠ | best Qwen d_cavg +0.071 but resp_len 26.6 (non-clean); Gemma late KL-blowup→excluded |
+| p4g | E021 | +5.45pp | E098 | **+12.8pp** | best Gemma single (clean); Qwen d_cavg −0.084 (format-confounded) |
+| craigslist | E018 | +4.9pp | E095 | +10.2pp | rock-stable; no fp5 collapse |
+| dailydialog | E022 | +4.8pp | E099 | +6.9pp | **smalltalk NOT a null** — on par with structured-ToM domains |
+| cga | E019 | +4.8pp | E096 | **−1.6pp** | positive on Qwen, **negative on Gemma** |
+| diplomacy | E020 | +5.0pp | E097 | +1.1pp (underpowered) | Gemma only 612 rows→19 steps |
+| thoughttrace | E023 | degenerate (excl) | E100 | **−17.0pp** | poor source domain |
 
-**S1 cross-cutting findings**
-- **Nearly every dialogue domain transfers positively to ToM with no ToM labels** (the core BeRL
-  claim) — strongest on Qwen2.5. Magnitudes are modest (~+2–5pp avg) on Qwen, larger but noisier on
-  Gemma.
-- **Domain ranking is family-dependent** and partly reverses: casino/p4g top both families;
-  **cga is positive on Qwen but negative on Gemma**; thoughttrace is bad on both.
-- **Smalltalk-baseline (dailydialog) is NOT a null** — it transfers on par with structured-ToM
-  domains, weakening the "ToM-dependence of the corpus drives the gain" story (revisit in S3 filter).
-- **Format vs reasoning caveat:** raw ToM gains are partly format-compliance. Format-controlled
-  `d_cavg` is small/noisy; casino (Qwen) is the only domain with a clearly positive d_cavg, and it's
-  the one that reward-hacks on Gemma — so genuine, robust, format-controlled ToM improvement is
-  **not yet strongly proven** and is the key open measurement question.
-- **Reward-hacking is dataset-dependent, not just config-dependent:** identical Gemma config is
-  stable on dailydialog/craigslist but KL-blows-up on casino at full-epoch length.
+- **Nearly every dialogue domain transfers positively with no ToM labels** (core BeRL claim) —
+  strongest on Qwen2.5; larger but noisier on Gemma.
+- **Domain ranking is family-dependent** and partly reverses (cga +Qwen/−Gemma; thoughttrace bad on both).
+- **Smalltalk-baseline (dailydialog) is NOT a null** (revisited & resolved in S3).
+- **Format caveat:** raw gains partly format-compliance; casino (Qwen) the only clearly-positive
+  d_cavg single, and it reward-hacks on Gemma → genuine format-controlled improvement not proven at S1.
+- **Reward-hacking is dataset-dependent:** identical Gemma config is stable on dailydialog/craigslist
+  but KL-blows-up on casino at full-epoch length.
 
-### S2 — greedy mixes (best-3, all)  ✅ COMPLETE (both arms, 686/686)
+**Key runs.** Qwen empathetic E016, casino E017; Gemma empathetic E093, p4g E098 (search WandB by run
+name `data-recipe-P0[g]_single_*`; full links in the tracker rows).
 
-Best-3 chosen on `d_avg` (primary) + `d_cavg` (cross-check), **clean runs only**:
-- **Qwen2.5:** casino + empathetic + dailydialog  (`dcfg_mix_best3`)
-- **Gemma:** craigslist + dailydialog + empathetic  (casino **excluded** — KL exploded 9.65)  (`dcfg_mix_best3_gemma`)
+### S2 — greedy mixes (best-3, all)  ✅ COMPLETE (both arms)
 
-| Mix | Row | Status | Verdict |
-|---|---|---|---|
-| Qwen mix_all | E025 | Completed | (results not yet logged to tracker) |
-| Qwen mix_best3 | E024 | ✅ Completed | **+5.3pp HM / +2.3pp avg** — MATCHES but does **not beat** casino single (E017). **No mixture synergy**; casino alone captures the gain. |
-| Gemma mix_all | E101 | Completed | **POSITIVE — ~doubles ToM HM** (+8.0pp HM / +9.7pp avg); no capability regression. Caveat: peaked ~step620 then declined; final KL 6.9 (high, no collapse). |
-| Gemma mix_best3 | E102 | ✅ Completed (686/686) | **best3 WINS Gemma arm** — d_avg **+0.106** (> mix_all +0.099) and **STABLE (kl 0.117)** vs mix_all's KL-blowup **6.9**. d_cavg −0.035 (format-controlled ≈ null). |
+**RQ.** Does mixing the best single domains beat the best singleton (is there mixture synergy), and
+which mix is the corpus for downstream phases?
 
-**Head-to-head reassessment (independent, `scripts/reassess_runs.py` on the 686/686 logs):**
+**Runs.** 4 rows: Qwen mix_all E025 / mix_best3 E024; Gemma mix_all E101 / mix_best3 E102. All Completed.
+Best-3 chosen on `d_avg` (primary) + `d_cavg` (cross-check), clean runs only:
+Qwen = casino+empathetic+dailydialog (`dcfg_mix_best3`); Gemma = craigslist+dailydialog+empathetic
+(casino excluded — KL exploded 9.65) (`dcfg_mix_best3_gemma`).
+
+**Findings.** Independent reassessment (`scripts/reassess_runs.py`):
 
 | Arm | mix | d_avg | d_cavg | d_cond_acc | kl_final | resp_len_min |
 |---|---|---|---|---|---|---|
@@ -119,95 +139,101 @@ Best-3 chosen on `d_avg` (primary) + `d_cavg` (cross-check), **clean runs only**
 | Gemma | mix_all (E101) | 0.099 | 0.030 | −0.057 | **6.9 ⚠** | 47.6 |
 | Gemma | **mix_best3 (E102)** | **0.106** | −0.035 | −0.080 | **0.117** | 85.2 |
 
-**S2 decision — `mix_best3` is the winning mix for BOTH arms → `dcfg_mix_best := dcfg_mix_best3{,_gemma}`.**
-- **Qwen:** best3 ≈ mix_all on ToM gain (d_avg/d_cavg/cond_acc all within noise) but **cleaner** (kl 0.055 vs 0.107, longer responses) → **no mixture synergy**; best3 is the more principled, healthier pick.
-- **Gemma:** best3 is **strictly better** — higher d_avg AND stable, whereas `mix_all` KL-exploded to 6.9 (a reward-hack / late-collapse), so mix_all's headline HM gain is not trustworthy.
-- **Format caveat unchanged:** format-controlled gain (d_cavg) is ≈0 on Gemma and small-positive (+0.046) on Qwen — the honest ToM effect remains modest.
+- **`mix_best3` wins BOTH arms → `dcfg_mix_best := dcfg_mix_best3{,_gemma}`.**
+- **Qwen:** best3 ≈ mix_all on ToM gain but **cleaner** (kl 0.055 vs 0.107) → **no mixture synergy**;
+  best3 also ≈ casino single (E017) → casino alone captures the gain.
+- **Gemma:** best3 **strictly better** — higher d_avg AND stable, vs mix_all's KL-blowup 6.9 (its
+  headline HM gain is a late-collapse artifact, not trustworthy).
+- **Format caveat:** d_cavg ≈0 on Gemma, small-positive (+0.046) on Qwen — honest effect stays modest.
 
-### S3 — turn filtering (surprise / off / random-length / predictable)  ◀ Qwen ✅ · Gemma 3/4 (surprise rerunning)
-Four modes score each human turn by the frozen Qwen2.5-3B scorer's `answer_pp` (avg log-prob),
-extending the S2 winner `dcfg_mix_best3{,_gemma}`, keeping 50% except `off`:
-- **surprise** — keep 50% least-predictable (lowest `answer_pp`) turns (ToM-dependent / info-asymmetric).
-- **predictable** — keep 50% most-predictable (highest `answer_pp`) turns (opposite pole).
-- **randlen** — same count, random but length-matched to the surprise set (quantity/length control).
-- **off** — full winning mix (control, all turns).
+**Key runs.** Gemma mix_best3 **E102** — https://wandb.ai/jkhouja-oxford/TOM_EXP (d_avg +0.106, stable);
+Qwen mix_best3 **E024**; Gemma mix_all **E101** (KL-blowup cautionary).
 
-All runs 1-epoch, locked Phase-0 recipes (Qwen actor·k5·ll_min−6·kl0.05·lr5e-7; Gemma
-frozen·k5·ll_min−4·kl0.05·lr5e-7). Each scored vs its own step-0 baseline on subsample300.
+### S3 — turn filtering (surprise / off / randlen / predictable)  ◀ Qwen ✅ · Gemma 3-4 (surprise rerunning)
 
-**Qwen2.5-3B — ✅ ALL 4 COMPLETE** (each vs own base; HM primary here since Qwen HM is reliable):
+**RQ.** Does selecting the most *ToM-dependent* (highest-surprisal, lowest scorer `answer_pp`) human
+turns beat using the whole corpus (quantity) or random selection — i.e. is it turn *quality* or
+*exposure* that drives transfer? (Direct test of the S1 "smalltalk-not-null" puzzle.)
 
-| Filter | Row | WandB | ToM HM Δ | ToM avg Δ | Health | Verdict |
-|---|---|---|---|---|---|---|
-| **predictable** | E106 | [hwld1qqz](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/hwld1qqz) | **+5.4pp** (0.474) | +2.5pp | kl0.082 resp111 clean | strongest |
-| **off** (full mix) | E027 | [x3xz6htr](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/x3xz6htr) | +5.0pp (0.466) | +1.9pp | kl0.066 resp95 clean | baseline |
-| **randlen** | E028 | [52uf3h0i](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/52uf3h0i) | +4.8pp (0.466) | +2.0pp | kl0.061 resp97 clean | ≈ off |
-| **surprise** | E026 | [ui2xm36n](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/ui2xm36n) | +4.1pp (0.459) | +3.1%(AM) | kl clean, no floor | **weakest** |
+**Runs.** 4 modes × 2 families = 8 rows, all 1-epoch, extending the S2 winner `dcfg_mix_best3`,
+keeping 50% of turns except `off` (full mix). Locked recipes (Qwen actor·k5·ll_min−6; Gemma
+frozen·k5·ll_min−4). **Status: Qwen E026/E027/E028/E106 all Completed; Gemma E104 off / E105 randlen /
+E107 predictable Completed; E103 surprise Training** (ll_min−6 rerun after a knob-bracketing saga).
 
-**Qwen S3 verdict — surprisal-SELECTION does NOT help; it slightly HURTS.** Ordering is
-predictable ≥ off ≥ randlen > surprise. Keeping only the "ToM-dependent" (highest-surprisal) turns
-(E026) is the *worst* of the four; keeping only *predictable* turns (E106) is the *best*. Halving the
-corpus randomly (randlen) barely hurts vs full (off). **→ ToM gain is driven by corpus exposure /
-quantity, not by turn surprisal.** This **resolves the S1 "smalltalk-not-null" puzzle**: turn
-*quality* (surprisal) is not what drives transfer, so smalltalk transferring as well as structured-ToM
-domains is consistent — the reward learns from broad dialogue prediction, not from a few high-ToM turns.
+**Findings.**
 
-**Gemma-2-2B — 3/4 complete** (metric: **avg**, HM unreliable for Gemma; base avg ~0.315):
+*Qwen2.5 (HM reliable, base 0.416):*
+| Filter | Row | ToM HM Δ | Verdict |
+|---|---|---|---|
+| predictable | E106 | **+5.4pp** | strongest |
+| off (full mix) | E027 | +5.0pp | baseline |
+| randlen | E028 | +4.8pp | ≈ off |
+| surprise | E026 | +4.1pp | **weakest** |
 
-| Filter | Row | WandB | ToM avg Δ (last3/last5) | Health | Verdict |
-|---|---|---|---|---|---|
-| **off** (full mix) | E104 | [4d3po0yz](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/4d3po0yz) | **+0.059 / +0.064** (0.315→0.375, +18.8%) | kl clean, no −45 floor | **strong** |
-| **predictable** | E107 | [9x03dues](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/9x03dues) | +0.052 / +0.031 (HM flat) | kl0.15 resp219 clean | modest+ |
-| **randlen** | E105 | [cmc29n2w](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/cmc29n2w) | +0.024 / +0.013 | kl0.007 resp156 clean | modest+ |
-| **surprise** | E103 | [aa64z8gx](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/aa64z8gx) | — (see below) | — | **pending** |
+*Gemma-2 (avg, base ~0.315):*
+| Filter | Row | ToM avg Δ (last3/5) | Verdict |
+|---|---|---|---|
+| off (full mix) | E104 | **+0.059/+0.064** (+18.8%) | **strong** |
+| predictable | E107 | +0.052/+0.031 | modest+ |
+| randlen | E105 | +0.024/+0.013 | modest+ |
+| surprise | E103 | pending (see below) | — |
 
-**Gemma S3 (provisional)** — same qualitative story: **off (full 11k-turn mix) is far the strongest
-(+18.8%)**, well above halved sets (predictable +5.2%, randlen +2.4%) → **quantity/exposure dominates
-on Gemma too**. Consistent with Qwen: no evidence surprisal-selection helps.
+- **Surprisal-SELECTION does NOT help — it slightly HURTS.** Qwen ordering: predictable ≥ off ≥
+  randlen > surprise. Gemma: off (full 11k-turn mix) far the strongest, well above halved sets.
+  Both arms agree → **ToM gain is driven by corpus exposure / quantity, not turn surprisal.**
+- **Resolves the S1 "smalltalk-not-null" puzzle:** turn quality is not the driver, so dailydialog
+  transferring as well as structured-ToM domains is expected.
+- **Gemma-surprise (E103) — knob-BRACKETED reward-shaping problem (open).** Highest-surprisal turns
+  have very negative frozen-Gemma LL, so the power reward is knife-edge in `ll_min`: **−4 floors all
+  rollouts at 0** (no gradient; NOT the old −45 bug — fixed by `8769467`); **−8 saturates the +40 clamp
+  → brevity-hack collapse** (resp_len 108→15, KL 0.02→0.70). An intermediate **`ll_min=−6` rerun** is
+  in progress (healthy pre-crash: resp_len ~112, score 0.17, nonzero advantages — escaped both failure
+  modes), but note it **breaks knob-parity** with E104/E105/E107 (they stay −4), so it's a sensitivity
+  point, not a strict filter comparison. If it fails, report Gemma-surprise as a **documented
+  reward-shaping null**.
+- **→ Phase-0 data recipe stays `dcfg_mix_best3{,_gemma}` with NO turn filter (`off`).**
 
-**Gemma-surprise (E103) — knob-BRACKETED reward-shaping problem (open).** The surprise filter keeps
-the highest-surprisal turns whose frozen-Gemma ground-truth LL is very negative, so the power reward
-is knife-edge in `ll_min`: **`ll_min=−4` floors ALL rollouts at 0** (no within-group variance → zero
-GRPO gradient, no learning — NOT the old −45 RM bug, which was fixed by shared commit `8769467`),
-while **`ll_min=−8` saturates the +40 clamp and brevity-hack collapses** (resp_len 108→15 tok, KL
-0.02→0.70, degenerate one-line echoes). An intermediate **`ll_min=−6` rerun is in progress**
-(WandB `aa64z8gx`, owned by another node). Note deepening `ll_min` for this arm alone **breaks
-knob-parity** with E104/E105/E107 (they stay `ll_min=−4`), so a clean `ll_min=−6` result is a
-sensitivity point, not a strict apples-to-apples filter comparison. If it also fails, the honest
-call is to report Gemma-surprise as a **documented reward-shaping null** — the finding itself is that
-selecting the lowest-probability turns pushes targets below any usable reward floor.
-
-**S3 bottom line (both arms agree):** turn-level surprisal filtering provides **no benefit** over
-using the full winning mix — on Qwen it slightly hurts, on Gemma the full corpus wins by a wide
-margin. **→ The Phase-0 data recipe stays `dcfg_mix_best3{,_gemma}` with NO turn filter (`off`).**
+**Key runs.**
+- Qwen predictable E106 (best) — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/hwld1qqz
+- Qwen surprise E026 (weakest) — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/ui2xm36n
+- Qwen off E027 (baseline, the recipe we keep) — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/x3xz6htr
+- Gemma off E104 (strong) — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/4d3po0yz
+- Gemma surprise E103 (ll_min−6 rerun, watch) — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/aa64z8gx
 
 ### S6 — confirm chosen recipe on Gemma (top-2)  ⬜ PENDING
-Rows E029/E030 — Backlog; locks the A1 corpus once the winner is chosen.
 
-**Phase 0 provisional bottom line:** BeRL's central claim (label-free behavior-prediction reward
-induces positive ToM transfer) **holds broadly across dialogue domains and both families**, but
-(1) gains are modest and partly format-driven, (2) mixtures show no synergy over the best single
-domain on Qwen, and (3) the honest, format-controlled effect size is still to be nailed down. Final
-"BeRL default recipe" not yet locked (awaiting S2 head-to-head + S3 + Gemma confirm).
+**RQ.** Does the chosen Phase-0 recipe replicate on Gemma-2 (locks the A1 corpus)?
+**Runs.** Rows E029/E030 — Backlog; unblocked once the S3 winner is finalised.
+**Findings.** — (not yet run). **Key runs.** — (TBD).
+
+**Phase 0 bottom line.** BeRL's central claim (label-free behavior-prediction reward → positive ToM
+transfer) **holds broadly across domains and both families**, but (1) gains are modest and partly
+format-driven, (2) no mixture synergy over the best single domain on Qwen, (3) turn-surprisal
+filtering gives no benefit (quantity > quality), and (4) the honest format-controlled effect is small
+(+0.07–0.15 cond-acc) and concentrated in the locked kl0.05/lr5e-7/fp5 recipe. Data recipe =
+`dcfg_mix_best3{,_gemma}`, no filter; final lock awaits Gemma-surprise resolution + S6 confirm.
 
 ---
 
 ## Q0–QG — later phases  ⬜ NOT STARTED
-Q0 (identifiability/causal controls), Q1 (generalization vs direct ToM — headline), Q2 (reward-shaping
-refinement incl. the deferred `power_k`/`ll_min` grid), Q3 (scale/interaction), Q4 (thinking style),
-QG (Gemma cross-family headline). All gated on the Phase-0 default recipe; no runs yet.
+
+**RQ.** Q0 identifiability/causal controls · Q1 generalization vs direct ToM (headline) · Q2
+reward-shaping refinement (deferred `power_k`/`ll_min` grid) · Q3 scale/interaction · Q4 thinking
+style · QG Gemma cross-family headline.
+**Runs.** None yet — all gated on the Phase-0 default recipe.
+**Findings / Key runs.** — (TBD).
 
 ---
 
 ## Open questions / watch-items
-1. **Format vs. reasoning:** need a full-eval format-pass logged in-training to measure `d_cavg` at
-   low noise; current subset SE (~0.05) is too large to prove the genuine ToM effect.
+1. **Format vs. reasoning (partly answered):** the honest `d_cavg` effect is real but small and near
+   the SE≈0.05 val-subset floor. A full-eval in-training format-pass would tighten it; the subset
+   estimate can't prove large genuine gains. `d_cavg_peak` helps spot best-in-training but is
+   upward-biased.
 2. **Gemma late instability:** KL-drift/length-inflation at full-epoch on some datasets (casino,
-   mix_all). The **`TOTAL_EPOCHS` default is now 1** (commit `8629133`) which both speeds iteration
-   and may sidestep the late-epoch blowup — watch whether 1-epoch Gemma runs stay clean.
-3. **Smalltalk not null — RESOLVED (S3):** the surprise filter shows turn *surprisal* does **not**
-   drive transfer (Qwen: surprise is the *weakest* filter; both arms: full corpus wins). So
-   dailydialog transferring as well as structured-ToM domains is expected — the reward learns from
-   broad dialogue-prediction exposure, not from a few high-ToM turns. Corpus *quantity* > turn quality.
-4. **No mixture synergy (Qwen S2):** if confirmed after Gemma E102, the "best recipe" may be a single
-   strong domain (casino/p4g) rather than a broad mix.
+   mix_all). `TOTAL_EPOCHS` default now 1 (commit `8629133`) — watch whether 1-epoch Gemma stays clean.
+3. **Smalltalk not null — RESOLVED (S3):** surprisal is not the driver; corpus quantity/exposure is.
+4. **No mixture synergy (Qwen S2):** the "best recipe" may be a single strong domain (casino/p4g)
+   rather than a broad mix — carry into Q-phase ablations.
+5. **Gemma-surprise reward floor (S3):** selecting lowest-probability turns pushes targets below any
+   usable power reward floor; `ll_min` is knife-edge (−4 floors, −8 hacks, −6 in test).
