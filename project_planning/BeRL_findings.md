@@ -31,6 +31,21 @@ Every run is scored vs **its own step-0 baseline** on the `subsample300` eval su
   Direction is trustworthy; magnitude is an estimate.
 - **"Clean"** = final KL < 1.0 AND min rollout resp_len ≥ 30 (excludes reward-hacked / collapsed runs).
 
+**Standard per-run table (used in every section below).** All numbers from `analysis/reassess.csv`
+(`scripts/reassess_runs.py`), so tables are directly comparable across sections:
+
+| col | meaning |
+|---|---|
+| `d_hm` / `d_avg` | raw ToM gain (format-confounded; **use `d_avg` for Gemma**) |
+| `d_cavg` | **honest** format-controlled gain (late window) — the headline signal |
+| `d_cvpk` | `d_cavg_peak` — honest gain at best training window (optimistic, upward-biased) |
+| `d_cnd` | `d_cond_acc` — pooled honest gain (conservative) |
+| `kl_f` | final KL (clean if < 1.0) |
+| `rl_min` | min rollout resp_len (clean if ≥ 30) |
+
+Rows with `— (log off-node)` were run on another node whose log isn't on this filesystem; the tracker
+`Results` pp value is given instead.
+
 ---
 
 ## Phase −1 — Setup & stability  ✅ COMPLETE
@@ -73,12 +88,16 @@ full re-assessment in `analysis/reassess.csv` (171 scored logs) + `notebooks/BeR
 - **Qwen2.5-3B:** `power · k=5 · ll_min=−6 · actor-RM · fp=5 · ec=0.0 · kl=0.05 · lr=5e-7`
 - **Gemma-2-2B:** `power · k=5 · ll_min=−4 · frozen-RM · fp=5 · ec=0.001 · kl=0.05 · lr=5e-7`
 
-**Key runs.**
-- Reward-hack exemplar (raw looks great, honest ~0): Gemma actor-k7 — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/dhdtyhev (`d_hm +0.344`, `d_cavg +0.004`, KL 9.85).
-- Best honest gain / Gemma default: https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/5re3xzap (`rmf·kl0.05·lr5e-7·fp5`, `d_cavg +0.148`).
-- Best Qwen3 honest: https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/omduwrua (`rma·kl0.05·lr5e-7·fp5`, `d_cavg +0.118`).
-- Best Qwen2.5 honest: https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/5ikvh817 (`rmf·kl0.05·lr5e-7·fp5`, `d_cavg +0.097`).
-- Reproduce leaderboard: `python scripts/reassess_runs.py --rank d_cavg` (or `--rank d_cavg_peak`).
+**Key runs** (standard table; clean = kl_f<1 & rl_min≥30):
+
+| Run | WandB | d_hm | d_avg | d_cavg | d_cvpk | d_cnd | kl_f | rl_min | Verdict |
+|---|---|--:|--:|--:|--:|--:|--:|--:|---|
+| Gemma actor-k7 (PS129-class) | [dhdtyhev](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/dhdtyhev) | +0.344 | +0.192 | +0.004 | +0.027 | +0.024 | 9.85 | 1.5 | ❌ reward-hack — raw huge, honest ~0 (~82% format) |
+| **Gemma rmf·fp5·llm4** (default) | [gf3sa6x3](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/gf3sa6x3) | +0.075 | +0.097 | **+0.148** | +0.148 | +0.091 | 0.08 | 84 | ✅ best honest gain, stable (late==peak) |
+| Qwen3 rma·fp5 | [omduwrua](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/omduwrua) | −0.008 | −0.004 | +0.118 | +0.139 | +0.014 | 0.00 | 433 | ⚠ cavg rides easy benchmarks (pooled cnd +0.014) |
+| Qwen2.5 rmf·fp5 | [5ikvh817](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/5ikvh817) | +0.030 | +0.006 | +0.097 | +0.097 | +0.093 | 0.22 | 39 | ✅ modest but real (cavg≈cond_acc) |
+
+Reproduce leaderboard: `python scripts/reassess_runs.py --rank d_cavg` (or `--rank d_cavg_peak`).
 
 ---
 
@@ -95,27 +114,40 @@ transfer at all?
 **Runs.** 8 domains × 2 families = 16 rows. Qwen2.5 E016–E023; Gemma-2 E093–E100. All Completed
 (thoughttrace Qwen E023 excluded — degenerate, below reward floor).
 
-**Findings.** Qwen2.5 (base HM/avg ~0.417/0.503) and Gemma-2 (base avg ~0.315):
+**Findings.** Standard table (Qwen2.5 base HM 0.416 / avg 0.503; Gemma-2 base avg ~0.315):
 
-| Domain | Qwen row | Qwen ToM HM Δ | Gemma row | Gemma ToM avg Δ | Note |
-|---|---|---|---|---|---|
-| empathetic | E016 | **+12.1pp** | E093 | **+14.7pp** | clearest positive both families; best Gemma d_cavg +0.013 |
-| casino | E017 | **+5.5pp** | E094 | +11.9pp ⚠ | best Qwen d_cavg +0.071 but resp_len 26.6 (non-clean); Gemma late KL-blowup→excluded |
-| p4g | E021 | +5.45pp | E098 | **+12.8pp** | best Gemma single (clean); Qwen d_cavg −0.084 (format-confounded) |
-| craigslist | E018 | +4.9pp | E095 | +10.2pp | rock-stable; no fp5 collapse |
-| dailydialog | E022 | +4.8pp | E099 | +6.9pp | **smalltalk NOT a null** — on par with structured-ToM domains |
-| cga | E019 | +4.8pp | E096 | **−1.6pp** | positive on Qwen, **negative on Gemma** |
-| diplomacy | E020 | +5.0pp | E097 | +1.1pp (underpowered) | Gemma only 612 rows→19 steps |
-| thoughttrace | E023 | degenerate (excl) | E100 | **−17.0pp** | poor source domain |
+*Qwen2.5 (E016–E023):*
+| Exp | Domain | d_hm | d_avg | d_cavg | d_cvpk | d_cnd | kl_f | rl_min | Verdict |
+|---|---|--:|--:|--:|--:|--:|--:|--:|---|
+| E017 | casino | +0.055 | +0.026 | **+0.071** | +0.093 | +0.073 | 0.11 | 26.6 | best honest single but rl<30 (non-clean) |
+| E016 | empathetic | +0.053 | +0.024 | −0.014 | +0.094 | −0.015 | 0.04 | 64.0 | clean; raw+ honest flat |
+| E021 | p4g | +0.052 | +0.025 | −0.084 | 0.000 | −0.083 | 0.08 | 30.9 | raw+ honest− (format) |
+| E022 | dailydialog | +0.051 | +0.024 | −0.061 | +0.046 | −0.068 | 0.03 | 37.2 | smalltalk NOT null; honest− |
+| E018 | craigslist | — (log off-node; Results HM +4.9pp) | | | | | | | rock-stable, no collapse |
+| E019 | cga | +0.048 | +0.018 | −0.075 | 0.000 | −0.075 | 0.05 | 88.8 | +Qwen / −Gemma |
+| E020 | diplomacy | +0.039 | +0.011 | 0.000 | 0.000 | −0.045 | 0.10 | 42.7 | underpowered (3 iters) |
+| E023 | thoughttrace | −0.004 | −0.007 | +0.036 | +0.057 | +0.031 | 1.28 | 9.7 | degenerate (kl>1, rl 10) — excluded |
 
-- **Nearly every dialogue domain transfers positively with no ToM labels** (core BeRL claim) —
-  strongest on Qwen2.5; larger but noisier on Gemma.
-- **Domain ranking is family-dependent** and partly reverses (cga +Qwen/−Gemma; thoughttrace bad on both).
+*Gemma-2 (E093–E100), use `d_avg`:*
+| Exp | Domain | d_hm | d_avg | d_cavg | d_cvpk | d_cnd | kl_f | rl_min | Verdict |
+|---|---|--:|--:|--:|--:|--:|--:|--:|---|
+| E094 | casino | +0.195 | +0.119 | −0.105 | 0.000 | −0.111 | **9.65** | 66.8 | ❌ HACK (KL blowup) → excluded from best3 |
+| E098 | p4g | — (log off-node; Results avg +12.8pp) | | | | | | | best Gemma single (clean) per tracker |
+| E093 | empathetic | −0.004 | +0.054 | +0.013 | +0.060 | +0.049 | 0.05 | 102.3 | ✅ clean; best Gemma honest single |
+| E095 | craigslist | +0.060 | +0.098 | −0.081 | +0.085 | −0.067 | 0.33 | 34.4 | clean; raw+ honest− |
+| E099 | dailydialog | −0.072 | +0.059 | +0.005 | +0.106 | +0.058 | 0.03 | 99.6 | clean; honest+ small |
+| E097 | diplomacy | −0.030 | +0.011 | −0.083 | 0.000 | −0.024 | 0.005 | 159.3 | underpowered (3 iters) |
+| E096 | cga | — (log off-node; Results avg −1.6pp) | | | | | | | negative on Gemma |
+| E100 | thoughttrace | −0.036 | −0.059 | +0.063 | +0.063 | +0.049 | 0.01 | 20.0 | rl 20 (non-clean); poor domain |
+
+- **Nearly every dialogue domain transfers positively on raw metrics with no ToM labels** (core BeRL
+  claim) — strongest/cleanest on Qwen2.5; larger but noisier on Gemma.
+- **Domain ranking is family-dependent** and partly reverses (cga +Qwen/−Gemma; thoughttrace bad both).
 - **Smalltalk-baseline (dailydialog) is NOT a null** (revisited & resolved in S3).
-- **Format caveat:** raw gains partly format-compliance; casino (Qwen) the only clearly-positive
-  d_cavg single, and it reward-hacks on Gemma → genuine format-controlled improvement not proven at S1.
+- **Format caveat:** the honest `d_cavg` is mostly ≤0 at S1 — casino (Qwen, +0.071) is the only clearly
+  positive single, and it reward-hacks on Gemma → genuine format-controlled improvement not proven at S1.
 - **Reward-hacking is dataset-dependent:** identical Gemma config is stable on dailydialog/craigslist
-  but KL-blows-up on casino at full-epoch length.
+  but KL-blows-up on casino (9.65) at full-epoch length.
 
 **Key runs.** Qwen empathetic E016, casino E017; Gemma empathetic E093, p4g E098 (search WandB by run
 name `data-recipe-P0[g]_single_*`; full links in the tracker rows).
@@ -130,21 +162,21 @@ Best-3 chosen on `d_avg` (primary) + `d_cavg` (cross-check), clean runs only:
 Qwen = casino+empathetic+dailydialog (`dcfg_mix_best3`); Gemma = craigslist+dailydialog+empathetic
 (casino excluded — KL exploded 9.65) (`dcfg_mix_best3_gemma`).
 
-**Findings.** Independent reassessment (`scripts/reassess_runs.py`):
+**Findings.** Standard table (independent reassessment):
 
-| Arm | mix | d_avg | d_cavg | d_cond_acc | kl_final | resp_len_min |
-|---|---|---|---|---|---|---|
-| Qwen | mix_all (E025) | 0.024 | 0.053 | 0.046 | 0.107 | 38.9 |
-| Qwen | **mix_best3 (E024)** | 0.023 | 0.046 | 0.046 | **0.055** | 45.8 |
-| Gemma | mix_all (E101) | 0.099 | 0.030 | −0.057 | **6.9 ⚠** | 47.6 |
-| Gemma | **mix_best3 (E102)** | **0.106** | −0.035 | −0.080 | **0.117** | 85.2 |
+| Exp | Arm · mix | d_hm | d_avg | d_cavg | d_cvpk | d_cnd | kl_f | rl_min | Verdict |
+|---|---|--:|--:|--:|--:|--:|--:|--:|---|
+| E024 | **Qwen mix_best3** | +0.046 | +0.016 | +0.024 | +0.074 | +0.023 | **0.06** | 39.6 | ✅ chosen — cleanest |
+| E025 | Qwen mix_all | +0.055 | +0.024 | +0.053 | +0.090 | +0.046 | 0.11 | 38.9 | ≈ best3 gain, higher KL |
+| E102 | **Gemma mix_best3** | +0.133 | **+0.106** | −0.035 | +0.019 | −0.080 | 0.12 | 85.2 | ✅ chosen — strictly better + stable |
+| E101 | Gemma mix_all | +0.084 | +0.099 | +0.030 | +0.195 | −0.057 | **6.91** | 47.6 | ❌ KL-blowup — HM gain is collapse artifact |
 
 - **`mix_best3` wins BOTH arms → `dcfg_mix_best := dcfg_mix_best3{,_gemma}`.**
-- **Qwen:** best3 ≈ mix_all on ToM gain but **cleaner** (kl 0.055 vs 0.107) → **no mixture synergy**;
+- **Qwen:** best3 ≈ mix_all on ToM gain but **cleaner** (kl 0.06 vs 0.11) → **no mixture synergy**;
   best3 also ≈ casino single (E017) → casino alone captures the gain.
 - **Gemma:** best3 **strictly better** — higher d_avg AND stable, vs mix_all's KL-blowup 6.9 (its
   headline HM gain is a late-collapse artifact, not trustworthy).
-- **Format caveat:** d_cavg ≈0 on Gemma, small-positive (+0.046) on Qwen — honest effect stays modest.
+- **Format caveat:** honest d_cavg ≈0 on Gemma, small-positive (+0.024) on Qwen — effect stays modest.
 
 **Key runs.** Gemma mix_best3 **E102** — https://wandb.ai/jkhouja-oxford/TOM_EXP (d_avg +0.106, stable);
 Qwen mix_best3 **E024**; Gemma mix_all **E101** (KL-blowup cautionary).
@@ -160,26 +192,26 @@ keeping 50% of turns except `off` (full mix). Locked recipes (Qwen actor·k5·ll
 frozen·k5·ll_min−4). **Status: Qwen E026/E027/E028/E106 all Completed; Gemma E104 off / E105 randlen /
 E107 predictable Completed; E103 surprise Training** (ll_min−6 rerun after a knob-bracketing saga).
 
-**Findings.**
+**Findings.** Standard table (Qwen2.5 HM reliable, base 0.416; Gemma-2 use `d_avg`, base ~0.315):
 
-*Qwen2.5 (HM reliable, base 0.416):*
-| Filter | Row | ToM HM Δ | Verdict |
-|---|---|---|---|
-| predictable | E106 | **+5.4pp** | strongest |
-| off (full mix) | E027 | +5.0pp | baseline |
-| randlen | E028 | +4.8pp | ≈ off |
-| surprise | E026 | +4.1pp | **weakest** |
+*Qwen2.5 (E026–E028, E106):*
+| Exp | Filter | d_hm | d_avg | d_cavg | d_cvpk | d_cnd | kl_f | rl_min | Verdict |
+|---|---|--:|--:|--:|--:|--:|--:|--:|---|
+| E106 | predictable | +0.052 | +0.024 | +0.008 | +0.008 | +0.010 | 0.08 | 37.6 | **strongest** |
+| E027 | off (full mix) | +0.051 | +0.019 | −0.011 | +0.048 | −0.013 | 0.07 | 41.5 | baseline (recipe kept) |
+| E028 | randlen | +0.049 | +0.022 | +0.017 | +0.019 | +0.016 | 0.06 | 39.8 | ≈ off |
+| E026 | surprise | +0.042 | +0.015 | −0.042 | 0.000 | −0.049 | 0.07 | 44.0 | **weakest** |
 
-*Gemma-2 (avg, base ~0.315):*
-| Filter | Row | ToM avg Δ (last3/5) | Verdict |
-|---|---|---|---|
-| off (full mix) | E104 | **+0.059/+0.064** (+18.8%) | **strong** |
-| predictable | E107 | +0.052/+0.031 | modest+ |
-| randlen | E105 | +0.024/+0.013 | modest+ |
-| surprise | E103 | pending (see below) | — |
+*Gemma-2 (E103–E105, E107), use `d_avg`:*
+| Exp | Filter | d_hm | d_avg | d_cavg | d_cvpk | d_cnd | kl_f | rl_min | Verdict |
+|---|---|--:|--:|--:|--:|--:|--:|--:|---|
+| E104 | off (full mix) | −0.011 | **+0.059** | −0.051 | 0.000 | +0.037 | 0.07 | 78.8 | **strong** (best d_avg) |
+| E107 | predictable | — (log off-node; Results avg +0.052/+0.031) | | | | | | | modest+ |
+| E105 | randlen | −0.049 | +0.024 | −0.024 | +0.071 | −0.094 | 0.007 | 124.9 | modest+ |
+| E103 | surprise | crashed — ll_min−6 rerun in progress (no metrics yet) | | | | | | | — (see below) |
 
 - **Surprisal-SELECTION does NOT help — it slightly HURTS.** Qwen ordering: predictable ≥ off ≥
-  randlen > surprise. Gemma: off (full 11k-turn mix) far the strongest, well above halved sets.
+  randlen > surprise. Gemma: off (full 11k-turn mix) far the strongest, above halved sets.
   Both arms agree → **ToM gain is driven by corpus exposure / quantity, not turn surprisal.**
 - **Resolves the S1 "smalltalk-not-null" puzzle:** turn quality is not the driver, so dailydialog
   transferring as well as structured-ToM domains is expected.
