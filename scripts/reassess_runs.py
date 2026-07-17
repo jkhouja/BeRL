@@ -436,8 +436,9 @@ def main():
         for p in args.logs:
             d = load_cached(p)
             m = compute_metrics(d) or {}
-            rows.append({"log": p, **parse_knobs(os.path.basename(p)[:-4],
-                                                 d.get("use_actor_as_rm")), **m})
+            stem = os.path.basename(p)[:-4]
+            rows.append({"log": p, "run": stem,
+                         **parse_knobs(stem, d.get("use_actor_as_rm")), **m})
     else:
         rows = assess_all()
 
@@ -481,7 +482,7 @@ def main():
             g = lambda k: (f"{r[k]:.3f}" if isinstance(r.get(k), (int, float)) else "  -")
             print(f"{g(rk):>8} {g('d_hm'):>6} {g('d_cavg'):>7} {g('d_cond_acc'):>7} "
                   f"{g('d_fmt_pass'):>7} {str(r.get('fmt_pct','-')):>5} {str(r.get('reason_pct','-')):>5} "
-                  f"{g('d_gsm8k'):>6} {g('kl_final'):>6} {str(r.get('resp_len_min','-')):>6}  {r['run'][:50]}")
+                  f"{g('d_gsm8k'):>6} {g('kl_final'):>6} {str(r.get('resp_len_min','-')):>6}  {r.get('run', os.path.basename(r.get('log','?')))[:50]}")
 
 
 if __name__ == "__main__":
