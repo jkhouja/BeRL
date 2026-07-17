@@ -1,0 +1,17 @@
+extends: dcfg_base_notags.yaml
+
+# Tag-free (cot_eval_notags, no <answer> tags, no <think> prefix) variant of
+# dcfg_thoughttrace for running the ThoughtTrace single-domain arm on a TAGGED
+# model family (Qwen2.5) under the tag-free reward path. Needed because Qwen2.5
+# on ThoughtTrace emits short next-user-turn predictions without a closing
+# </think>; under the tagged recipe those are ~100% hard-invalid (−45 sentinel →
+# zero GRPO advantage). Running tag-free (REQUIRE_ANSWER_TAGS=False) makes any
+# non-empty response valid via split_thinking(), unblocking E023.
+# Content is identical to dcfg_thoughttrace_gemma (both extend dcfg_base_notags);
+# the model-agnostic parquet is generated once and shared across families.
+datasets:
+  - source: "thoughttrace"
+    target_speaker: "user"
+
+pipeline:
+  output_name: "dcfg_thoughttrace_notags"
