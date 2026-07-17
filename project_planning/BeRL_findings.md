@@ -8,12 +8,12 @@ and the tracker (which holds live status).
 **Last updated:** 2026-07-17 (Phase 0: S1 ✅ · S2 ✅ mix_best3 wins · S3 Qwen ✅ 4/4 · Gemma 3/4 — **surprisal filtering gives no benefit; recipe stays mix_best3/off**).
 
 ### 🔑 Key runs to inspect (WandB project `jkhouja-oxford/TOM_EXP`)
-- **S3 Qwen predictable** `E106` — `hwld1qqz` (best Qwen S3, +5.4pp HM) — surprisal-selection *loser*.
-- **S3 Qwen surprise** `E026` — `ui2xm36n` (weakest, +4.1pp) — the "ToM-dependent" selection *hurts*.
-- **S3 Qwen off** `E027` — `x3xz6htr` (full-mix baseline, +5.0pp) — the recipe we keep.
-- **S3 Gemma off** `E104` — `4d3po0yz` (strong +18.8% avg; full corpus >> halved sets).
-- **S3 Gemma surprise** `E103` — `aa64z8gx` (in-progress `ll_min=−6` rerun; reward-floor bracketing).
-- **S2 Gemma mix_best3** `E102` — d_avg +0.106, stable (the winning mix); Qwen mix_best3 `E024`.
+- **S3 Qwen predictable** `E106` — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/hwld1qqz (best Qwen S3, +5.4pp HM) — surprisal-selection *loser*.
+- **S3 Qwen surprise** `E026` — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/ui2xm36n (weakest, +4.1pp) — the "ToM-dependent" selection *hurts*.
+- **S3 Qwen off** `E027` — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/x3xz6htr (full-mix baseline, +5.0pp) — the recipe we keep.
+- **S3 Gemma off** `E104` — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/4d3po0yz (strong +18.8% avg; full corpus >> halved sets).
+- **S3 Gemma surprise** `E103` — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/aa64z8gx (in-progress `ll_min=−6` rerun; reward-floor bracketing).
+- **S2 Gemma mix_best3** `E102` — https://wandb.ai/jkhouja-oxford/TOM_EXP (d_avg +0.106, stable, the winning mix); Qwen mix_best3 `E024`.
 
 **Reading the metrics.** Each run is scored vs **its own step-0 baseline** on the `subsample300`
 eval suite. Two ToM aggregates over the 24 ToM benchmarks: **HM** (harmonic mean, min-dominated) and
@@ -139,10 +139,10 @@ frozen·k5·ll_min−4·kl0.05·lr5e-7). Each scored vs its own step-0 baseline 
 
 | Filter | Row | WandB | ToM HM Δ | ToM avg Δ | Health | Verdict |
 |---|---|---|---|---|---|---|
-| **predictable** | E106 | `hwld1qqz` | **+5.4pp** (0.474) | +2.5pp | kl0.082 resp111 clean | strongest |
-| **off** (full mix) | E027 | `x3xz6htr` | +5.0pp (0.466) | +1.9pp | kl0.066 resp95 clean | baseline |
-| **randlen** | E028 | `52uf3h0i` | +4.8pp (0.466) | +2.0pp | kl0.061 resp97 clean | ≈ off |
-| **surprise** | E026 | `ui2xm36n` | +4.1pp (0.459) | +3.1%(AM) | kl clean, no floor | **weakest** |
+| **predictable** | E106 | [hwld1qqz](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/hwld1qqz) | **+5.4pp** (0.474) | +2.5pp | kl0.082 resp111 clean | strongest |
+| **off** (full mix) | E027 | [x3xz6htr](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/x3xz6htr) | +5.0pp (0.466) | +1.9pp | kl0.066 resp95 clean | baseline |
+| **randlen** | E028 | [52uf3h0i](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/52uf3h0i) | +4.8pp (0.466) | +2.0pp | kl0.061 resp97 clean | ≈ off |
+| **surprise** | E026 | [ui2xm36n](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/ui2xm36n) | +4.1pp (0.459) | +3.1%(AM) | kl clean, no floor | **weakest** |
 
 **Qwen S3 verdict — surprisal-SELECTION does NOT help; it slightly HURTS.** Ordering is
 predictable ≥ off ≥ randlen > surprise. Keeping only the "ToM-dependent" (highest-surprisal) turns
@@ -156,10 +156,10 @@ domains is consistent — the reward learns from broad dialogue prediction, not 
 
 | Filter | Row | WandB | ToM avg Δ (last3/last5) | Health | Verdict |
 |---|---|---|---|---|---|
-| **off** (full mix) | E104 | `4d3po0yz` | **+0.059 / +0.064** (0.315→0.375, +18.8%) | kl clean, no −45 floor | **strong** |
-| **predictable** | E107 | `9x03dues` | +0.052 / +0.031 (HM flat) | kl0.15 resp219 clean | modest+ |
-| **randlen** | E105 | `cmc29n2w` | +0.024 / +0.013 | kl0.007 resp156 clean | modest+ |
-| **surprise** | E103 | rerunning | — (see below) | — | **pending** |
+| **off** (full mix) | E104 | [4d3po0yz](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/4d3po0yz) | **+0.059 / +0.064** (0.315→0.375, +18.8%) | kl clean, no −45 floor | **strong** |
+| **predictable** | E107 | [9x03dues](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/9x03dues) | +0.052 / +0.031 (HM flat) | kl0.15 resp219 clean | modest+ |
+| **randlen** | E105 | [cmc29n2w](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/cmc29n2w) | +0.024 / +0.013 | kl0.007 resp156 clean | modest+ |
+| **surprise** | E103 | [aa64z8gx](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/aa64z8gx) | — (see below) | — | **pending** |
 
 **Gemma S3 (provisional)** — same qualitative story: **off (full 11k-turn mix) is far the strongest
 (+18.8%)**, well above halved sets (predictable +5.2%, randlen +2.4%) → **quantity/exposure dominates
