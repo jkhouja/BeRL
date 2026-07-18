@@ -162,3 +162,35 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+
+---
+
+## Findings (r1 — COMPLETED, POSITIVE but does NOT beat mix_best3)
+
+**Run:** WandB `ldyyw1c7`, 343/343 steps, Gemma-2-2B-it, frozen base-LM RM, tag-free, power k5 ll_min-4, KL0.05, LR5e-7, fp5 ec0.001, 2048/512.
+
+**Canonical scorer output (`scripts/score_run.py`):**
+```
+eval iters: 70 (step 0..343); ToM benchmarks: 24 (excl gsm8k, mmlu)
+ToM HM(last5)=0.1649  HM(last3)=0.1663  (baseline step0=0.0929)
+ToM avg(last5)=0.405  avg(last3)=0.4111  (baseline step0=0.315)
+gsm8k (separate): 0.386 (step0=0.277, delta vs step0=+0.109)
+mmlu (separate): 0.4432 (step0=0.387, delta vs step0=+0.056)
+health(final): kl=0.008 entropy=1.415 resp_len=169.666 reward=0.018 parseable=1.0 max_resp=512
+```
+
+**Verdict: POSITIVE transfer, clean health, but the honest d_cavg re-ranking did NOT improve the mixture.**
+- ToM avg(last5) 0.315→0.405 (**+9.0pp**), avg(last3) +9.6pp; HM(last5) 0.0929→0.1649 (+7.2pp) — HM is noise-prone for Gemma (near-zero baseline), avg is the reliable metric.
+- Capability IMPROVED: gsm8k Δ+10.9pp, mmlu Δ+5.6pp.
+- Health is the cleanest of the Gemma mixes: final **kl=0.008** (vs E101 mix_all's KL 6.9 drift), resp_len 170 (bounded, no 512-cap length inflation), parseable 1.0, no collapse. HM trajectory rises to a ~0.25 peak around step 270–285, then settles ~0.18.
+
+**Comparison (Gemma domain-mixture picture):**
+| Run | Mix | ToM avg Δ | ToM HM Δ | gsm8k Δ | mmlu Δ | health |
+|---|---|---|---|---|---|---|
+| E101 mix_all | 10 domains | +9.73pp | +7.99pp | +9.2pp | +1.7pp | KL 6.9 drift, HM declines late |
+| E102 mix_best3 | craigslist+dailydialog+empathetic | **+11.85pp** | **+16.2pp** | +12.7pp | +6.6pp | KL healthy, 24/24 up |
+| **E108 mix_top3 (this)** | p4g+empathetic+dailydialog | +9.0pp | +7.2pp | +10.9pp | +5.6pp | **KL 0.008 cleanest** |
+
+**Interpretation:** The honest-rerank top3 (which SWAPPED OUT craigslist — negative honest d_cavg −0.081 — for p4g) **does not beat** E102 mix_best3 (which INCLUDED craigslist) on final ToM (avg +9.0pp < +11.85pp; HM +7.2pp < +16.2pp), and is roughly on par with E101 mix_all (+9.73pp avg). So the **format-controlled single-domain reranking (d_cavg) does NOT predict mixture ToM gain better than the raw d_avg selection** in this Gemma family — the domain whose isolated honest gain was negative (craigslist) still contributed to the strongest mix. E108's one clear edge is dramatically cleaner training dynamics (KL 0.008 vs E101's 6.9). Net: behavior-prediction RL transfers robustly across all three Gemma mixes, but honest-rerank top3 is not the winning recipe — mix_best3 remains the strongest Gemma mixture.
+
+**How to rerun:** `EXP_ID=data-recipe-P0g_mix_top3 DATA_NAME=dcfg_mix_top3_gemma MODEL_PATH=google/gemma-2-2b-it DATA_TRAIN=data/dcfg_mix_top3_gemma.parquet REWARD_TYPE=power POWER_K=5 POWER_LL_MIN=-4 USE_ACTOR_AS_RM=False KL=0.05 LR=5e-7 FORMAT_PENALTY=5 ENTROPY_COEFF=0.001 MAX_PROMPT=2048 MAX_RESP=512 TEST_FREQ=5 TOTAL_EPOCHS=1 RUN_INDEX=1 bash experiments/train_behavior_gemma.sh`
