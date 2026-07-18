@@ -160,18 +160,38 @@ via `--logs`. (A concurrent-write cache-corruption bug that had blanked Qwen cra
 **Key runs.** Gemma **p4g E098** ([c54ffnvl](https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/c54ffnvl)) — best
 clean honest single; Gemma empathetic E093, dailydialog E099; Qwen casino E017.
 
-### S1b — honest-reranked mix (`mix_top3`)  ◀ QUEUED (Gemma)
+### S1b — honest-reranked mix (`mix_top3`)  ✅ COMPLETE (Gemma) — NEGATIVE
 
 **RQ.** If we re-rank the S1 singles on the **honest** `d_cavg`/`d_cond_acc` (not raw `d_avg`) and mix
 the true top-3, does the format-controlled ToM gain (that appeared on the smoke mix but NOT on the
 raw-`d_avg` `mix_best3`) reproduce on the real corpus?
 
 **Runs.** Gemma `dcfg_mix_top3_gemma` = **persuasionforgood + empathetic_dialogues + dailydialog** (the
-3 clean Gemma singles with d_cavg>0 AND d_cond_acc>0; swaps craigslist→p4g vs `mix_best3_gemma`). Row
-queued Not-started for the pool. **Qwen NOT queued** — no clean Qwen single has positive honest d_cavg,
-so an honest Qwen mix isn't warranted (documented null).
+3 clean Gemma singles with d_cavg>0 AND d_cond_acc>0; swaps craigslist→p4g vs `mix_best3_gemma`).
+**Qwen NOT queued** — no clean Qwen single has positive honest d_cavg (documented null).
 
-**Findings.** — (pending run). **Key runs.** — (TBD; compare d_cavg vs `mix_best3_gemma` E102 −0.035).
+| Exp | Arm · mix | d_hm | d_avg | d_cavg | d_cvpk | d_cnd | kl_f | rl_min | Verdict |
+|-----|-----------|------|-------|--------|--------|-------|------|--------|---------|
+| E108 | Gemma · mix_top3 (p4g+emp+dd) | +0.073 | +0.096 | **−0.042** | +0.002 | +0.002 | 0.008 | 92.8 | ❌ NO honest gain (99% format) |
+| E102 | Gemma · mix_best3 (crg+dd+emp) | +0.133 | +0.097 | −0.035 | +0.019 | −0.080 | 0.117 | 85.2 | ❌ NO honest gain |
+
+**Findings — NEGATIVE / the honest-rerank thesis fails.** E108 (step 343, healthy: kl 0.008, rl 92.8,
+gsm8k +0.120, mmlu +0.063) gives raw d_avg **+0.096** (≈ mix_best3 +0.097) but honest **d_cavg −0.042,
+d_cavg_peak +0.002, d_cond_acc +0.002** — flat-to-negative at *every* training window; d_hm +0.073 is
+**99.2% format** (d_fmt_pass +0.200). So the single-domain honest gains (p4g +0.086, emp +0.013, dd
++0.005) **did NOT compose into the mixture** — exactly the mix_best3 pattern. Three Gemma honest-mix
+attempts now exist: only `gf3sa6x3` (smoke_mix, ~190 steps) was honest-positive (d_cavg +0.148); both
+*proper* mixes (mix_best3 686 steps, mix_top3 343 steps) are honest-flat/negative. The one positive is
+the shortest run on a different corpus → most likely a noisy/early-peak outlier (SE≈0.05), not a
+reproducible honest gain. **Conclusion: for Gemma-2 the frozen-RM behavior reward reliably buys raw
+d_avg (~+0.10, format-dominated) but NOT robust honest ToM on any real multi-domain corpus.**
+
+**Corollary (turn-selection repeat, per user Q 2026-07-18):** mix_top3 has **no honest signal**
+(d_cavg_peak +0.002) → nothing for surprise/turn-selection to concentrate → **repeating S3
+turn-selection on mix_top3 is NOT warranted** (gate fails). The S3 null stands.
+
+**Key runs.** E108 `data-recipe-P0g_mix_top3-dcfg_mix_top3_gemma` (Gemma, step343, honest-flat) ·
+compare vs E102 `mix_best3` (−0.035) and the outlier `gf3sa6x3` smoke_mix (+0.148, unreproduced).
 
 
 ### S2 — greedy mixes (best-3, all)  ✅ COMPLETE (both arms)
