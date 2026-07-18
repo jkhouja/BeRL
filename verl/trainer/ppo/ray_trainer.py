@@ -431,6 +431,92 @@ class RayPPOTrainer(object):
             self.config.actor_rollout_ref.actor.optim.total_training_steps = total_training_steps
             self.config.critic.optim.total_training_steps = total_training_steps
 
+        if self.config.data.get('assert_prompt_consistency', True):
+            self._assert_train_val_prompt_consistency()
+
+    def _render_prompt(self, dataset, idx: int) -> str:
+        """Render row ``idx`` of ``dataset`` through the exact __getitem__ prompt path
+        (system-prompt processing + chat template with add_generation_prompt), returning
+        the rendered prompt string (no tokenization)."""
+        chat = dataset.dataframe.iloc[idx][dataset.prompt_key]
+        if dataset.prompt_is_text:
+            return chat
+        chat = chat.tolist() if hasattr(chat, 'tolist') else list(chat)
+        chat = dataset._process_system_prompt(chat)
+        return dataset.tokenizer.apply_chat_template(chat, add_generation_prompt=True, tokenize=False)
+
+    def _assert_train_val_prompt_consistency(self, n_sample: int = 4):
+        """Fail fast if the train and val prompts are not format-consistent.
+
+        Train/eval format synergy is essential: if training prompts prefill the CoT
+        (e.g. end in ``<think>``) or bake raw chat-template control tokens into a
+        message ``content`` (the legacy text-prefix parquet double-wrap bug), while the
+        eval prompts do not, the model is optimized under a different format than it is
+        scored under. That mismatch silently trips the strict format gate at eval time
+        and manifests as an apparent ToM "regression". This guard renders sample train
+        and val prompts and asserts:
+          1. both loaders use the same ``prompt_is_text`` mode;
+          2. no message ``content`` contains chat-template control tokens (double-wrap
+             signature);
+          3. train and val prompts end with the identical generation cue (so neither
+             side carries an extra reasoning prefill the other lacks).
+        Disable with ``+data.assert_prompt_consistency=False`` (not recommended).
+        """
+        train_ds, val_ds = self.train_dataset, self.val_dataset
+
+        # 1. same prompt mode
+        if train_ds.prompt_is_text != val_ds.prompt_is_text:
+            raise AssertionError(
+                "[prompt-consistency] train/val prompt_is_text differ "
+                f"(train={train_ds.prompt_is_text}, val={val_ds.prompt_is_text}); "
+                "train and eval must use the same prompt format.")
+
+        control_tokens = ['<|im_start|>', '<|im_end|>', '<start_of_turn>', '<end_of_turn>']
+
+        def check_no_control_tokens(dataset, name):
+            if dataset.prompt_is_text:
+                return
+            for i in range(min(n_sample, len(dataset.dataframe))):
+                chat = dataset.dataframe.iloc[i][dataset.prompt_key]
+                chat = chat.tolist() if hasattr(chat, 'tolist') else list(chat)
+                for msg in chat:
+                    content = str(msg.get('content', ''))
+                    for tok in control_tokens:
+                        if tok in content:
+                            raise AssertionError(
+                                f"[prompt-consistency] {name} row {i} message role="
+                                f"{msg.get('role')} contains chat-template control token "
+                                f"'{tok}' in its content. This is a pre-baked/legacy prompt "
+                                "that will double-wrap under apply_chat_template (train/eval "
+                                "format mismatch). Regenerate this parquet in native message "
+                                "format (see scripts/reformat_rule_train_to_messages.py).")
+
+        check_no_control_tokens(train_ds, 'train')
+        check_no_control_tokens(val_ds, 'val')
+
+        # 3. identical generation cue (rules out a stray prefill on one side only)
+        def generation_cue(dataset):
+            ref = dataset.tokenizer.apply_chat_template(
+                [{'role': 'system', 'content': 'S'}, {'role': 'user', 'content': 'U'}],
+                add_generation_prompt=True, tokenize=False)
+            return ref[ref.rindex('U') + 1:]
+
+        train_rendered = self._render_prompt(train_ds, 0)
+        val_rendered = self._render_prompt(val_ds, 0)
+        if not train_ds.prompt_is_text:
+            cue = generation_cue(train_ds)
+            if not train_rendered.endswith(cue):
+                raise AssertionError(
+                    "[prompt-consistency] train prompt does not end with the expected "
+                    f"generation cue {cue!r}; it may carry an extra prefill. Train tail: "
+                    f"{train_rendered[-len(cue) - 20:]!r}")
+            if not val_rendered.endswith(cue):
+                raise AssertionError(
+                    "[prompt-consistency] val prompt does not end with the expected "
+                    f"generation cue {cue!r}. Val tail: {val_rendered[-len(cue) - 20:]!r}")
+        print('[prompt-consistency] OK: train and val prompts are format-consistent '
+              f'(prompt_is_text={train_ds.prompt_is_text}, shared generation cue).')
+
     def _validate(self):
         reward_tensor_lst = []
         data_source_lst = []
@@ -484,10 +570,28 @@ class RayPPOTrainer(object):
             total_count = len(rewards)
             print(f'[Validate] {data_source} count_equal_3: {count_equal_3}, total_count: {total_count}')
             metric_dict[f'val/test_score/{data_source}{suffix}'] = count_equal_3 / total_count if total_count > 0 else 0
-            # count_equal_2 = sum(1 for reward in rewards if reward == 2)
-            # total_count = len(rewards)
-            # print(f'[Validate] {data_source} count_equal_2: {count_equal_2}, total_count: {total_count}')
-            # metric_dict[f'val/test_score/{data_source}'] = count_equal_2 / total_count if total_count > 0 else 0
+
+            # --- Format-conditioned metrics (train/eval format-synergy diagnostic) ---
+            # The ToM rule scorers (explore_tom / tom_mc / fantom) all use
+            #   total = format(+1/-1) + answer(+2/-2), with answer gated behind format,
+            # so the total is exactly one of {+3, -1, -3}:
+            #   +3 <=> format PASS & answer CORRECT
+            #   -1 <=> format PASS & answer WRONG
+            #   -3 <=> format FAIL (answer gated)
+            # This lets us recover the two signals exactly and separate a genuine ToM
+            # change from a format-scoring artifact (the strict format gate hiding
+            # correct answers when the model stops emitting <think>/<answer> tags).
+            # Only emit these for sources whose rewards live entirely in {3,-1,-3};
+            # numeric guardrails (gsm8k) use a different scale and are skipped.
+            is_ternary = all(round(float(r)) in (3, -1, -3) for r in rewards) if total_count > 0 else False
+            if is_ternary and total_count > 0:
+                fmt_pass = sum(1 for r in rewards if round(float(r)) != -3)
+                # format-conditioned answer accuracy: correct / (format-valid)
+                answer_acc_cond = (count_equal_3 / fmt_pass) if fmt_pass > 0 else 0.0
+                metric_dict[f'val/format_pass/{data_source}{suffix}'] = fmt_pass / total_count
+                metric_dict[f'val/answer_acc_cond/{data_source}{suffix}'] = answer_acc_cond
+                print(f'[Validate] {data_source} format_pass: {fmt_pass}/{total_count}, '
+                      f'answer_acc_cond: {count_equal_3}/{fmt_pass}')
 
         return metric_dict
 

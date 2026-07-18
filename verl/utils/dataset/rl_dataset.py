@@ -157,6 +157,15 @@ class RLHFDataset(Dataset):
         if self.prompt_is_text:
             prompt_with_chat_template = chat
         else:
+            # NOTE (train/eval format synergy): for message-format data (prompt_is_text=False,
+            # the standard for all current parquets) the generation point is produced solely by
+            # apply_chat_template(add_generation_prompt=True) and ends at the assistant header
+            # with NO reasoning prefill. The data-gen ``generation_prefix`` field (e.g. "<think>")
+            # is NOT applied here, so training prompts match the (prefill-free) eval prompts. A
+            # <think> prefill only ever appeared in the legacy text-prefix rule parquet (which set
+            # prompt_is_text=True and baked chat markers into a single user message); that format
+            # is deprecated (see scripts/reformat_rule_train_to_messages.py) and is caught at
+            # startup by RayPPOTrainer._assert_train_val_prompt_consistency.
             chat = chat.tolist() if hasattr(chat, 'tolist') else list(chat)
             chat = self._process_system_prompt(chat)
             prompt_with_chat_template = self.tokenizer.apply_chat_template(

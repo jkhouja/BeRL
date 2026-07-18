@@ -165,10 +165,31 @@ berl::write_summary_md() {
 # ---------------------------------------------------------------------------
 berl::run() {
   berl::activate_env
+  # Capture user-provided overrides BEFORE family/shared defaults fill them, so
+  # task-aware defaults (below) only apply when the user did not set them.
+  local _user_max_resp="${MAX_RESP:-}" _user_train_batch="${TRAIN_BATCH:-}" _user_data_train="${DATA_TRAIN:-}"
   berl::model_family_defaults || return 1
 
   # Shared defaults (override via env before sourcing).
   TASK="${TASK:?set TASK (behavior|tom_rulebased|sft)}"
+
+  # --- Task-aware defaults: direct rule-based ToM (matches the original ToM-RL recipe) ---
+  # The original bigai-ai/ToM-RL rule-based GRPO uses a small train batch (more optimizer
+  # steps) and 2048-token responses, and trains for far more steps than the behavior
+  # default (batch 32, 1 epoch ~= 100 steps). Under the project's single-epoch policy a
+  # batch of 8 over the 3,200-row set yields ~400 steps (4x the old default). Also default
+  # the training data to the native message-format parquet that matches the eval prompts.
+  if [ "$TASK" = "tom_rulebased" ]; then
+    [ -z "$_user_train_batch" ] && TRAIN_BATCH=8
+    [ -z "$_user_max_resp" ] && MAX_RESP=2048
+    # Default the rule training data to the native message-format parquet that matches
+    # the eval prompts byte-for-byte (tagged cot_eval). Only auto-default for qwen2.5,
+    # which expects <answer> tags; qwen3/gemma need a tag-free rule parquet (pass
+    # DATA_TRAIN explicitly).
+    if [ -z "$_user_data_train" ] && [ "$MODEL_FAMILY" = "qwen2.5" ]; then
+      DATA_TRAIN="$REPO_DIR/data/cleaned_tom/ToM_train_HiEx_hint_v3.parquet"
+    fi
+  fi
   # GPU pinning: GPU_IDS (comma-sep) -> CUDA_VISIBLE_DEVICES; NUM_GPUS derived from it.
   if [ -n "${GPU_IDS:-}" ]; then
     export CUDA_VISIBLE_DEVICES="$GPU_IDS"
