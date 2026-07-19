@@ -97,13 +97,15 @@ berl::build_params_tag() {
   esac
 }
 
-# RUN_NAME_BASE = [<EXP_NUM>-]<EXP_ID>-<DATA_NAME> ; full RUN_NAME adds -<MODEL_TAG>-<PARAMS>-r<N>.
-# EXP_NUM = the short tracker row id (e.g. E034, PS2) — prefixed so every WandB run / log /
+# RUN_NAME_BASE = [<RUN_STAGE>-][<EXP_NUM>-]<EXP_ID>-<DATA_NAME> ; full RUN_NAME adds -<MODEL_TAG>-<PARAMS>-r<N>.
+# RUN_STAGE = optional stage-wide tag (e.g. s2) prepended to EVERY run so a whole experiment stage is
+#   filterable in one WandB search (v2 tracker convention: RUN_STAGE=s2). Omit for ad-hoc/old runs.
+# EXP_NUM = the short tracker row id (e.g. ST01, E034) — prefixed so every WandB run / log /
 # repro-md starts with the searchable row handle. Optional (omit for ad-hoc smoke runs).
 berl::resolve_run_name() {
   : "${EXP_ID:?set EXP_ID (tracker Exp ID, or e.g. test-smoke)}"
   : "${DATA_NAME:?set DATA_NAME (tracker Data config name, dcfg_* stem)}"
-  RUN_NAME_BASE="${EXP_NUM:+${EXP_NUM}-}${EXP_ID}-${DATA_NAME}"
+  RUN_NAME_BASE="${RUN_STAGE:+${RUN_STAGE}-}${EXP_NUM:+${EXP_NUM}-}${EXP_ID}-${DATA_NAME}"
   local stem="${RUN_NAME_BASE}-${MODEL_TAG}-${PARAMS_TAG}"
   if [ -n "${RUN_INDEX:-}" ]; then
     :
@@ -130,7 +132,7 @@ berl::write_summary_md() {
     if [ ! -f "$md" ]; then
       echo "# ${RUN_NAME_BASE}"
       echo
-      echo "- **Exp ID:** ${EXP_ID}${EXP_NUM:+   **Exp #:** ${EXP_NUM}}"
+      echo "- **Exp ID:** ${EXP_ID}${EXP_NUM:+   **Exp #:** ${EXP_NUM}}${RUN_STAGE:+   **Stage:** ${RUN_STAGE}}"
       echo "- **Data config:** ${DATA_NAME}"
       echo "- **Task:** ${TASK}   **Model family:** ${MODEL_FAMILY}"
       echo

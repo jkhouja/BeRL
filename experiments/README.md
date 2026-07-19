@@ -33,16 +33,18 @@ BERL_DRY_RUN=1 EXP_ID=... DATA_NAME=... DATA_TRAIN=... bash experiments/train_be
 
 ## Naming
 
-`RUN_NAME = <EXP_NUM>-<EXP_ID>-<DATA_NAME>-<MODEL_TAG>-<PARAMS>-r<N>` = WandB run name = log filename
-stem (`logs/<YYYYMMDD>/<RUN_NAME>.log`). Pass **`EXP_NUM=<Exp #>`** (short tracker row id, e.g.
-`E034`/`PS2`) so the run name starts with the searchable row handle (optional — omitted for ad-hoc
-runs with no row). The base stem `<EXP_NUM>-<EXP_ID>-<DATA_NAME>` matches the tracker
+`RUN_NAME = <RUN_STAGE>-<EXP_NUM>-<EXP_ID>-<DATA_NAME>-<MODEL_TAG>-<PARAMS>-r<N>` = WandB run name = log filename
+stem (`logs/<YYYYMMDD>/<RUN_NAME>.log`). Pass **`RUN_STAGE=s2`** (stage-wide tag for the v2 tracker —
+the leading `s2-` filters all new-stage runs in WandB, distinct from the old `PS###`/`E###` stage)
+and **`EXP_NUM=<Exp #>`** (short tracker row id, e.g. `ST07`) so the run name starts with
+`s2-<Exp #>-…` (both optional — omitted for ad-hoc runs with no row). The base stem
+`s2-<EXP_NUM>-<EXP_ID>-<DATA_NAME>` matches the tracker
 `Run name` cell. `common.sh` auto-picks the next free `-r<N>` (scan of `logs/`) or honors
 `RUN_INDEX=`. Each attempt appends to the reproducibility record `experiments_logs/<RUN_NAME_BASE>.md`.
 
 ## Key env knobs (see `lib/common.sh` for the full list + defaults)
 
-`MODEL_PATH`, `EXP_NUM` (short tracker row id → run-name prefix, e.g. `E034`/`PS2`), `REWARD_TYPE` (power|log_prob|neg_perplexity), `POWER_K`, `POWER_LL_MIN`,
+`MODEL_PATH`, `RUN_STAGE` (stage tag → run-name prefix, e.g. `s2`), `EXP_NUM` (short tracker row id → run-name prefix, e.g. `ST07`), `REWARD_TYPE` (power|log_prob|neg_perplexity), `POWER_K`, `POWER_LL_MIN`,
 `USE_ACTOR_AS_RM` (True|False), `SUBTRACT_BASELINE`, `KL`, `LR`, `ROLLOUT_N`, `MAX_PROMPT`,
 `MAX_RESP`, `TOTAL_EPOCHS`, `SAVE_FREQ`, `TEST_FREQ`, `VAL_FILES`, `VAL_SUITE` (subsample300|full|core|sanity),
 `VAL_METRIC_SUFFIX`, `DATA_TRAIN`, `DATA_NAME`,

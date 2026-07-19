@@ -121,9 +121,9 @@ write.
 ## Per-run log file (mandatory)
 
 Every experiment gets its own markdown file at **`experiments_logs/<RUN_NAME_BASE>.md`**, where
-`RUN_NAME_BASE` = the tracker `Run name` stem = `<Exp #>-<Exp ID>-<data_name>` (short row id `EXP_NUM`
-prefixed for WandB search; RQ tag baked into `Exp ID`; **`test`**
-for smoke runs). The full WandB run name adds `-<model>-<params>-r<N>` (run index) — but the md file
+`RUN_NAME_BASE` = the tracker `Run name` stem = `s2-<Exp #>-<Exp ID>-<data_name>` (stage tag
+`RUN_STAGE=s2` + short row id `EXP_NUM` prefixed for WandB search; RQ tag baked into `Exp ID`;
+**`test`** for smoke runs). The full WandB run name adds `-<model>-<params>-r<N>` (run index) — but the md file
 is keyed by the **base stem without `-r<N>`** so every *attempt* (r1, r2, … after a crash/resubmit)
 **appends** to the same file (append-friendly so concurrent tooling never truncates it). It must
 summarize:
