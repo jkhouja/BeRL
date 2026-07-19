@@ -6,7 +6,8 @@ shared cluster. Each agent **claims** a `Not-started` row (set `Status=Processin
 This is a **fresh v2 tracker** started 2026-07-19 after the merged fixes (tag-free invalid gate,
 relative invalid sentinel, actor-RM reward-type wiring, std-gated format penalty, single-epoch
 guard). The **complete pre-v2 history** (Phase −1 sweep `PS001–PS182` + `E016–E108`) is archived
-verbatim in `old_BeRL_experiments_tracker.md`; the retired design doc is `old_BeRL_paper_plan.md`.
+verbatim in `old_BeRL_experiments_tracker.md`; the v2 design is `BeRL_paper_plan.md` (retired
+pre-v2 design = `old_BeRL_paper_plan.md`).
 
 > **Why v2 is wider.** Every hyperparameter that previously lived only as a *silent launcher
 > default* (batch sizes, `max_prompt`/`max_resp`, `rollout_n`, `entropy_coeff`, `format_penalty`,

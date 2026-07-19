@@ -10,7 +10,8 @@ Multiple Claude agents execute BeRL training runs concurrently on a shared clust
 **only** through two shared, concurrently-edited files:
 - `project_planning/BeRL_experiments_tracker.md` — the 92-row live queue (source of truth for who
   owns what and each row's `Status`).
-- `project_planning/old_BeRL_paper_plan.md` — rationale/design of the archived pre-v2 stage (read for context, don't edit).
+- `project_planning/BeRL_paper_plan.md` — the **v2** forward-looking design/rationale (read for
+  context; don't edit unless replanning). `old_BeRL_paper_plan.md` is the archived pre-v2 stage.
 
 Your prime directive: **make progress on experiments without disrupting or corrupting shared state
 that other agents depend on.** When in doubt, do less to the shared files, and re-read before you

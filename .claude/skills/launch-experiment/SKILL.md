@@ -11,8 +11,8 @@ BeRL/TomRL trains small LLMs (Qwen2.5 / Qwen3 / Gemma-2) with GRPO to test wheth
 **behavior-prediction reward** (log-likelihood of the real next human utterance given
 [context + CoT]) induces Theory of Mind that transfers without ToM labels.
 
-Source of truth: `project_planning/BeRL_experiments_tracker.md` (92-row execution table) +
-`project_planning/old_BeRL_paper_plan.md` (archived pre-v2 design). Do **not** hardcode any single run's config here —
+Source of truth: `project_planning/BeRL_experiments_tracker.md` (v2 execution table) +
+`project_planning/BeRL_paper_plan.md` (v2 design; `old_BeRL_paper_plan.md` = archived pre-v2). Do **not** hardcode any single run's config here —
 every knob comes from the claimed tracker row.
 
 ## Prerequisites

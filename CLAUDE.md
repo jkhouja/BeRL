@@ -14,8 +14,11 @@ The forward-looking plan and live execution state live in `project_planning/`:
   (started 2026-07-19; every hyperparameter has an explicit column — no silent launcher defaults).
   Claim a `Not-started` row, run it, update status/WandB/log/results. Agent protocol + naming
   contract + `def`-default legend are defined at the top of the file.
-- **`project_planning/old_BeRL_paper_plan.md`** — archived pre-v2 thesis/phases/eval-suite design
-  (Phase −1 → Phase 0 → Q2 → Q0 → Q1 → Q3 → Q4 → QG); historical context, not the live plan.
+- **`project_planning/BeRL_paper_plan.md`** — the **v2** forward-looking design (thesis, phases
+  Phase −1 → Phase 0 → Q2 → Q0 → Q1 → Q3 → Q4 → QG, eval suite, `[build]` checklist). Re-derives
+  the stable config under the merged fixes on a leaner, collapse-informed Phase −1 grid.
+- **`project_planning/BeRL_findings.md`** — living results log (per-phase RQ/runs/findings/key runs).
+- **`project_planning/old_BeRL_paper_plan.md`** — archived pre-v2 design; historical context only.
 - **`project_planning/old_BeRL_experiments_tracker.md`** — archived pre-v2 execution table
   (`PS001–PS182` sweep + `E016–E108`); historical results only.
 - **`project_planning/HISTORY_rounds_1-20.md`** — archived pre-paper results (Rounds 1–20) and the
