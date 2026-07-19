@@ -3,7 +3,8 @@
 # Required env: EXP_ID, DATA_NAME. DATA_TRAIN defaults to the native message-format parquet
 #   data/cleaned_tom/ToM_train_HiEx_hint_v3.parquet (matches the eval prompts exactly; no
 #   <think> prefill). Task-aware defaults: TRAIN_BATCH=8, MAX_RESP=2048 (~400 steps, 1 epoch).
-#   Override any of these via env. See experiments/lib/common.sh.
+#   Override any of these via env. Optional: EXP_NUM (tracker short id, e.g. E034/PS2 — prepended
+#   to RUN_NAME for WandB search). See experiments/lib/common.sh.
 set -e
 REPO_DIR="${REPO_DIR:-$HOME/repo/BeRL}"
 export MODEL_FAMILY=qwen2.5

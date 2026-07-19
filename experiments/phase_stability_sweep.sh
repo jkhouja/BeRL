@@ -85,6 +85,7 @@ for rew in "${REWARDS[@]}"; do
             POWER_K_ENV="${pk/-/}"; [ "$pk" = "-" ] && POWER_K_ENV="2.0"
             LLMIN_ENV="$llmin";     [ "$llmin" = "-" ] && LLMIN_ENV="-8.0"
 
+            EXP_NUM="$ps" \
             EXP_ID="$exp_id" \
             DATA_NAME="$DATA_NAME" DATA_TRAIN="$DATA_TRAIN" \
             REWARD_TYPE="$rtype" POWER_K="$POWER_K_ENV" POWER_LL_MIN="$LLMIN_ENV" \

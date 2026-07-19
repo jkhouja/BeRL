@@ -1,5 +1,6 @@
 #!/bin/bash
 # Smoke test — Gemma-2 behavior GRPO (FLASH_ATTN, tag-free), short run to verify the pipeline.
+# Optional env: EXP_NUM (tracker short id, e.g. PS2 — prepended to RUN_NAME for WandB search).
 set -e
 REPO_DIR="${REPO_DIR:-$HOME/repo/BeRL}"
 export MODEL_FAMILY=gemma

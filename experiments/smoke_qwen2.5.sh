@@ -1,6 +1,7 @@
 #!/bin/bash
 # Smoke test — Qwen2.5 behavior GRPO, short run to verify the pipeline end-to-end.
 # RQ=test so it never pollutes real experiment names. Defaults to the combined dialogue+CGA parquet.
+# Optional env: EXP_NUM (tracker short id, e.g. PS2 — prepended to RUN_NAME for WandB search).
 set -e
 REPO_DIR="${REPO_DIR:-$HOME/repo/BeRL}"
 export MODEL_FAMILY=qwen2.5

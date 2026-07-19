@@ -7,6 +7,7 @@
 #
 # TODO(build): implement the SFT invocation here (dataset = gold utterance targets),
 # then remove the guard below and the BERL_ALLOW_SFT gate in lib/common.sh.
+# Optional env (once wired): EXP_NUM (tracker short id — prepended to RUN_NAME for WandB search).
 set -e
 REPO_DIR="${REPO_DIR:-$HOME/repo/BeRL}"
 export MODEL_FAMILY=qwen2.5

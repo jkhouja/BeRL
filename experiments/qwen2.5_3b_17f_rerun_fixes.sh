@@ -38,6 +38,7 @@ export POWER_LL_MIN="${POWER_LL_MIN:--8.0}"
 
 # --- run bookkeeping ---
 export EXP_ID="${EXP_ID:-round21-17f-rerun-fixes}"
+# Optional: EXP_NUM (tracker short id — prepended to RUN_NAME for WandB search; flows via common.sh).
 export TOTAL_EPOCHS="${TOTAL_EPOCHS:-2}"
 export TEST_FREQ="${TEST_FREQ:-10}"   # matches original 17f cadence
 export SAVE_FREQ="${SAVE_FREQ:-50}"

@@ -36,6 +36,7 @@ export KL="${KL:-0.1}"
 
 # --- run bookkeeping: monitor well past the old step-60 collapse ---
 export EXP_ID="${EXP_ID:-round21-gemma-anticollapse-noentropy}"
+# Optional: EXP_NUM (tracker short id — prepended to RUN_NAME for WandB search; flows via common.sh).
 export TOTAL_EPOCHS="${TOTAL_EPOCHS:-2}"
 export TEST_FREQ="${TEST_FREQ:-15}"
 export SAVE_FREQ="${SAVE_FREQ:-15}"

@@ -33,6 +33,7 @@ export POWER_LL_MIN="${POWER_LL_MIN:--8.0}"
 
 # --- run bookkeeping: monitor well past the old step-60 collapse ---
 export EXP_ID="${EXP_ID:-round21-gemma-anticollapse}"
+# Optional: EXP_NUM (tracker short id — prepended to RUN_NAME for WandB search; flows via common.sh).
 export TOTAL_EPOCHS="${TOTAL_EPOCHS:-2}"
 export TEST_FREQ="${TEST_FREQ:-15}"   # denser than the original 30 to catch the 30-60 window
 export SAVE_FREQ="${SAVE_FREQ:-15}"
