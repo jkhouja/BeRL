@@ -12,7 +12,7 @@ BeRL/TomRL trains small LLMs (Qwen2.5 / Qwen3 / Gemma-2) with GRPO to test wheth
 [context + CoT]) induces Theory of Mind that transfers without ToM labels.
 
 Source of truth: `project_planning/BeRL_experiments_tracker.md` (92-row execution table) +
-`project_planning/BeRL_paper_plan.md` (design). Do **not** hardcode any single run's config here —
+`project_planning/old_BeRL_paper_plan.md` (archived pre-v2 design). Do **not** hardcode any single run's config here —
 every knob comes from the claimed tracker row.
 
 ## Prerequisites

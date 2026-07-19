@@ -10,11 +10,14 @@ utterance (optionally baseline-subtracted); scorer = frozen base LM or the actor
 
 ## Source of truth (READ FIRST)
 The forward-looking plan and live execution state live in `project_planning/`:
-- **`project_planning/BeRL_paper_plan.md`** — thesis, phases (Phase −1 → Phase 0 → Q2 → Q0 → Q1 →
-  Q3 → Q4 → QG), eval suite, `[build]` checklist.
-- **`project_planning/BeRL_experiments_tracker.md`** — the 92-row live coordination table (claim a
-  `Not-started` row, run it, update status/WandB/log/results). Agent protocol + naming contract
-  are defined here.
+- **`project_planning/BeRL_experiments_tracker.md`** — the **fresh v2** live coordination table
+  (started 2026-07-19; every hyperparameter has an explicit column — no silent launcher defaults).
+  Claim a `Not-started` row, run it, update status/WandB/log/results. Agent protocol + naming
+  contract + `def`-default legend are defined at the top of the file.
+- **`project_planning/old_BeRL_paper_plan.md`** — archived pre-v2 thesis/phases/eval-suite design
+  (Phase −1 → Phase 0 → Q2 → Q0 → Q1 → Q3 → Q4 → QG); historical context, not the live plan.
+- **`project_planning/old_BeRL_experiments_tracker.md`** — archived pre-v2 execution table
+  (`PS001–PS182` sweep + `E016–E108`); historical results only.
 - **`project_planning/HISTORY_rounds_1-20.md`** — archived pre-paper results (Rounds 1–20) and the
   best-known config. Historical only; not the final paper experiments.
 - `grpo_tuning_changelog.md` — frozen archival run-by-run log (pre-paper Rounds 1–20); not part of
