@@ -1,0 +1,120 @@
+### Attempt r1 — 2026-07-13T01:15:58+00:00
+
+- **RUN_NAME:** `Phase-stability-Pm1w2gemma2_rmf_kl0.05_lr5e-7_fp0_ec0.0_pk7_llm6-dcfg_smoke_mix_gemma-gemma-2-2b-it-frozenRM-nobaseline-power-k7-llmin-6.0-lr5e-7-kl0.05-n16-r1`
+- **Host:** h100-156-003   **git:** `1f4dbbb`   **conda env:** tom
+- **Model:** `google/gemma-2-2b-it` (gemma-2-2b-it)
+- **Data (train):** `/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix_gemma.parquet`
+- **Val files:** `[/mnt/home/judekhouja/repo/BeRL/data/cleaned_tom/eval_subsample_300.parquet]`
+- **Knobs:** reward=power power_k=7 ll_min=-6.0 rm_mode=frozen baseline=False kl=0.05 lr=5e-7 rollout_n=16 epochs=1 max_ctx=2048/1024 cot_var=cot_eval require_answer_tags=False entropy_coeff=0.0 think_only_pg=False format_penalty=0
+- **Env:** VLLM_ATTENTION_BACKEND=FLASH_ATTN GPU_MEM_UTIL=0.3 TP=2 n_gpus=8
+- **WandB:** project=TOM_EXP run=Phase-stability-Pm1w2gemma2_rmf_kl0.05_lr5e-7_fp0_ec0.0_pk7_llm6-dcfg_smoke_mix_gemma-gemma-2-2b-it-frozenRM-nobaseline-power-k7-llmin-6.0-lr5e-7-kl0.05-n16-r1 _(paste link after launch)_
+- **Log path:** `logs/20260713/Phase-stability-Pm1w2gemma2_rmf_kl0.05_lr5e-7_fp0_ec0.0_pk7_llm6-dcfg_smoke_mix_gemma-gemma-2-2b-it-frozenRM-nobaseline-power-k7-llmin-6.0-lr5e-7-kl0.05-n16-r1.log`
+
+**Exact command:**
+```bash
+HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
+    algorithm.adv_estimator=grpo \
+    data.train_files=/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix_gemma.parquet \
+    data.val_files=[/mnt/home/judekhouja/repo/BeRL/data/cleaned_tom/eval_subsample_300.parquet] \
+    data.val_metric_suffix=_sub300 \
+    data.train_batch_size=32 \
+    data.val_batch_size=16 \
+    data.prompt_is_text=False \
+    +data.truncation=left \
+    data.max_prompt_length=2048 \
+    data.max_response_length=1024 \
+    actor_rollout_ref.model.path=google/gemma-2-2b-it \
+    actor_rollout_ref.actor.optim.lr=5e-7 \
+    actor_rollout_ref.model.use_remove_padding=True \
+    actor_rollout_ref.actor.ppo_mini_batch_size=128 \
+    actor_rollout_ref.actor.ppo_micro_batch_size=8 \
+    actor_rollout_ref.actor.use_kl_loss=True \
+    actor_rollout_ref.actor.kl_loss_coef=0.05 \
+    actor_rollout_ref.actor.kl_loss_type=low_var_kl \
+    actor_rollout_ref.actor.clip_ratio=0.2 \
+    actor_rollout_ref.actor.grad_clip=1.0 \
+    actor_rollout_ref.actor.entropy_coeff=0.0 \
+    actor_rollout_ref.actor.think_only_pg=False \
+    actor_rollout_ref.actor.format_penalty=0 \
+    actor_rollout_ref.model.enable_gradient_checkpointing=True \
+    actor_rollout_ref.actor.fsdp_config.param_offload=True \
+    actor_rollout_ref.actor.fsdp_config.grad_offload=True \
+    actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size=8 \
+    actor_rollout_ref.rollout.tensor_model_parallel_size=2 \
+    actor_rollout_ref.rollout.name=vllm \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.3 \
+    actor_rollout_ref.rollout.n=16 \
+    actor_rollout_ref.ref.log_prob_micro_batch_size=8 \
+    actor_rollout_ref.ref.fsdp_config.param_offload=True \
+    algorithm.kl_ctrl.kl_coef=0.05 \
+    trainer.critic_warmup=0 \
+    trainer.logger=['console','wandb'] \
+    trainer.project_name=TOM_EXP \
+    trainer.experiment_name=Phase-stability-Pm1w2gemma2_rmf_kl0.05_lr5e-7_fp0_ec0.0_pk7_llm6-dcfg_smoke_mix_gemma-gemma-2-2b-it-frozenRM-nobaseline-power-k7-llmin-6.0-lr5e-7-kl0.05-n16-r1 \
+    trainer.n_gpus_per_node=8 \
+    trainer.nnodes=1 \
+    trainer.default_hdfs_dir=null \
+    trainer.save_freq=999 \
+    trainer.test_freq=5 \
+    trainer.total_epochs=1 \
+    reward_model.type=lm \
+    reward_model.enable=True \
+    reward_model.model.path=google/gemma-2-2b-it \
+    reward_model.micro_batch_size=8 \
+    +reward_model.subtract_baseline=False \
+    +reward_model.use_actor_as_rm=False \
+    +reward_model.reward_type=power \
+    +reward_model.power_k=7 \
+    +reward_model.power_ll_min=-6.0 \
+    reward_model.format_penalty=0 \
+    +actor_rollout_ref.reward_type=power \
+    +actor_rollout_ref.power_k=7 \
+    +actor_rollout_ref.power_ll_min=-6.0 \
+    +data.fold_system_prompt=True \
+    +reward_model.require_answer_tags=False \
+    +actor_rollout_ref.require_answer_tags=False
+```
+
+**How to rerun:** `EXP_ID=Phase-stability-Pm1w2gemma2_rmf_kl0.05_lr5e-7_fp0_ec0.0_pk7_llm6 DATA_NAME=dcfg_smoke_mix_gemma MODEL_PATH=google/gemma-2-2b-it DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix_gemma.parquet RUN_INDEX=1 bash experiments/train_behavior_gemma.sh`
+
+**Findings:** _(fill on completion via log-results skill)_
+
+
+---
+
+## Findings (r1 — PS113, run by h100-156-003, 2026-07-13)
+
+WandB: https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/gpocri5s
+Log: logs/20260713/Phase-stability-Pm1w2gemma2_rmf_kl0.05_lr5e-7_fp0_ec0.0_pk7_llm6-dcfg_smoke_mix_gemma-gemma-2-2b-it-frozenRM-nobaseline-power-k7-llmin-6.0-lr5e-7-kl0.05-n16-r1.log
+
+**Context:** First Gemma-2 Wave-2 row this agent ran after the tag-free `</think>`-invalid blocker
+was FIXED (uncommitted working-tree change adding `is_invalid_response()`; Gemma/Qwen3 treat any
+non-empty response as valid). Reward was healthy/positive throughout (not floored at the invalid
+sentinel), confirming the fix end-to-end.
+
+Canonical scorer (scripts/score_run.py) output:
+```
+eval iters: 39 (step 0..190); ToM benchmarks: 24 (excl gsm8k, mmlu)
+ToM HM(last5)=0.104  HM(last3)=0.0905  (baseline step0=0.093)
+ToM avg(last5)=0.3373  avg(last3)=0.3328  (baseline step0=0.3148)
+gsm8k (separate): 0.2448 (step0=0.283, delta vs step0=-0.038)
+mmlu (separate): 0.4048 (step0=0.387, delta vs step0=+0.018)
+health(final): kl=0.211 entropy=1.993 resp_len=155.514 reward=9.052 parseable=1.0
+ToM HM trajectory: 0:0.093 5:0.032 10:0.073 15:0.082 20:0.041 25:0.041 30:0.027 35:0.015 40:0.015 45:0.018 50:0.038 55:0.029 60:0.018 65:0.011 70:0.039 75:0.03 80:0.046 85:0.07 90:0.068 95:0.019 100:0.031 105:0.02 110:0.017 115:0.046 120:0.096 125:0.091 130:0.064 135:0.123 140:0.142 145:0.062 150:0.128 155:0.183 160:0.217 165:0.182 170:0.12 175:0.106 180:0.109 185:0.073 190:0.078
+```
+
+**Verdict: MARGINAL / UNSTABLE (Gemma-2-2B is a weak ToM base).** ToM HM(last5)=0.104 vs baseline
+0.093 = +1.1pp (within trajectory noise); avg(last5)=0.337 vs 0.315 = +2.2pp. Absolute HM ~0.1 is
+an order of magnitude below Qwen2.5-3B (~0.42) — Gemma-2-2B simply starts far weaker at ToM.
+HM COLLAPSED to near-0 (0.011–0.05) for the first ~115 steps (several ToM benchmarks zeroed →
+HM heavily penalised, though avg held ~0.31–0.34 so not a total collapse), then RECOVERED to a
+transient peak 0.217@160, then DECLINED again to 0.078@190. The last-5 window (steps 170–190)
+sits on the post-peak decline, so HM(last5) understates the mid-run peak. Parseable=1.0, reward
+healthy (no hacking/collapse), gsm8k roughly preserved (Δ-0.038), KL drift moderate (0.211).
+
+**Implication:** power k=7 ll_min=-6 frozen-RM does NOT give a stable ToM gain on Gemma-2-2B —
+the signal is transient (peak mid-run, not sustained to end). The blocker fix works (healthy reward),
+so the tag-free Gemma wave is now runnable, but this particular cell is not a Phase-1 winner. Weak
+base + volatile HM ⇒ Gemma-2 rows likely need different recipe (lower k / different ll_min / longer
+schedule) or should be judged on avg + peak rather than end-of-run HM. NOT adopted as stable.
