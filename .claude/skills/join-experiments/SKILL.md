@@ -8,7 +8,7 @@ allowed-tools: Bash Read Edit Write Grep Glob
 
 Multiple Claude agents execute BeRL training runs concurrently on a shared cluster, coordinating
 **only** through two shared, concurrently-edited files:
-- `project_planning/BeRL_experiments_tracker.md` — the 92-row live queue (source of truth for who
+- `project_planning/BeRL_experiments_tracker.md` — the **v2** live queue (source of truth for who
   owns what and each row's `Status`).
 - `project_planning/BeRL_paper_plan.md` — the **v2** forward-looking design/rationale (read for
   context; don't edit unless replanning). `old_BeRL_paper_plan.md` is the archived pre-v2 stage.
@@ -59,12 +59,16 @@ write.
    silently changing shared code. Generate data once per `dcfg_*` (shared parquet); if it already
    exists, reuse it — don't regenerate over a file another run is reading.
 
-5. **One node, one experiment at a time.** Each agent uses **exactly one compute node** and runs
-   **exactly one experiment at a time**. Claim a single `Not-started` row, launch it on your single
+5. **One node, one experiment at a time — and only *your own* node.** Each agent uses **exactly one
+   compute node** (the one you are running on: `hostname` = your `Owner_host`) and runs **exactly one
+   experiment at a time**. Claim a single `Not-started` row, launch it on your single
    node, and **monitor it to `Completed`/`Failed` before claiming the next row** — never claim or
    launch a second row while your current run is still `Processing`/`Training`. Do not acquire a
    second allocation to parallelize; parallelism across the queue comes from *other* agents each
    holding their own single node, not from one agent grabbing multiple nodes.
+   - **Never launch, SSH into, `srun`/`ssh` onto, or otherwise run work on any node other than the
+     one you are on, without explicit user permission.** Stay on your own host. If a run needs a
+     different/bigger node, set your row to `Awaiting-input` and ask the user — do not hop nodes.
 
 6. **Never override `TOTAL_EPOCHS` — every run is 1 epoch.** The launcher default is
    `TOTAL_EPOCHS=1` (`experiments/lib/common.sh:186`); it is the enforced project-wide policy for
@@ -75,14 +79,13 @@ write.
    the run log / repro-md must read `'total_epochs': 1` / `epochs=1`. A run that trained 2 epochs is
    **invalid for comparison** — mark its row `Not-started` (note why) so it is relaunched at 1 epoch.
 
-7. **Keep every tracker row column-aligned (25 cells) — the #1 source of silent corruption.** The
-   table has **exactly 25 columns** (`Exp # | Exp ID | RQ tag | Question | Model | Size | Gen ctx |
-   KL | Loss/reward type | Loss powers | RM mode | LR | Data sources | Data params | CoT prompt var |
-   Target evals | Data config | Run name | WandB link | Log path | Summary doc | Owner_host | Status |
-   Results summary | Notes`) → every data row must have **26 `|` characters / 25 cells**, start and
-   end with `|`, and put `Status` in column 23. A misaligned row is **silently skipped** by every
-   pipe-splitting status scanner (so it never shows up in queue/status counts). When you edit your
-   row:
+7. **Keep every tracker row column-aligned (41 cells, v2 schema) — the #1 source of silent
+   corruption.** The **v2** table has **exactly 41 columns** (see the tracker header row / its
+   §"Column meanings" and §"Row hygiene" — do not hand-copy the list here, read it from the file so
+   this skill can't go stale). Every data row must have **42 `|` characters / 41 cells**, start and
+   end with `|`, with `Status` in its documented column. A misaligned row is **silently skipped** by
+   every pipe-splitting status scanner (so it never shows up in queue/status counts). When you edit
+   your row:
    - **Never put a raw `|` inside any cell** (Results/Notes free-text especially). Escape it as `\|`,
      or wrap the fragment in backticks. **Special model tokens with pipes** (`<|im_end|>`,
      `<|endoftext|>`) MUST be escaped (`` `<\|im_end\|>` ``) or they split the row into extra cells.
@@ -94,13 +97,27 @@ write.
      `https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/<id>` URL (never a bare run-id), `Log path` =
      `logs/<YYYYMMDD>/<RUN_NAME>.log`, `Summary doc` = `experiments_logs/<stem>.md`. Use `TBD` only
      as a temporary placeholder in a still-running row, never in a `Completed` one.
-   - **After editing, verify the row is 25 cells** (e.g. `awk -F'|' 'NR==<line>{print NF-2}'` must
-     print `25`, or count that the line has 26 `|`). Do not leave a row you touched malformed.
+   - **After editing, verify the row is 41 cells** (e.g. `awk -F'|' 'NR==<line>{print NF-2}'` must
+     print `41`, or count that the line has 42 `|`). Do not leave a row you touched malformed.
 
-8. **Keep the header row-count claim in sync.** The `## Experiments (<N> rows; …)` heading and the
-   `Execution order` phase ranges (`PS001–PS###`, `E016–E###`) state totals/ranges. When you **add**
-   a new row (new `PS###`/`E###`), bump these counts/ranges in the same edit — stale counts (they
-   drifted 175→275 once) mislead capacity planning and audits.
+9. **Always announce which run you own — especially while waiting or asking.** The user watches
+   several agents in parallel and needs to tell them apart. **Whenever you pause on a waiting loop,
+   poll a running job, end a turn while a run is in flight, or ask the user anything**, begin that
+   message with a one-line banner naming the run you are currently responsible for (or most recently
+   finished): e.g. `[owning ST07-Phase-stability-v2_g2_anchor_pk4_stdgate on h100-013-002 — Training,
+   step 120/380]`. If you have just finished and are idle, say so explicitly
+   (`[idle — last finished ST07; scanning for next Not-started row]`). Never leave the user guessing
+   which experiment a given agent window maps to.
+
+10. **Use the v2 tracker only; the old tracker is read-only history.** All claiming/launching/status
+    updates happen in `project_planning/BeRL_experiments_tracker.md` (v2).
+    `project_planning/old_BeRL_experiments_tracker.md` (the archived `PS001–PS182` / `E016–E108`
+    stage) **must not be edited or used to pick up work** — you may *consult* it for historical
+    config/results context, but never claim, relaunch, or write to a row there.
+
+8. **Keep the header row-count claim in sync.** The `## Experiments (<N> rows; …)` heading states the
+   total. When you **add** a new row, bump the count in the same edit — stale counts (they
+   drifted 175→275 once in the old tracker) mislead capacity planning and audits.
 ## Per-run log file (mandatory)
 
 Every experiment gets its own markdown file at **`experiments_logs/<RUN_NAME_BASE>.md`**, where
@@ -163,6 +180,9 @@ the run from it alone.
 ## Never
 
 - Never run more than one experiment at a time or hold more than one compute node as a single agent.
+- **Never run work on, SSH into, or `srun`/`ssh` onto a node other than your own without explicit user permission.**
+- **Never edit or claim rows in `old_BeRL_experiments_tracker.md`** — it is archived history (consult-only); all live work is in the v2 `BeRL_experiments_tracker.md`.
+- **Never pause on a waiting loop, poll, or ask the user without first stating which run you currently own / last finished** (Golden rule #9).
 - Never bulk-rewrite or reorder the tracker table; edit only your own row, and re-read first.
 - Never claim `Backlog` rows or rows owned by others.
 - Never ask the user without first flipping your row to `Awaiting-input`.

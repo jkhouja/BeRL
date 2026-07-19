@@ -80,10 +80,20 @@ uncertain (or newly-relevant) and **excluding the cells v1 proved collapse/hack.
 Qwen2.5-3B (workhorse), Qwen3-1.7B, Gemma-2-2B. **Data:** fixed reasonable small mix
 (`dcfg_smoke_mix{,_gemma}` or the v1 mix), 1 seed. **`ll_min` stays deferred to Q2** (corpus-relative).
 
-**Anchor (per family)** = v1 locked winner:
-- Qwen2.5-3B: `power · k=5 · ll_min=−6 · actor-RM · fp=5(flat) · ec=0.0 · kl=0.05 · lr=5e-7`
-- Qwen3-1.7B: `power · k=5 · ll_min=−6 · actor-RM · fp=5(flat) · ec=0.001 · kl=0.05 · lr=5e-7`
-- Gemma-2-2B: `power · k=5 · ll_min=−4 · frozen-RM · fp=5(flat) · ec=0.001 · kl=0.05 · lr=5e-7`
+**Anchor (per family)** — the v1 winner region, **minimally perturbed to guarantee novelty vs the
+old stage** (see "Novelty" below): reward = **`power k=4`** (the old sweep only used k∈{3,5,7}) with
+the **new std-gated format gate** (`format_penalty_std_coef=1.0`, which never existed pre-v2):
+- Qwen2.5-3B: `power · k=4 · ll_min=−6 · actor-RM · std-gated-fp(coef 1.0) · ec=0.0 · kl=0.05 · lr=5e-7`
+- Qwen3-1.7B: `power · k=4 · ll_min=−6 · actor-RM · std-gated-fp(coef 1.0) · ec=0.001 · kl=0.05 · lr=5e-7`
+- Gemma-2-2B: `power · k=4 · ll_min=−4 · frozen-RM · std-gated-fp(coef 1.0) · ec=0.001 · kl=0.05 · lr=5e-7`
+
+**Novelty vs the old stage (verified against `old_BeRL_experiments_tracker.md`).** The old Phase −1
+grid swept only `reward∈{log_prob, power k3/k5/k7}` with the **flat** format penalty
+(`fp_std_coef` did not exist) — `k=4`, `k=6`, `neg_perplexity`, and the std-gated gate were **never
+run** (0 completed cells). Anchoring v2 on **`power k=4` + std-gated fp** therefore makes **every one
+of the 33 cells a genuinely new configuration**, not a re-run: the two non-power reward probes
+(`log_prob`, `neg_perplexity`) appear only under the new std-gated gate, and the two flat-penalty
+comparison cells (PD) use the never-run `k=4` exponent.
 
 ### Excluded (v1 collapse/hack evidence — do NOT re-run at scale)
 | Excluded cell | v1 evidence | Treatment in v2 |
@@ -95,10 +105,10 @@ Qwen2.5-3B (workhorse), Qwen3-1.7B, Gemma-2-2B. **Data:** fixed reasonable small
 ### v2 stability sub-runs (per family; the **anchor cell is shared** across stages, counted once)
 | Stage | Axis varied (all other knobs = family anchor) | Cells | Picks / question |
 | --- | --- | ---: | --- |
-| **PA. reward family** | `log_prob` / `power k3` / `power k5` (**k7 dropped**) | 3 | stable reward family |
+| **PA. reward family / shape** | `log_prob` / `neg_perplexity` / `power k6` (anchor = `power k4`; **k7 dropped** as reward-hack) | 3 | stable reward family + exponent sensitivity |
 | **PB. RM mode** | `frozen` / `actor` (both @kl=0.05) | +1 | re-confirm actor-RM KL-blowup risk under fixes |
 | **PC. KL × LR stability** (re-added) | `kl∈{0.01,0.05}` × `lr∈{5e-7,1e-6}` | +3 | does kl=0.01 / doubled-lr still drift under merged fixes? |
-| **PD. format-fix** (NEW) | flat `fp=5` / **std-gated `fp_std_coef=1.0`** / `fp=0` ref | +2 | does the std-gated gate beat flat fp on honest `d_cavg`? |
+| **PD. format-fix** (NEW) | **std-gated `fp_std_coef=1.0`** (anchor) / flat `fp=5` / `fp=0` ref | +2 | does the std-gated gate beat flat fp on honest `d_cavg`? |
 | **PE. entropy check** | `ec∈{0.0,0.001}` | +1 | family-specific entropy coefficient |
 | **Per-family total** | anchor(1) + 3 + 1 + 3 + 2 + 1 | **11** | best stable, honest config |
 | **Phase −1 (v2) total** | 11 × 3 families | **33** | → v2 "stable default config" per family |
@@ -109,6 +119,10 @@ resp_len ≥ 30); cross-check `d_cavg_peak` (peak, upward-biased) and `d_cond_ac
 blowup/degeneration; entropy not crashing; KL controlled.
 
 **Output:** the v2 locked "stable default config" per family → feeds Phase 0.
+
+**Tracker rows:** these 33 cells are populated as **`ST01`–`ST33`** in `BeRL_experiments_tracker.md`
+(`Phase-stability` RQ tag; `ST01`–`ST11` Qwen2.5-3B, `ST12`–`ST22` Qwen3-1.7B, `ST23`–`ST33`
+Gemma-2-2B; each family's anchor = the `..._anchor_pk4_stdgate` row).
 
 ---
 
