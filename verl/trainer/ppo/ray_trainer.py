@@ -496,10 +496,23 @@ class RayPPOTrainer(object):
 
         # 3. identical generation cue (rules out a stray prefill on one side only)
         def generation_cue(dataset):
-            ref = dataset.tokenizer.apply_chat_template(
-                [{'role': 'system', 'content': 'S'}, {'role': 'user', 'content': 'U'}],
-                add_generation_prompt=True, tokenize=False)
-            return ref[ref.rindex('U') + 1:]
+            # The cue is the fixed chat-template suffix that follows the user turn (e.g.
+            # "<|im_end|>\n<|im_start|>assistant\n"). Build a minimal reference to extract it.
+            # Some chat templates (e.g. Gemma-2) reject the ``system`` role and raise a
+            # TemplateError, so fall back to a user-only reference — the post-user generation
+            # suffix is identical whether or not a system message precedes it.
+            for msgs in ([{'role': 'system', 'content': 'S'}, {'role': 'user', 'content': 'U'}],
+                         [{'role': 'user', 'content': 'U'}]):
+                try:
+                    ref = dataset.tokenizer.apply_chat_template(
+                        msgs, add_generation_prompt=True, tokenize=False)
+                except Exception:
+                    continue
+                return ref[ref.rindex('U') + 1:]
+            raise AssertionError(
+                "[prompt-consistency] could not render a reference generation cue for "
+                f"tokenizer {getattr(dataset.tokenizer, 'name_or_path', '?')!r} "
+                "(chat template rejected both system+user and user-only references).")
 
         train_rendered = self._render_prompt(train_ds, 0)
         val_rendered = self._render_prompt(val_ds, 0)
