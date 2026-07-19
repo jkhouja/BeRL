@@ -74,6 +74,32 @@ write.
    the run log / repro-md must read `'total_epochs': 1` / `epochs=1`. A run that trained 2 epochs is
    **invalid for comparison** — mark its row `Not-started` (note why) so it is relaunched at 1 epoch.
 
+7. **Keep every tracker row column-aligned (25 cells) — the #1 source of silent corruption.** The
+   table has **exactly 25 columns** (`Exp # | Exp ID | RQ tag | Question | Model | Size | Gen ctx |
+   KL | Loss/reward type | Loss powers | RM mode | LR | Data sources | Data params | CoT prompt var |
+   Target evals | Data config | Run name | WandB link | Log path | Summary doc | Owner_host | Status |
+   Results summary | Notes`) → every data row must have **26 `|` characters / 25 cells**, start and
+   end with `|`, and put `Status` in column 23. A misaligned row is **silently skipped** by every
+   pipe-splitting status scanner (so it never shows up in queue/status counts). When you edit your
+   row:
+   - **Never put a raw `|` inside any cell** (Results/Notes free-text especially). Escape it as `\|`,
+     or wrap the fragment in backticks. **Special model tokens with pipes** (`<|im_end|>`,
+     `<|endoftext|>`) MUST be escaped (`` `<\|im_end\|>` ``) or they split the row into extra cells.
+   - **Never paste a full multi-field launcher run-name into a single cell** — the `Run name` column
+     holds only the base stem `<Exp ID>-<Data config>` (no `-<model>-<params>-r<N>` suffix; that
+     lives in `Log path`). Duplicating the params-suffixed name adds a stray cell and shifts every
+     column right.
+   - **Fill all structural columns before marking `Completed`:** `WandB link` = full
+     `https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/<id>` URL (never a bare run-id), `Log path` =
+     `logs/<YYYYMMDD>/<RUN_NAME>.log`, `Summary doc` = `experiments_logs/<stem>.md`. Use `TBD` only
+     as a temporary placeholder in a still-running row, never in a `Completed` one.
+   - **After editing, verify the row is 25 cells** (e.g. `awk -F'|' 'NR==<line>{print NF-2}'` must
+     print `25`, or count that the line has 26 `|`). Do not leave a row you touched malformed.
+
+8. **Keep the header row-count claim in sync.** The `## Experiments (<N> rows; …)` heading and the
+   `Execution order` phase ranges (`PS001–PS###`, `E016–E###`) state totals/ranges. When you **add**
+   a new row (new `PS###`/`E###`), bump these counts/ranges in the same edit — stale counts (they
+   drifted 175→275 once) mislead capacity planning and audits.
 ## Per-run log file (mandatory)
 
 Every experiment gets its own markdown file at **`experiments_logs/<RUN_NAME_BASE>.md`**, where
