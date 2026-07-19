@@ -108,8 +108,17 @@ the run from it alone.
    **not** in the sweep's 96-cell enumeration (they add `k=7`, `ll_min=-4`, a winner-anchored `fp×ec`
    grid), so `ONLY_IDX` will not launch them — use the per-family launcher with explicit knobs
    (`EXP_ID=… REWARD_TYPE=… POWER_K=… POWER_LL_MIN=… USE_ACTOR_AS_RM=… KL=… LR=… FORMAT_PENALTY=…
-   ENTROPY_COEFF=… bash experiments/smoke_{gemma,qwen3,qwen2.5}.sh`; see `launch-experiment` and the
-   tracker §"Launch mechanism").
+   FORMAT_PENALTY_STD_COEF=… ENTROPY_COEFF=… bash experiments/smoke_{gemma,qwen3,qwen2.5}.sh`; see
+   `launch-experiment` and the tracker §"Launch mechanism").
+
+   **Format compliance during training (optional gate).** The flat `FORMAT_PENALTY` (e.g. `5`) is
+   reward-type-asymmetric after GRPO normalisation (≈1–2σ for `log_prob`, only ≈0.3σ for the 0–40
+   `power` reward), so low-KL / high-LR runs can still collapse format. To **enforce** format
+   compliance, additionally set `FORMAT_PENALTY_STD_COEF` (recommended **1.5–2.0**, default `0.0`=OFF):
+   it hard-gates every format-violating rollout to `≈std_coef·σ` below all well-formed responses
+   (lexicographic, reward-type-symmetric). Enable via `FORMAT_PENALTY=5 FORMAT_PENALTY_STD_COEF=1.5`.
+   **Default OFF** — leave it unset for standard tracker rows so runs stay comparable to prior
+   Completed rows; only enable when a row/user explicitly calls for a training-time format gate.
 3. Monitor health; on any user-decision need, `Awaiting-input`-then-ask (`check-training`).
 4. On completion, verify evals, append findings to `experiments_logs/<RUN_NAME>.md`, write the
    tracker `Results summary`, set `Status=Completed`; propagate any winner values that unblock
