@@ -36,7 +36,7 @@ The row must already be **claimed** (`Status=Processing`, `Owner_host` set) — 
 
 3. **Launch via a generic launcher** (task × model-class), in the background, passing knobs as
    env — never create a per-experiment script. Use the direct launcher:
-   - **Direct launcher:** `EXP_ID=<id> DATA_NAME=<dcfg> DATA_TRAIN=<parquet> bash experiments/<launcher>.sh`
+   - **Direct launcher:** `EXP_NUM=<Exp #> EXP_ID=<id> DATA_NAME=<dcfg> DATA_TRAIN=<parquet> bash experiments/<launcher>.sh`
      where `<launcher>` is `train_<task>_<class>.sh`:
      - task `behavior` (log_prob/neg_perplexity/power, frozen/actor RM) → `train_behavior_{qwen2.5,qwen3,gemma}.sh`
      - task `tom_rulebased` (direct rule-based ToM, no LM reward, KL=0.001) → `train_tom_{qwen2.5,qwen3,gemma}.sh`
@@ -54,10 +54,12 @@ The row must already be **claimed** (`Status=Processing`, `Owner_host` set) — 
    `+data.fold_system_prompt` for gemma), the hard default `+data.truncation=left`, builds the
    `RUN_NAME`, emits the reproducibility md, and runs `main_ppo`. Set `BERL_DRY_RUN=1` to preview
    the exact command without launching. GPU pinning: `GPU_IDS=0,1,2,3`.
-   **RUN_NAME** = `<EXP_ID>-<DATA_NAME>-<MODEL_TAG>-<PARAMS>-r<N>` (= WandB run name = log stem);
-   `common.sh` auto-picks the next free `-r<N>` by scanning `logs/`, or honor `RUN_INDEX=`.
-   **Test/smoke runs use `EXP_ID=test-…`.** The base stem `<EXP_ID>-<DATA_NAME>` matches the tracker
-   `Run name` cell.
+   **RUN_NAME** = `<EXP_NUM>-<EXP_ID>-<DATA_NAME>-<MODEL_TAG>-<PARAMS>-r<N>` (= WandB run name = log
+   stem); **always pass `EXP_NUM=<Exp #>`** (the short tracker row id, e.g. `E034`/`PS2`) so every
+   WandB run / log / repro-md starts with that searchable handle (omit only for ad-hoc runs with no
+   row). `common.sh` auto-picks the next free `-r<N>` by scanning `logs/`, or honor `RUN_INDEX=`.
+   **Test/smoke runs use `EXP_ID=test-…`** (no `EXP_NUM` needed). The base stem
+   `<EXP_NUM>-<EXP_ID>-<DATA_NAME>` matches the tracker `Run name` cell.
    Model-family branches (Qwen3/Gemma → tag-free data + `require_answer_tags=False`; Gemma →
    `VLLM_ATTENTION_BACKEND=FLASH_ATTN`; Qwen → `XFORMERS`) are handled inside the launcher.
 
@@ -117,7 +119,7 @@ The row must already be **claimed** (`Status=Processing`, `Owner_host` set) — 
    `Log path` (`logs/<YYYYMMDD>/<RUN_NAME>.log`, where `RUN_NAME` includes `-r<N>`) into the row.
 
 7. **Reproducibility artifact**: create/append the self-contained per-run log at
-   `experiments_logs/<RUN_NAME_BASE>.md` (base stem `<RQ>-<expid>-<data_name>`, **no** `-r<N>` — all
+   `experiments_logs/<RUN_NAME_BASE>.md` (base stem `<Exp #>-<Exp ID>-<data_name>`, **no** `-r<N>` — all
    attempts append to one file; record the exact command + all knobs + env + WandB/log + hypothesis +
    attempted run indices + a "how to rerun" line). See the `join-experiments` skill for the required
    sections. Findings are filled on completion by the `log-results` skill.

@@ -23,8 +23,10 @@ verbatim in `old_BeRL_experiments_tracker.md`; the retired design doc is `old_Be
    the same edit before doing anything else. If two agents collide, lowest `Exp #` wins.
 2. **Resolve every knob before launch.** Read the row and export each hyperparameter column
    explicitly to the launcher (never trust the launcher default silently — if the row says `def`,
-   confirm the §"Launcher defaults" value is what you want and pass it). Resolve placeholders
-   (`=<ExpID>best`) by reading the referenced `Completed` row and substituting concrete values.
+   confirm the §"Launcher defaults" value is what you want and pass it). **Always export
+   `EXP_NUM=<Exp #>`** (the short row id, e.g. `E034`/`PS2`) so the WandB run name / log / repro-md
+   all start with that searchable handle. Resolve placeholders (`=<ExpID>best`) by reading the
+   referenced `Completed` row and substituting concrete values.
 3. **WandB online always** — `WANDB_API_KEY` is in `~/.bashrc`; `trainer.logger=[console,wandb]`.
    Never set `WANDB_MODE=offline`, never unset the key.
 4. **Consult-and-update the tracker BEFORE acting.** `Status` must reflect reality *before* you act:
@@ -35,8 +37,8 @@ verbatim in `old_BeRL_experiments_tracker.md`; the retired design doc is `old_Be
    push; **never `git add -A`** — add only the tracker + your own named files.
 6. **Row hygiene (v2 contract):** every row must have **exactly 41 cells** (see the table
    header). Never put a raw `|` or special token (`<|im_end|>`) in a cell — escape as `\|` or
-   backtick it. `Run name` holds only the base stem `<Exp ID>-<Data config>` (the launcher appends
-   `-<model>-<params>-r<N>`). Fill `WandB link` as a full URL, `Log path`, and `Summary doc` before
+   backtick it. `Run name` holds only the base stem `<Exp #>-<Exp ID>-<Data config>` (the launcher
+   appends `-<model>-<params>-r<N>`). Fill `WandB link` as a full URL, `Log path`, and `Summary doc` before
    marking `Completed`. Verify your row's cell count after editing.
 7. **1 epoch, always.** Do not override `TOTAL_EPOCHS` (launcher aborts unless `=1`, override only
    with user-approved `ALLOW_MULTI_EPOCH=1`, noted in the row).
@@ -87,7 +89,9 @@ Source: `experiments/lib/common.sh` (behavior task). Confirm against the file be
 **Data/prompt:** `Data sources` · `Data params` (turn filter, mixture, caps, shuffle) ·
 `Data config` (`dcfg_*` YAML+parquet stem) · `CoT prompt var` · `ans_tags` (require_answer_tags).
 **Eval:** `eval suite` (`subsample300` default) · `Target evals`.
-**Bookkeeping:** `Run name` (base stem `<Exp ID>-<Data config>`) · `WandB link` (full URL) ·
+**Bookkeeping:** `Run name` (base stem **`<Exp #>-<Exp ID>-<Data config>`** — the launcher prepends
+the short `Exp #` row id via `EXP_NUM` so every WandB run starts with e.g. `E034-…` for search, then
+appends `-<model>-<params>-r<N>`) · `WandB link` (full URL) ·
 `Log path` (`logs/<YYYYMMDD>/<RUN_NAME>.log`) · `Summary doc` (`experiments_logs/<stem>.md`) ·
 `Owner_host` · `Status` (`Backlog`|`Not-started`|`Processing`|`Training`|`In-debug`|
 `Awaiting-input`|`Completed`|`Failed`) · `Results summary` · `Notes`.

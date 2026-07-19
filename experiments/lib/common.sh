@@ -76,8 +76,11 @@ berl::model_family_defaults() {
 # ---------------------------------------------------------------------------
 berl::build_params_tag() {
   local rm_type baseline_tag
-  rm_type=$( [ "${USE_ACTOR_AS_RM:-False}" = "True" ] && echo "actorRM" || echo "frozenRM" )
-  baseline_tag=$( [ "${SUBTRACT_BASELINE:-False}" = "True" ] && echo "baseline" || echo "nobaseline" )
+  # USE_ACTOR_AS_RM / SUBTRACT_BASELINE are resolved canonically in berl::run before
+  # this is called; do NOT re-default here (a `:-False` fallback silently mislabels an
+  # actor-RM behavior run as `frozenRM`).
+  rm_type=$( [ "${USE_ACTOR_AS_RM}" = "True" ] && echo "actorRM" || echo "frozenRM" )
+  baseline_tag=$( [ "${SUBTRACT_BASELINE}" = "True" ] && echo "baseline" || echo "nobaseline" )
   case "$TASK" in
     behavior)
       PARAMS_TAG="${rm_type}-${baseline_tag}-${REWARD_TYPE}-k${POWER_K}-llmin${POWER_LL_MIN}-lr${LR}-kl${KL}-n${ROLLOUT_N}"
@@ -94,11 +97,13 @@ berl::build_params_tag() {
   esac
 }
 
-# RUN_NAME_BASE = <EXP_ID>-<DATA_NAME> ; full RUN_NAME adds -<MODEL_TAG>-<PARAMS>-r<N>.
+# RUN_NAME_BASE = [<EXP_NUM>-]<EXP_ID>-<DATA_NAME> ; full RUN_NAME adds -<MODEL_TAG>-<PARAMS>-r<N>.
+# EXP_NUM = the short tracker row id (e.g. E034, PS2) — prefixed so every WandB run / log /
+# repro-md starts with the searchable row handle. Optional (omit for ad-hoc smoke runs).
 berl::resolve_run_name() {
   : "${EXP_ID:?set EXP_ID (tracker Exp ID, or e.g. test-smoke)}"
   : "${DATA_NAME:?set DATA_NAME (tracker Data config name, dcfg_* stem)}"
-  RUN_NAME_BASE="${EXP_ID}-${DATA_NAME}"
+  RUN_NAME_BASE="${EXP_NUM:+${EXP_NUM}-}${EXP_ID}-${DATA_NAME}"
   local stem="${RUN_NAME_BASE}-${MODEL_TAG}-${PARAMS_TAG}"
   if [ -n "${RUN_INDEX:-}" ]; then
     :
@@ -125,7 +130,7 @@ berl::write_summary_md() {
     if [ ! -f "$md" ]; then
       echo "# ${RUN_NAME_BASE}"
       echo
-      echo "- **Exp ID:** ${EXP_ID}"
+      echo "- **Exp ID:** ${EXP_ID}${EXP_NUM:+   **Exp #:** ${EXP_NUM}}"
       echo "- **Data config:** ${DATA_NAME}"
       echo "- **Task:** ${TASK}   **Model family:** ${MODEL_FAMILY}"
       echo
@@ -267,6 +272,15 @@ berl::run() {
   else
     KL="${KL:-0.001}"
   fi
+
+  # Resolve RM/baseline canonically for ALL tasks BEFORE any consumer (naming tag,
+  # summary, hydra args). The behavior branch above already applied its actor-RM
+  # default; non-behavior tasks default to frozen here. This makes the value
+  # authoritative so berl::build_params_tag no longer relies on its own `:-False`
+  # fallback (the historical `frozenRM`-mislabel bug: the tag was computed before the
+  # behavior default was applied, baking `-frozenRM-` into actor-RM run names).
+  USE_ACTOR_AS_RM="${USE_ACTOR_AS_RM:-False}"
+  SUBTRACT_BASELINE="${SUBTRACT_BASELINE:-False}"
 
   berl::build_params_tag
   berl::resolve_run_name
