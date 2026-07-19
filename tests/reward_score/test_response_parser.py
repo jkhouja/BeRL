@@ -290,6 +290,56 @@ def run_invalid_sentinel():
     return failures
 
 
+def run_format_gate():
+    """Options 3+2 std-gated format penalty (apply_format_penalty, std_coef>0): every
+    format-violating response must land strictly below every well-formed one (lexicographic
+    gate) yet strictly above the hard-invalid sentinel, for every reward_type. std_coef<=0
+    must reproduce the legacy flat subtraction byte-for-byte.
+    """
+    import torch
+    from verl.workers.fsdp_workers import (apply_format_penalty, valid_reward_floor,
+                                           invalid_reward_value)
+    failures = []
+    scenarios = {
+        "power": [5.0, 20.0, 30.0, 35.0],
+        "log_prob": [-3.0, -2.0, -2.5, -4.0],
+        "neg_perplexity": [-8.0, -3.0, -1.2, -0.5],
+    }
+    fp = 5.0
+    for rtype, valids in scenarios.items():
+        floor = valid_reward_floor(rtype)
+        sentinel = invalid_reward_value(rtype, fp)
+        # gated: idx2 is a format violator; all structurally valid (no hard-invalid).
+        rm = torch.tensor(valids, dtype=torch.float32)
+        viol = torch.tensor([0.0, 0.0, 1.0, 0.0])
+        inv = torch.tensor([False, False, False, False])
+        for coef in (1.0, 1.5, 2.0):
+            out = apply_format_penalty(rm.clone(), viol, inv, rtype, fp, coef)
+            wf = torch.cat([out[:2], out[3:]])
+            v = out[2].item()
+            ok = bool(v < wf.min().item()) and bool(v < floor) and bool(v > sentinel)
+            status = "PASS" if ok else "FAIL"
+            print(f"[{status}] gate/{rtype} coef={coef}: violator={v:.3f} "
+                  f"< min_wellformed={wf.min().item():.3f}, floor={floor}, sentinel={sentinel:.1f}")
+            if not ok:
+                failures.append(f"gate/{rtype}/coef{coef}")
+        # flat mode (coef<=0) must equal legacy subtraction exactly.
+        flat = apply_format_penalty(rm.clone(), viol, inv, rtype, fp, 0.0)
+        expected = rm - viol * fp
+        ok = bool(torch.allclose(flat, expected))
+        status = "PASS" if ok else "FAIL"
+        print(f"[{status}] gate/{rtype} flat coef=0 reproduces legacy subtraction")
+        if not ok:
+            failures.append(f"gate/{rtype}/flat")
+    # disabled when format_penalty=0 -> untouched.
+    rm = torch.tensor([5.0, 30.0]); viol = torch.tensor([0.0, 1.0]); inv = torch.tensor([False, False])
+    off = apply_format_penalty(rm.clone(), viol, inv, "power", 0.0, 1.5)
+    if not bool(torch.allclose(off, rm)):
+        failures.append("gate/disabled")
+    print(f"[{'PASS' if bool(torch.allclose(off, rm)) else 'FAIL'}] gate/disabled fp=0 -> unchanged")
+    return failures
+
+
 def run():
     all_failures = []
     print("== Issue 2: split_thinking (no double <think>) ==")
@@ -298,12 +348,14 @@ def run():
     all_failures += run_format_violation()
     print("\n== Issue 5: relative invalid sentinel ==")
     all_failures += run_invalid_sentinel()
+    print("\n== Options 3+2: std-gated format penalty ==")
+    all_failures += run_format_gate()
     print("\n== Issue 6: exact answer-region boundary (offset mapping) ==")
     all_failures += run_issue6_mask()
 
     total = len(SPLIT_CASES) + len(VIOLATION_CASES)
     string_fail = len([f for f in all_failures
-                       if not f.startswith(("issue6/", "issue6-", "sentinel/"))])
+                       if not f.startswith(("issue6/", "issue6-", "sentinel/", "gate/"))])
     print(f"\n{total - string_fail}/{total} string checks passed")
     if all_failures:
         print("FAILURES:", all_failures)

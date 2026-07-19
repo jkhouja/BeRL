@@ -31,6 +31,7 @@ actor_rollout_ref:
     entropy_coeff: 0.001
     think_only_pg: False  # Fix 1: restrict policy-gradient + entropy to <think>...</think> tokens
     format_penalty: 0.0   # Fix 2 (actor-as-RM): graded penalty for malformed model responses
+    format_penalty_std_coef: 0.0  # Options 3+2: >0 => std-gated format penalty (sigma below well-formed floor)
     use_kl_loss: False # True for GRPO
     kl_loss_coef: 0.001 # for grpo
     kl_loss_type: low_var_kl # for grpo
@@ -137,6 +138,7 @@ reward_model:
   micro_batch_size: 64
   max_length: null
   format_penalty: 0.0  # Fix 2 (frozen RM): graded penalty for malformed model responses
+  format_penalty_std_coef: 0.0  # Options 3+2: >0 => std-gated format penalty (sigma below well-formed floor)
   ulysses_sequence_parallel_size: 1 # sp size
   use_dynamic_bsz: ${critic.use_dynamic_bsz}
   forward_max_token_len_per_gpu: ${critic.forward_max_token_len_per_gpu}

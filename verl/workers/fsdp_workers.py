@@ -80,6 +80,44 @@ def invalid_reward_value(reward_type, format_penalty=0.0):
     return valid_reward_floor(reward_type) - float(format_penalty or 0.0) - INVALID_MARGIN
 
 
+# Options 3+2 (format-compliance gate): smallest margin the gated penalty may use, so a
+# format-violator stays separable from the well-formed floor even in bf16 near ±40 (bf16
+# resolution there is ~0.25).
+FORMAT_GATE_MIN_MARGIN = 1.0
+
+
+def apply_format_penalty(rm_score, format_violation, invalid_mask, reward_type,
+                         format_penalty, std_coef):
+    """Penalise format-violating (but structurally valid) responses.
+
+    ``format_penalty`` (> 0) is the on/off switch; ``std_coef`` selects the *shape*:
+
+    * ``std_coef <= 0`` — legacy FLAT penalty ``rm_score - violation * format_penalty``.
+      Preserved so pre-existing runs reproduce byte-for-byte.
+    * ``std_coef  > 0`` — Options 3+2 GATED penalty. Every format-violating response is
+      hard-gated to ``valid_reward_floor(reward_type) - margin`` — strictly below every
+      well-formed response, i.e. format becomes a *lexicographic* gate (Option 3) — where
+      ``margin = clamp(std_coef * scale, FORMAT_GATE_MIN_MARGIN, INVALID_MARGIN - 1)`` and
+      ``scale`` is the std of the valid (non-invalid) rewards in the batch (Option 2).
+      Scaling the gap to the reward spread makes the post-GRPO-normalisation penalty
+      ≈ ``std_coef`` sigma regardless of ``reward_type``, fixing the flat-penalty asymmetry
+      (a flat 5 is ~1-2 sigma for ``log_prob`` but only ~0.3 sigma for the 0-40 ``power``
+      reward). The ``INVALID_MARGIN - 1`` cap keeps every violator strictly above the
+      invalid sentinel ``floor - format_penalty - INVALID_MARGIN``.
+    """
+    if not format_penalty:
+        return rm_score
+    viol = format_violation.to(rm_score.dtype)
+    if std_coef and std_coef > 0:
+        floor = valid_reward_floor(reward_type)
+        ref = rm_score if invalid_mask is None else rm_score[~invalid_mask]
+        scale = ref.std(unbiased=False) if ref.numel() > 1 else rm_score.new_tensor(0.0)
+        margin = torch.clamp(std_coef * scale, min=FORMAT_GATE_MIN_MARGIN,
+                             max=INVALID_MARGIN - 1.0)
+        return torch.where(viol > 0, floor - margin, rm_score)
+    return rm_score - viol * format_penalty
+
+
 logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv('VERL_PPO_LOGGING_LEVEL', 'WARN'))
 
@@ -174,6 +212,11 @@ class ActorRolloutRefWorker(Worker):
         self.require_answer_tags = self.config.get("require_answer_tags", True)
         # Fix 2: graded format penalty (actor-as-RM mode). 0.0 = disabled.
         self.format_penalty = self.config.get("format_penalty", self.config.actor.get("format_penalty", 0.0))
+        # Options 3+2: when > 0, switch the format penalty from a flat subtraction to a
+        # reward-type-agnostic gate (violators pushed `std_coef` sigma below the well-formed
+        # floor). 0.0 = legacy flat penalty. See apply_format_penalty.
+        self.format_penalty_std_coef = self.config.get(
+            "format_penalty_std_coef", self.config.actor.get("format_penalty_std_coef", 0.0))
         # Fix 1: restrict the policy-gradient loss + entropy to <think>...</think> tokens
         # (the span the dialogue reward actually reflects); the answer region is governed
         # only by the KL-to-reference term so it stays anchored to the base model's format.
@@ -831,9 +874,11 @@ class ActorRolloutRefWorker(Worker):
         # place invalid rollouts a full margin below it (see invalid_reward_value).
         invalid_value = invalid_reward_value(self.reward_type, self.format_penalty)
         rm_score = torch.clamp(rm_score, min=valid_reward_floor(self.reward_type), max=MAX_REWARD)
-        # Fix 2: graded format penalty for malformed (but still valid) model responses.
+        # Fix 2 / Options 3+2: format penalty (flat, or std-gated when format_penalty_std_coef>0).
         if self.format_penalty and 'format_violation' in micro_batch:
-            rm_score = rm_score - micro_batch['format_violation'].to(rm_score.dtype) * self.format_penalty
+            rm_score = apply_format_penalty(
+                rm_score, micro_batch['format_violation'], micro_batch['invalid_response'],
+                self.reward_type, self.format_penalty, self.format_penalty_std_coef)
         # Invalid rollouts (no </think>) -> relative sentinel, guaranteed below any valid.
         rm_score = rm_score.masked_fill_(micro_batch['invalid_response'], invalid_value)
         # Degenerate rollouts whose thinking fills the RM context leave no response
@@ -1155,6 +1200,10 @@ class RewardModelWorker(Worker):
         # is malformed (missing/duplicate <think>/</think> or empty/malformed answer).
         # 0.0 = disabled (default). Anchors the <think>/answer structure the eval needs.
         self.format_penalty = self.config.get("format_penalty", 0.0)
+        # Options 3+2: when > 0, switch the format penalty from a flat subtraction to a
+        # reward-type-agnostic gate (violators pushed `std_coef` sigma below the well-formed
+        # floor). 0.0 = legacy flat penalty. See apply_format_penalty.
+        self.format_penalty_std_coef = self.config.get("format_penalty_std_coef", 0.0)
         # Whether the recipe requires explicit <think></think>/<answer> tags. Tagged
         # recipes (Qwen2.5) reliably emit </think> so a missing close tag is a hard
         # invalid; tag-free / native-thinking recipes (Gemma-2, Qwen3) do NOT, so we
@@ -1320,9 +1369,11 @@ class RewardModelWorker(Worker):
             # valid range of log_prob / neg_perplexity.
             invalid_value = invalid_reward_value(self.reward_type, self.format_penalty)
             rm_score = torch.clamp(rm_score, min=valid_reward_floor(self.reward_type), max=MAX_REWARD)
-            # Fix 2: graded format penalty for malformed (but still valid) responses.
+            # Fix 2 / Options 3+2: format penalty (flat, or std-gated when format_penalty_std_coef>0).
             if self.format_penalty and 'format_violation' in micro_batch:
-                rm_score = rm_score - micro_batch['format_violation'].to(rm_score.dtype) * self.format_penalty
+                rm_score = apply_format_penalty(
+                    rm_score, micro_batch['format_violation'], micro_batch['invalid_response'],
+                    self.reward_type, self.format_penalty, self.format_penalty_std_coef)
             rm_score = rm_score.masked_fill_(micro_batch['invalid_response'], invalid_value)
             # Degenerate rollouts with no scored response tokens yield NaN above;
             # treat them as invalid so one NaN can't poison the whole GRPO batch.
