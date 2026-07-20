@@ -164,3 +164,23 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+
+## Findings (h100-117-001, 2026-07-20)
+
+```
+eval iters: 8 (step 0..190); ToM benchmarks: 24 (excl gsm8k, mmlu)
+ToM HM(last5)=0.319  HM(last3)=0.3298  (baseline step0=0.3958)
+ToM avg(last5)=0.5148  avg(last3)=0.509  (baseline step0=0.5343)
+gsm8k (separate): 0.6608 (step0=0.82, delta vs step0=-0.159)
+mmlu (separate): 0.6834 (step0=0.723, delta vs step0=-0.040)
+health(final): kl=0.329 entropy=0.634 resp_len=59.027 reward=27.509 parseable=1.0 max_resp=512
+ToM HM trajectory: 0:0.396 30:0.285 60:0.272 90:0.303 120:0.287 150:0.349 180:0.314 190:0.324
+```
+
+**Verdict: REGRESSION.** The 3B-locked BeRL recipe (power k4, ll_min-6, actor-RM, KL0.05, LR5e-7)
+does NOT transfer cleanly to Qwen2.5-**7B**. Final KL runs hot at **0.329** (vs 3B P0 runs' controlled
+0.03–0.16), ToM HM ends **-7.7pp below baseline** (0.319 vs 0.396) and never recovers above step0.
+Capabilities also drop (gsm8k -15.9pp, mmlu -4.0pp). No format collapse (parseable=1.0). HM trajectory
+dips hard early (0.396→0.272 by step60) and only partially recovers. Implies 7B needs a re-tuned recipe
+(lower LR and/or tighter KL) for Q3-D6 model-scaling — the fixed-recipe scaling point at 7B is negative
+under these hyperparameters. WandB: https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/na7uulh4
