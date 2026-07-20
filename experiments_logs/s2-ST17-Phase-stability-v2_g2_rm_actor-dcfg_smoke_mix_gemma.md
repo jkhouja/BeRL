@@ -1,0 +1,182 @@
+### Attempt r1 — 2026-07-19T21:49:26+00:00
+
+- **RUN_NAME:** `s2-ST17-Phase-stability-v2_g2_rm_actor-dcfg_smoke_mix_gemma-gemma-2-2b-it-actorRM-nobaseline-power-k4-llmin-4-lr5e-7-kl0.05-n16-r1`
+- **Host:** h100-021-003   **git:** `e841f0e`   **conda env:** tom
+- **Model:** `google/gemma-2-2b-it` (gemma-2-2b-it)
+- **Data (train):** `data/dcfg_smoke_mix_gemma.parquet`
+- **Val files:** `[/mnt/home/judekhouja/repo/BeRL/data/cleaned_tom/eval_subsample_300.parquet]`
+- **Knobs:** reward=power power_k=4 ll_min=-4 rm_mode=actor baseline=False kl=0.05 lr=5e-7 rollout_n=16 epochs=1 max_ctx=2048/512 cot_var=cot_eval require_answer_tags=False entropy_coeff=0.001 think_only_pg=False format_penalty=0.0 format_penalty_std_coef=1.0
+- **Env:** VLLM_ATTENTION_BACKEND=FLASH_ATTN GPU_MEM_UTIL=0.3 TP=2 n_gpus=8
+- **WandB:** project=TOM_EXP run=s2-ST17-Phase-stability-v2_g2_rm_actor-dcfg_smoke_mix_gemma-gemma-2-2b-it-actorRM-nobaseline-power-k4-llmin-4-lr5e-7-kl0.05-n16-r1 _(paste link after launch)_
+- **Log path:** `logs/20260719/s2-ST17-Phase-stability-v2_g2_rm_actor-dcfg_smoke_mix_gemma-gemma-2-2b-it-actorRM-nobaseline-power-k4-llmin-4-lr5e-7-kl0.05-n16-r1.log`
+
+**Exact command:**
+```bash
+HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
+    algorithm.adv_estimator=grpo \
+    data.train_files=data/dcfg_smoke_mix_gemma.parquet \
+    data.val_files=[/mnt/home/judekhouja/repo/BeRL/data/cleaned_tom/eval_subsample_300.parquet] \
+    data.val_metric_suffix=_sub300 \
+    data.train_batch_size=32 \
+    data.val_batch_size=16 \
+    data.prompt_is_text=False \
+    +data.truncation=left \
+    data.max_prompt_length=2048 \
+    data.max_response_length=512 \
+    actor_rollout_ref.model.path=google/gemma-2-2b-it \
+    actor_rollout_ref.actor.optim.lr=5e-7 \
+    actor_rollout_ref.model.use_remove_padding=True \
+    actor_rollout_ref.actor.ppo_mini_batch_size=128 \
+    actor_rollout_ref.actor.ppo_micro_batch_size=8 \
+    actor_rollout_ref.actor.use_kl_loss=True \
+    actor_rollout_ref.actor.kl_loss_coef=0.05 \
+    actor_rollout_ref.actor.kl_loss_type=low_var_kl \
+    actor_rollout_ref.actor.clip_ratio=0.2 \
+    actor_rollout_ref.actor.grad_clip=1.0 \
+    actor_rollout_ref.actor.entropy_coeff=0.001 \
+    actor_rollout_ref.actor.think_only_pg=False \
+    actor_rollout_ref.actor.format_penalty=0.0 \
+    actor_rollout_ref.actor.format_penalty_std_coef=1.0 \
+    actor_rollout_ref.model.enable_gradient_checkpointing=True \
+    actor_rollout_ref.actor.fsdp_config.param_offload=True \
+    actor_rollout_ref.actor.fsdp_config.grad_offload=True \
+    actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size=8 \
+    actor_rollout_ref.rollout.tensor_model_parallel_size=2 \
+    actor_rollout_ref.rollout.name=vllm \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.3 \
+    actor_rollout_ref.rollout.n=16 \
+    actor_rollout_ref.ref.log_prob_micro_batch_size=8 \
+    actor_rollout_ref.ref.fsdp_config.param_offload=True \
+    algorithm.kl_ctrl.kl_coef=0.05 \
+    trainer.critic_warmup=0 \
+    trainer.logger=['console','wandb'] \
+    trainer.project_name=TOM_EXP \
+    trainer.experiment_name=s2-ST17-Phase-stability-v2_g2_rm_actor-dcfg_smoke_mix_gemma-gemma-2-2b-it-actorRM-nobaseline-power-k4-llmin-4-lr5e-7-kl0.05-n16-r1 \
+    trainer.n_gpus_per_node=8 \
+    trainer.nnodes=1 \
+    trainer.default_hdfs_dir=null \
+    trainer.save_freq=50 \
+    trainer.test_freq=30 \
+    trainer.total_epochs=1 \
+    reward_model.type=lm \
+    reward_model.enable=True \
+    reward_model.model.path=google/gemma-2-2b-it \
+    reward_model.micro_batch_size=8 \
+    +reward_model.subtract_baseline=False \
+    +reward_model.use_actor_as_rm=True \
+    +reward_model.reward_type=power \
+    +reward_model.power_k=4 \
+    +reward_model.power_ll_min=-4 \
+    reward_model.format_penalty=0.0 \
+    reward_model.format_penalty_std_coef=1.0 \
+    +actor_rollout_ref.reward_type=power \
+    +actor_rollout_ref.power_k=4 \
+    +actor_rollout_ref.power_ll_min=-4 \
+    +data.fold_system_prompt=True \
+    +reward_model.require_answer_tags=False \
+    +actor_rollout_ref.require_answer_tags=False
+```
+
+**How to rerun:** `EXP_ID=Phase-stability-v2_g2_rm_actor DATA_NAME=dcfg_smoke_mix_gemma MODEL_PATH=google/gemma-2-2b-it DATA_TRAIN=data/dcfg_smoke_mix_gemma.parquet RUN_INDEX=1 bash experiments/train_behavior_gemma.sh`
+
+**Findings:** _(fill on completion via log-results skill)_
+
+### Attempt r1 — 2026-07-19T21:49:43+00:00
+
+- **RUN_NAME:** `s2-ST17-Phase-stability-v2_g2_rm_actor-dcfg_smoke_mix_gemma-gemma-2-2b-it-actorRM-nobaseline-power-k4-llmin-4-lr5e-7-kl0.05-n16-r1`
+- **Host:** h100-021-003   **git:** `e841f0e`   **conda env:** tom
+- **Model:** `google/gemma-2-2b-it` (gemma-2-2b-it)
+- **Data (train):** `data/dcfg_smoke_mix_gemma.parquet`
+- **Val files:** `[/mnt/home/judekhouja/repo/BeRL/data/cleaned_tom/eval_subsample_300.parquet]`
+- **Knobs:** reward=power power_k=4 ll_min=-4 rm_mode=actor baseline=False kl=0.05 lr=5e-7 rollout_n=16 epochs=1 max_ctx=2048/512 cot_var=cot_eval require_answer_tags=False entropy_coeff=0.001 think_only_pg=False format_penalty=0.0 format_penalty_std_coef=1.0
+- **Env:** VLLM_ATTENTION_BACKEND=FLASH_ATTN GPU_MEM_UTIL=0.3 TP=2 n_gpus=8
+- **WandB:** project=TOM_EXP run=s2-ST17-Phase-stability-v2_g2_rm_actor-dcfg_smoke_mix_gemma-gemma-2-2b-it-actorRM-nobaseline-power-k4-llmin-4-lr5e-7-kl0.05-n16-r1 _(paste link after launch)_
+- **Log path:** `logs/20260719/s2-ST17-Phase-stability-v2_g2_rm_actor-dcfg_smoke_mix_gemma-gemma-2-2b-it-actorRM-nobaseline-power-k4-llmin-4-lr5e-7-kl0.05-n16-r1.log`
+
+**Exact command:**
+```bash
+HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
+    algorithm.adv_estimator=grpo \
+    data.train_files=data/dcfg_smoke_mix_gemma.parquet \
+    data.val_files=[/mnt/home/judekhouja/repo/BeRL/data/cleaned_tom/eval_subsample_300.parquet] \
+    data.val_metric_suffix=_sub300 \
+    data.train_batch_size=32 \
+    data.val_batch_size=16 \
+    data.prompt_is_text=False \
+    +data.truncation=left \
+    data.max_prompt_length=2048 \
+    data.max_response_length=512 \
+    actor_rollout_ref.model.path=google/gemma-2-2b-it \
+    actor_rollout_ref.actor.optim.lr=5e-7 \
+    actor_rollout_ref.model.use_remove_padding=True \
+    actor_rollout_ref.actor.ppo_mini_batch_size=128 \
+    actor_rollout_ref.actor.ppo_micro_batch_size=8 \
+    actor_rollout_ref.actor.use_kl_loss=True \
+    actor_rollout_ref.actor.kl_loss_coef=0.05 \
+    actor_rollout_ref.actor.kl_loss_type=low_var_kl \
+    actor_rollout_ref.actor.clip_ratio=0.2 \
+    actor_rollout_ref.actor.grad_clip=1.0 \
+    actor_rollout_ref.actor.entropy_coeff=0.001 \
+    actor_rollout_ref.actor.think_only_pg=False \
+    actor_rollout_ref.actor.format_penalty=0.0 \
+    actor_rollout_ref.actor.format_penalty_std_coef=1.0 \
+    actor_rollout_ref.model.enable_gradient_checkpointing=True \
+    actor_rollout_ref.actor.fsdp_config.param_offload=True \
+    actor_rollout_ref.actor.fsdp_config.grad_offload=True \
+    actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size=8 \
+    actor_rollout_ref.rollout.tensor_model_parallel_size=2 \
+    actor_rollout_ref.rollout.name=vllm \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.3 \
+    actor_rollout_ref.rollout.n=16 \
+    actor_rollout_ref.ref.log_prob_micro_batch_size=8 \
+    actor_rollout_ref.ref.fsdp_config.param_offload=True \
+    algorithm.kl_ctrl.kl_coef=0.05 \
+    trainer.critic_warmup=0 \
+    trainer.logger=['console','wandb'] \
+    trainer.project_name=TOM_EXP \
+    trainer.experiment_name=s2-ST17-Phase-stability-v2_g2_rm_actor-dcfg_smoke_mix_gemma-gemma-2-2b-it-actorRM-nobaseline-power-k4-llmin-4-lr5e-7-kl0.05-n16-r1 \
+    trainer.n_gpus_per_node=8 \
+    trainer.nnodes=1 \
+    trainer.default_hdfs_dir=null \
+    trainer.save_freq=50 \
+    trainer.test_freq=30 \
+    trainer.total_epochs=1 \
+    reward_model.type=lm \
+    reward_model.enable=True \
+    reward_model.model.path=google/gemma-2-2b-it \
+    reward_model.micro_batch_size=8 \
+    +reward_model.subtract_baseline=False \
+    +reward_model.use_actor_as_rm=True \
+    +reward_model.reward_type=power \
+    +reward_model.power_k=4 \
+    +reward_model.power_ll_min=-4 \
+    reward_model.format_penalty=0.0 \
+    reward_model.format_penalty_std_coef=1.0 \
+    +actor_rollout_ref.reward_type=power \
+    +actor_rollout_ref.power_k=4 \
+    +actor_rollout_ref.power_ll_min=-4 \
+    +data.fold_system_prompt=True \
+    +reward_model.require_answer_tags=False \
+    +actor_rollout_ref.require_answer_tags=False
+```
+
+**How to rerun:** `EXP_ID=Phase-stability-v2_g2_rm_actor DATA_NAME=dcfg_smoke_mix_gemma MODEL_PATH=google/gemma-2-2b-it DATA_TRAIN=data/dcfg_smoke_mix_gemma.parquet RUN_INDEX=1 bash experiments/train_behavior_gemma.sh`
+
+**Findings:** _(fill on completion via log-results skill)_
+
+
+## Findings (r1 — authoritative) — appended 2026-07-20 00:00 by agent on h100-021-003
+Run **Completed** cleanly: reached step 190/190 (1 epoch confirmed), final subsample300 eval logged, main_ppo proc exited normally.
+
+**Config-selection score** (`scripts/score_run.py`, 8 eval iters step 0..190; 24 ToM benchmarks excl gsm8k/mmlu):
+- ToM **HM(last5)=0.1785**, HM(last3)=0.2029 (baseline step0=0.0931) → **+0.085 over baseline**.
+- ToM avg(last5)=0.4171, avg(last3)=0.438 (baseline 0.3151).
+- gsm8k (separate): 0.3594 (step0 0.277, Δ=+0.082).
+- mmlu (separate): 0.4514 (step0 0.387, Δ=+0.064).
+- HM trajectory (volatile): 0:0.093 → 30:0.020 → 60:0.109 → 90:0.097 → 120:0.165 → 150:0.224(peak) → 180:0.216 → 190:0.154.
+
+**Health (final):** KL=0.209, entropy=1.618, response_length≈117, reward/mean≈-1.29, parseable=1.0. **KL trajectory (the key metric this row tests): 0.001→0.066→0.187→0.220→0.298(peak ~step105–130)→plateau→final 0.209.** Climbed steadily to ~0.30 mid-run then plateaued — NO catastrophic blowup, NO divergence.
+
+**Verdict (PB actor-RM KL-blowup re-check):** Under the merged v2 fixes, **actor-as-RM on Gemma-2-2B is stable** — KL rose to ~0.30 and plateaued rather than blowing up (contrast old stage: actor blew KL in 12/72 runs). Modest ToM HM gain (+0.085, low absolute Gemma baseline), with gsm8k/mmlu both improved (+0.08/+0.06). HM is volatile and dipped at the final eval (step190=0.154 vs peak 0.224 at step150) — worth noting for eval-step selection. Compare vs ST13 frozen-RM Gemma anchor to decide RM mode for the family.

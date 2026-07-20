@@ -77,21 +77,21 @@ a prerequisite for trusting any data comparison. Instead of the v1 96-cell/famil
 uncertain (or newly-relevant) and **excluding the cells v1 proved collapse/hack.**
 
 **Model families (optimize each independently — a winning recipe does NOT generalize across families):**
-Qwen2.5-3B (workhorse), Qwen3-1.7B, Gemma-2-2B. **Data:** fixed reasonable small mix
+Qwen2.5-3B (workhorse), Gemma-2-2B. (Qwen3-1.7B dropped from Phase −1 v2 per user 2026-07-19.)
+**Data:** fixed reasonable small mix
 (`dcfg_smoke_mix{,_gemma}` or the v1 mix), 1 seed. **`ll_min` stays deferred to Q2** (corpus-relative).
 
 **Anchor (per family)** — the v1 winner region, **minimally perturbed to guarantee novelty vs the
 old stage** (see "Novelty" below): reward = **`power k=4`** (the old sweep only used k∈{3,5,7}) with
 the **new std-gated format gate** (`format_penalty_std_coef=1.0`, which never existed pre-v2):
 - Qwen2.5-3B: `power · k=4 · ll_min=−6 · actor-RM · std-gated-fp(coef 1.0) · ec=0.0 · kl=0.05 · lr=5e-7`
-- Qwen3-1.7B: `power · k=4 · ll_min=−6 · actor-RM · std-gated-fp(coef 1.0) · ec=0.001 · kl=0.05 · lr=5e-7`
 - Gemma-2-2B: `power · k=4 · ll_min=−4 · frozen-RM · std-gated-fp(coef 1.0) · ec=0.001 · kl=0.05 · lr=5e-7`
 
 **Novelty vs the old stage (verified against `old_BeRL_experiments_tracker.md`).** The old Phase −1
 grid swept only `reward∈{log_prob, power k3/k5/k7}` with the **flat** format penalty
 (`fp_std_coef` did not exist) — `k=4`, `k=6`, `neg_perplexity`, and the std-gated gate were **never
 run** (0 completed cells). Anchoring v2 on **`power k=4` + std-gated fp** therefore makes **every one
-of the 33 cells a genuinely new configuration**, not a re-run: the two non-power reward probes
+of the 24 cells a genuinely new configuration**, not a re-run: the two non-power reward probes
 (`log_prob`, `neg_perplexity`) appear only under the new std-gated gate, and the two flat-penalty
 comparison cells (PD) use the never-run `k=4` exponent.
 
@@ -110,8 +110,9 @@ comparison cells (PD) use the never-run `k=4` exponent.
 | **PC. KL × LR stability** (re-added) | `kl∈{0.01,0.05}` × `lr∈{5e-7,1e-6}` | +3 | does kl=0.01 / doubled-lr still drift under merged fixes? |
 | **PD. format-fix** (NEW) | **std-gated `fp_std_coef=1.0`** (anchor) / flat `fp=5` / `fp=0` ref | +2 | does the std-gated gate beat flat fp on honest `d_cavg`? |
 | **PE. entropy check** | `ec∈{0.0,0.001}` | +1 | family-specific entropy coefficient |
-| **Per-family total** | anchor(1) + 3 + 1 + 3 + 2 + 1 | **11** | best stable, honest config |
-| **Phase −1 (v2) total** | 11 × 3 families | **33** | → v2 "stable default config" per family |
+| **PF. batch size** (NEW) | `train_batch=64` (anchor = 32) | +1 | larger-batch stability/throughput |
+| **Per-family total** | anchor(1) + 3 + 1 + 3 + 2 + 1 + 1 | **12** | best stable, honest config |
+| **Phase −1 (v2) total** | 12 × 2 families (Qwen2.5, Gemma-2) | **24** | → v2 "stable default config" per family |
 
 **Selection = honest `d_cavg`** (late window), gated **clean** (final KL < 1.0 AND min rollout
 resp_len ≥ 30); cross-check `d_cavg_peak` (peak, upward-biased) and `d_cond_acc` (pooled).
@@ -120,26 +121,64 @@ blowup/degeneration; entropy not crashing; KL controlled.
 
 **Output:** the v2 locked "stable default config" per family → feeds Phase 0.
 
-**Tracker rows:** these 33 cells are populated as **`ST01`–`ST33`** in `BeRL_experiments_tracker.md`
-(`Phase-stability` RQ tag; `ST01`–`ST11` Qwen2.5-3B, `ST12`–`ST22` Qwen3-1.7B, `ST23`–`ST33`
-Gemma-2-2B; each family's anchor = the `..._anchor_pk4_stdgate` row).
+**Tracker rows:** these 24 cells are populated as **`ST01`–`ST24`** in `BeRL_experiments_tracker.md`
+(`Phase-stability` RQ tag; `ST01`–`ST12` Qwen2.5-3B, `ST13`–`ST24` Gemma-2-2B; each family's
+anchor = the `..._anchor_pk4_stdgate` row — Qwen2.5 `ST01`, Gemma-2 `ST13`; `ST12`/`ST24` = the PF
+`train_batch=64` cells). The Qwen3-1.7B block was removed and the remaining rows renumbered
+contiguously (2026-07-19).
 
 ---
 
-## Phase 0 (v2) — Training-data recipe search  ⬜ EMPTY (to populate on the Phase −1 winner)
-Fixes the corpus used by A1/Q0/Q1, built **on top of the v2 Phase −1 winning recipe** (not the v1
-recipe). **Left intentionally empty until Phase −1 (v2) locks the config** — populate the sub-runs
-(S1 singletons → S2 mixes → S3 turn filtering → S6 Gemma confirm) once the recipe is chosen, so the
-data search runs under the exact stable/honest config it will ship with.
+## Phase 0 (v2) — Training-data recipe search  ✅ COMPLETE (P0-01…14) — **VERDICT: null; keep `smoke_mix`**
+**Result (2026-07-20, see `BeRL_findings.md` Phase 0):** data composition is a **null lever**. On the
+stable `d_avg` metric every corpus (mix_all, mix_best3, all 8 single domains) lands at the same
+~+0.02 as the `smoke_mix` baseline (+0.0215±0.001); all conditional-metric gaps are within the N=3
+noise band (SD ~0.08). **Decision: `smoke_mix` is the fixed corpus for A1/Q0/Q1/Q2/…**; S3 turn-filter
+and the S1-top2 3-seed replicates are **skipped** (confirmed null). Design below kept for the record.
 
-Search on Qwen2.5-3B (workhorse), single seed, select on held-out honest `d_cavg`; confirm the
-winner on Gemma-2-2B. Data hygiene: exclude first/last turns; held-out utterances from other
-conversations or strictly-later turns (no leakage).
+Fixes the corpus used by A1/Q0/Q1, built **on top of the v2 Phase −1 winning recipe**.
 
-**v1 archived result (context, NOT locked):** recipe = `dcfg_mix_best3{,_gemma}`, **no turn filter**;
-no mixture synergy over the best single domain (Qwen); turn-surprisal filtering gave no benefit
-(quantity > quality); honest gain small (+0.07–0.15 cond-acc). See `BeRL_findings.md` Phase 0.
-Re-evaluate whether these hold under the v2 recipe before reusing them.
+**Locked v2 recipe carried in (from Phase −1, `BeRL_findings.md`):**
+- **Qwen2.5-3B (workhorse):** `power k4 · ll_min−6 · actor-RM · fp=0 · ec=0.0 · kl=0.05 · lr=5e-7 ·
+  train_batch=32 · rollout16 · 1 epoch`, tagged data (`cot_eval`). *(fp=0, NOT fp=5 — v2 reversed v1.)*
+- **Gemma-2-2B (confirm):** `power k4 · ll_min−4 · frozen-RM · fp=0 · ec=0.001 · kl=0.05 · lr=5e-7`,
+  tag-free (`cot_eval_notags`).
+
+### ⚠️ Design change forced by the Phase −1 error-bar (read first)
+Phase −1's N=3 anchor replicate (ST01≡ST10≡ST28, identical config) measured the **true run-to-run
+noise**: **SD(d_cavg) ≈ 0.083** (2σ band ±0.17) but **SD(d_avg) ≈ 0.001**. The v1 Phase-0 data search
+was **single-seed, ranked on d_cavg** — so its honest deltas (mix picks separated by ~0.04–0.08
+d_cavg) were **entirely within the noise floor** and are NOT trustworthy. The v2 data search therefore:
+1. **Primary metric = `d_avg`** (stable, better-powered) on Qwen2.5, where format is ~100%-saturated so
+   d_avg is *not* format-confounded. `d_cavg`/`d_cond_acc` are secondary and used as the honest metric
+   **only for Gemma** (format not saturated there). Never rank a data config on a d_cavg gap <≈0.17.
+2. **≥3 seeds per shortlisted data config** — report mean ± SD; a config only "wins" if its d_avg (or
+   Gemma d_cond_acc) mean clears the baseline by more than the seed SD. **This is the single biggest
+   change vs v1** and the reason v1's mixture/turn-filter conclusions must be re-derived, not reused.
+3. **Reuse the free N=3 smoke_mix baseline** (ST01/ST10/ST28: d_avg +0.0215±0.001, d_cavg +0.067±0.083)
+   as the reference corpus — every candidate is compared against it with error bars.
+
+### Structure (Qwen2.5 search → Gemma confirm); prefix `P0##`, `RUN_STAGE=s2`
+- **S1 — single-domain screen (1 seed each, screen on d_avg).** The 8 built domains
+  (`dcfg_{casino,cga,craigslist,dailydialog,diplomacy,empathetic,p4g,thoughttrace}`). Cheap screen to
+  rank domains by raw d_avg; **shortlist the top ~2**.
+- **S2 — mixtures vs baseline (3 seeds each).** `dcfg_smoke_mix` (=baseline, have N=3) vs `dcfg_mix_all`
+  vs `dcfg_mix_best3` vs the S1 top-2 singletons. **Question: does *any* corpus beat smoke_mix on d_avg
+  beyond seed SD?** (v1 said mixtures don't compose — re-test with power.)
+- **S3 — quantity vs quality / turn filtering (GATED, low priority).** `dcfg_mix_best_{surprise,randlen,
+  predictable}`. **Gate:** only run if S2 produced a corpus with honest signal above noise to
+  concentrate; v1's S3 was null ("quantity > quality"). Skip by default.
+- **S6 — Gemma confirm (3 seeds).** Re-run the S2 winner + smoke_mix on Gemma; judge on d_cond_acc.
+
+**Selection:** the corpus whose **d_avg mean − baseline** is largest AND exceeds the seed SD; ties →
+prefer the simplest/cleanest (smoke_mix) and largest stable corpus (v1: quantity > quality). Feeds A1.
+
+**v1 archived result (context, NOT locked — likely within-noise, see above):** recipe =
+`dcfg_mix_best3{,_gemma}`, no turn filter; no mixture synergy; turn-surprisal null; honest gain small.
+See `old_BeRL_findings.md` Phase 0.
+
+Data hygiene (unchanged): exclude first/last turns; held-out utterances from other conversations or
+strictly-later turns (no leakage).
 
 ---
 
@@ -190,17 +229,18 @@ Global RL HPs (lr, KL β, rollout-N) fixed in Phase −1.
 
 ---
 
-## Q3 — Scale and interaction type / data (hypothesis)
+## Q3 — Scale and interaction type / data (hypothesis)  🟡 ACTIVE (D6+D5 populated 2026-07-20; D1 done via Phase-0)
 **Hypothesis: ToM transfer scales with the ToM-dependence of the training signal and model size.** Model: **3B**.
+**Metric protocol (from Phase −1 error bar): rank on stable `d_avg` (SD 0.001); d_cavg noise-dominated.**
 
-| Run | Variable | Hypothesis |
-| --- | --- | --- |
-| D1 (×5–6) | domain: Empathetic / CaSiNo+Craigslist / CGA / Diplomacy / P4G / DailyDialog (smalltalk) | info-asymmetric domains > smalltalk |
-| D2 (×2) | long vs short (`limit_turn`) | context-length effect |
-| D3 (×3) | curriculum `turn_order`: early→late / late→early / random `[build sched]` | expect null → report as negative |
-| D4 (×2) | **surprise sampling** vs length-matched random `[build]` | ToM-dependent turns drive gains |
-| D5 (×4) | #conversations = 1k / 5k / 10k / all | data-scaling law |
-| D6 (×3) | model scale: best hypers @3B, 7B, Gemma-2B | model-scaling law |
+| Run | Variable | Hypothesis | Status |
+| --- | --- | --- | --- |
+| D1 (×5–6) | domain: Empathetic / CaSiNo+Craigslist / CGA / Diplomacy / P4G / DailyDialog (smalltalk) | info-asymmetric domains > smalltalk | ✅ **DONE via Phase-0 S1 (P0-01…08)** → **hypothesis NOT supported on d_avg**: dailydialog (smalltalk) +0.0209 ties top negotiation domains; diplomacy near bottom (+0.0071). Domain is a **null lever** (see `BeRL_findings.md` Phase 0). |
+| D6 (×3) | model scale: best hypers @ **0.5B / 3B(=A1) / 7B** (Qwen2.5) + **Gemma-2B** | model-scaling law | 🟡 **populated** (Q3-01…06). smoke_mix, per-family recipe. 3B=ST01/10/28 (reuse). 7B needs HF download. Most likely above-noise, headline curve. |
+| D5 (×4) | #conversations ≈ **1k / 5k / 10k** (+ free endpoints **6.1k=smoke_mix**, **26k=mix_all**) | data-scaling law | 🟡 **populated** (Q3-07…12). Composition-controlled ladder (`dcfg_scale_{1k,5k,10k}`, same 9-source ratio as smoke_mix). Endpoints reuse ST01/10/28 (6.1k) + P0-09/10/11 (26k). |
+| D2 (×2) | long vs short (`limit_turn`) | context-length effect | ⏸ deferred (interaction-type; Phase-0 suggests within-noise) |
+| D3 (×3) | curriculum `turn_order`: early→late / late→early / random `[build sched]` | expect null → report as negative | ⏸ deferred (`[build]`; expected null) |
+| D4 (×2) | **surprise sampling** vs length-matched random `[build]` | ToM-dependent turns drive gains | ⏸ gated (`[build]`; old-stage null) |
 
 ---
 
@@ -239,9 +279,9 @@ Phase −1 / Phase 0 / Q2.
 - **Seeds:** ≥3 for headline (A0/A1, B1/B2); 1–2 for ablations. Report bootstrap CIs over eval items.
 - **Selection metric = honest `d_cavg`** (format-controlled), clean-gated (KL<1, resp_len≥30); raw
   `d_hm`/`d_avg` reported alongside but never as the sole selector (v1 lesson: raw gains were hacks).
-- **Optimize each family independently** — Phase −1 re-derives per family (Qwen2.5, Qwen3, Gemma-2);
+- **Optimize each family independently** — Phase −1 re-derives per family (Qwen2.5, Gemma-2);
   no cross-family recipe transfer assumed.
-- **Search = workhorse family** for Phase 0/Q2 (Qwen2.5-3B), Gemma/Qwen3 confirmations per phase.
+- **Search = workhorse family** for Phase 0/Q2 (Qwen2.5-3B), Gemma confirmations per phase.
 - **Sizes / scaling:** 3B workhorse; scaling curve at 0.5B & 7B-1M for Q1 and Q3-D6.
 - **Hygiene:** one variable per run; freeze KL/lr/rollout-N within a question; exclude first/last
   turns; no held-out leakage; verify Hi-ToM train does not leak into ID eval.
@@ -251,7 +291,7 @@ Phase −1 / Phase 0 / Q2.
 
 | Block | Runs |
 |---|--:|
-| Phase −1 (v2) reduced stability: 11 × 3 families | 33 |
+| Phase −1 (v2) reduced stability: 12 × 2 families (Qwen2.5, Gemma-2) | 24 |
 | Phase 0 data-recipe search (TBD on Phase −1 winner) | ~15 |
 | Q2 reward refinement | 16 |
 | Q0 identifiability (3B): A1×3, A2, A3, A4 | 6 |
@@ -259,7 +299,7 @@ Phase −1 / Phase 0 / Q2.
 | Q3 scale/interaction (3B): D1×6, D2×2, D3×3, D4×2, D5×4, D6×3 | 20 |
 | Q4 thinking style (3B): E2, E3×3 | 4 |
 | QG cross-family (Gemma-2B): A1g×3, A3g, A4g, B2g×2 | 6 |
-| **Grand total** | **~108** |
+| **Grand total** | **~99** |
 
 Front-load Phase −1 (stop if nothing trains stably), then Phase 0; gate downstream on the Q0
 A1-vs-controls check (honest `d_cavg`).

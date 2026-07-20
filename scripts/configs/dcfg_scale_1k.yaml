@@ -1,0 +1,31 @@
+extends: dcfg_base.yaml
+
+# Q3-D5 data-scaling ladder: the SAME 9-source composition as dcfg_smoke_mix,
+# proportionally scaled to ~1k rows (isolates data QUANTITY, holds mixture
+# ratio fixed). Endpoints 6.1k (dcfg_smoke_mix) and 26k (dcfg_mix_all) are reused.
+pipeline:
+  output_name: "dcfg_scale_1k"
+
+datasets:
+  - source: "dailydialog"
+    sample_size: 165
+  - source: "empathetic_dialogues"
+    sample_size: 165
+  - source: "conversations_gone_awry"
+    sample_size: 165
+  - source: "casino"
+    min_response_words: 1
+    sample_size: 100
+  - source: "craigslist_bargain"
+    min_response_words: 1
+    sample_size: 80
+  - source: "dealornodeal"
+    min_response_words: 1
+    sample_size: 80
+  - source: "persuasionforgood"
+    sample_size: 80
+  - source: "diplomacy"
+    sample_size: 65
+  - source: "thoughttrace"
+    sample_size: 100
+    target_speaker: "user"

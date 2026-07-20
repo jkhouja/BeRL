@@ -1,31 +1,14 @@
-# ST02-Phase-stability-v2_q25_reward_logprob-dcfg_smoke_mix
+### Attempt r1 — 2026-07-19T19:45:06+00:00
 
-- **Exp ID:** Phase-stability-v2_q25_reward_logprob   **Exp #:** ST02
-- **Data config:** dcfg_smoke_mix
-- **Task:** behavior   **Model family:** qwen2.5
-- **Authoritative attempt:** r1 (WandB gfyuwlv5). Note: the first "Attempt r1" block below was
-  emitted by a `BERL_DRY_RUN=1` preview (summary md is written before the dry-run guard); the
-  second identical r1 block is the real launch. Only one training process exists.
-
-## Hypothesis / question
-PA reward-family axis (v2 anchor = ST01 power k4 + std-gated fp). This row swaps the reward to
-**log_prob** under the same std-gated format gate (fp=0, fp_std_coef=1.0). NOVEL: log_prob was never
-run with the std-gated gate. Tests whether the length-normalized log-likelihood reward is
-competitive with the power-shaped reward for inducing ToM transfer on Qwen2.5-3B (actor-as-RM).
-
-## Attempts
-
-### Attempt r1 — 2026-07-19T19:09:25+00:00
-
-- **RUN_NAME:** `ST02-Phase-stability-v2_q25_reward_logprob-dcfg_smoke_mix-Qwen2.5-3B-Instruct-actorRM-nobaseline-log_prob-k2.0-llmin-8.0-lr5e-7-kl0.05-n16-r1`
-- **Host:** h100-021-003   **git:** `8615468`   **conda env:** tom
+- **RUN_NAME:** `s2-ST06-Phase-stability-v2_q25_kl0.01_lr5e-7-dcfg_smoke_mix-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.01-n16-r1`
+- **Host:** h100-189-003   **git:** `e841f0e`   **conda env:** tom
 - **Model:** `Qwen/Qwen2.5-3B-Instruct` (Qwen2.5-3B-Instruct)
 - **Data (train):** `/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix.parquet`
 - **Val files:** `[/mnt/home/judekhouja/repo/BeRL/data/cleaned_tom/eval_subsample_300.parquet]`
-- **Knobs:** reward=log_prob power_k=2.0 ll_min=-8.0 rm_mode=actor baseline=False kl=0.05 lr=5e-7 rollout_n=16 epochs=1 max_ctx=2048/512 cot_var=cot_eval require_answer_tags=True entropy_coeff=0.0 think_only_pg=False format_penalty=0.0 format_penalty_std_coef=1.0
+- **Knobs:** reward=power power_k=4 ll_min=-6 rm_mode=actor baseline=False kl=0.01 lr=5e-7 rollout_n=16 epochs=1 max_ctx=2048/512 cot_var=cot_eval require_answer_tags=True entropy_coeff=0.0 think_only_pg=False format_penalty=0.0 format_penalty_std_coef=1.0
 - **Env:** VLLM_ATTENTION_BACKEND=XFORMERS GPU_MEM_UTIL=0.35 TP=2 n_gpus=8
-- **WandB:** project=TOM_EXP run=ST02-Phase-stability-v2_q25_reward_logprob-dcfg_smoke_mix-Qwen2.5-3B-Instruct-actorRM-nobaseline-log_prob-k2.0-llmin-8.0-lr5e-7-kl0.05-n16-r1 https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/gfyuwlv5
-- **Log path:** `logs/20260719/ST02-Phase-stability-v2_q25_reward_logprob-dcfg_smoke_mix-Qwen2.5-3B-Instruct-actorRM-nobaseline-log_prob-k2.0-llmin-8.0-lr5e-7-kl0.05-n16-r1.log`
+- **WandB:** project=TOM_EXP run=s2-ST06-Phase-stability-v2_q25_kl0.01_lr5e-7-dcfg_smoke_mix-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.01-n16-r1 _(paste link after launch)_
+- **Log path:** `logs/20260719/s2-ST06-Phase-stability-v2_q25_kl0.01_lr5e-7-dcfg_smoke_mix-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.01-n16-r1.log`
 
 **Exact command:**
 ```bash
@@ -46,7 +29,7 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.ppo_mini_batch_size=128 \
     actor_rollout_ref.actor.ppo_micro_batch_size=8 \
     actor_rollout_ref.actor.use_kl_loss=True \
-    actor_rollout_ref.actor.kl_loss_coef=0.05 \
+    actor_rollout_ref.actor.kl_loss_coef=0.01 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
     actor_rollout_ref.actor.clip_ratio=0.2 \
     actor_rollout_ref.actor.grad_clip=1.0 \
@@ -65,11 +48,11 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.n=16 \
     actor_rollout_ref.ref.log_prob_micro_batch_size=8 \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
-    algorithm.kl_ctrl.kl_coef=0.05 \
+    algorithm.kl_ctrl.kl_coef=0.01 \
     trainer.critic_warmup=0 \
     trainer.logger=['console','wandb'] \
     trainer.project_name=TOM_EXP \
-    trainer.experiment_name=ST02-Phase-stability-v2_q25_reward_logprob-dcfg_smoke_mix-Qwen2.5-3B-Instruct-actorRM-nobaseline-log_prob-k2.0-llmin-8.0-lr5e-7-kl0.05-n16-r1 \
+    trainer.experiment_name=s2-ST06-Phase-stability-v2_q25_kl0.01_lr5e-7-dcfg_smoke_mix-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.01-n16-r1 \
     trainer.n_gpus_per_node=8 \
     trainer.nnodes=1 \
     trainer.default_hdfs_dir=null \
@@ -82,33 +65,33 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
     reward_model.micro_batch_size=8 \
     +reward_model.subtract_baseline=False \
     +reward_model.use_actor_as_rm=True \
-    +reward_model.reward_type=log_prob \
-    +reward_model.power_k=2.0 \
-    +reward_model.power_ll_min=-8.0 \
+    +reward_model.reward_type=power \
+    +reward_model.power_k=4 \
+    +reward_model.power_ll_min=-6 \
     reward_model.format_penalty=0.0 \
     reward_model.format_penalty_std_coef=1.0 \
-    +actor_rollout_ref.reward_type=log_prob \
-    +actor_rollout_ref.power_k=2.0 \
-    +actor_rollout_ref.power_ll_min=-8.0 \
+    +actor_rollout_ref.reward_type=power \
+    +actor_rollout_ref.power_k=4 \
+    +actor_rollout_ref.power_ll_min=-6 \
     +reward_model.require_answer_tags=True \
     +actor_rollout_ref.require_answer_tags=True
 ```
 
-**How to rerun:** `EXP_ID=Phase-stability-v2_q25_reward_logprob DATA_NAME=dcfg_smoke_mix MODEL_PATH=Qwen/Qwen2.5-3B-Instruct DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix.parquet RUN_INDEX=1 bash experiments/train_behavior_qwen2.5.sh`
+**How to rerun:** `EXP_ID=Phase-stability-v2_q25_kl0.01_lr5e-7 DATA_NAME=dcfg_smoke_mix MODEL_PATH=Qwen/Qwen2.5-3B-Instruct DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix.parquet RUN_INDEX=1 bash experiments/train_behavior_qwen2.5.sh`
 
 **Findings:** _(fill on completion via log-results skill)_
 
-### Attempt r1 — 2026-07-19T19:09:53+00:00
+### Attempt r1 — 2026-07-19T19:45:27+00:00
 
-- **RUN_NAME:** `ST02-Phase-stability-v2_q25_reward_logprob-dcfg_smoke_mix-Qwen2.5-3B-Instruct-actorRM-nobaseline-log_prob-k2.0-llmin-8.0-lr5e-7-kl0.05-n16-r1`
-- **Host:** h100-021-003   **git:** `8615468`   **conda env:** tom
+- **RUN_NAME:** `s2-ST06-Phase-stability-v2_q25_kl0.01_lr5e-7-dcfg_smoke_mix-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.01-n16-r1`
+- **Host:** h100-189-003   **git:** `e841f0e`   **conda env:** tom
 - **Model:** `Qwen/Qwen2.5-3B-Instruct` (Qwen2.5-3B-Instruct)
 - **Data (train):** `/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix.parquet`
 - **Val files:** `[/mnt/home/judekhouja/repo/BeRL/data/cleaned_tom/eval_subsample_300.parquet]`
-- **Knobs:** reward=log_prob power_k=2.0 ll_min=-8.0 rm_mode=actor baseline=False kl=0.05 lr=5e-7 rollout_n=16 epochs=1 max_ctx=2048/512 cot_var=cot_eval require_answer_tags=True entropy_coeff=0.0 think_only_pg=False format_penalty=0.0 format_penalty_std_coef=1.0
+- **Knobs:** reward=power power_k=4 ll_min=-6 rm_mode=actor baseline=False kl=0.01 lr=5e-7 rollout_n=16 epochs=1 max_ctx=2048/512 cot_var=cot_eval require_answer_tags=True entropy_coeff=0.0 think_only_pg=False format_penalty=0.0 format_penalty_std_coef=1.0
 - **Env:** VLLM_ATTENTION_BACKEND=XFORMERS GPU_MEM_UTIL=0.35 TP=2 n_gpus=8
-- **WandB:** project=TOM_EXP run=ST02-Phase-stability-v2_q25_reward_logprob-dcfg_smoke_mix-Qwen2.5-3B-Instruct-actorRM-nobaseline-log_prob-k2.0-llmin-8.0-lr5e-7-kl0.05-n16-r1 https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/gfyuwlv5
-- **Log path:** `logs/20260719/ST02-Phase-stability-v2_q25_reward_logprob-dcfg_smoke_mix-Qwen2.5-3B-Instruct-actorRM-nobaseline-log_prob-k2.0-llmin-8.0-lr5e-7-kl0.05-n16-r1.log`
+- **WandB:** project=TOM_EXP run=s2-ST06-Phase-stability-v2_q25_kl0.01_lr5e-7-dcfg_smoke_mix-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.01-n16-r1 _(paste link after launch)_
+- **Log path:** `logs/20260719/s2-ST06-Phase-stability-v2_q25_kl0.01_lr5e-7-dcfg_smoke_mix-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.01-n16-r1.log`
 
 **Exact command:**
 ```bash
@@ -129,7 +112,7 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.ppo_mini_batch_size=128 \
     actor_rollout_ref.actor.ppo_micro_batch_size=8 \
     actor_rollout_ref.actor.use_kl_loss=True \
-    actor_rollout_ref.actor.kl_loss_coef=0.05 \
+    actor_rollout_ref.actor.kl_loss_coef=0.01 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
     actor_rollout_ref.actor.clip_ratio=0.2 \
     actor_rollout_ref.actor.grad_clip=1.0 \
@@ -148,11 +131,11 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.n=16 \
     actor_rollout_ref.ref.log_prob_micro_batch_size=8 \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
-    algorithm.kl_ctrl.kl_coef=0.05 \
+    algorithm.kl_ctrl.kl_coef=0.01 \
     trainer.critic_warmup=0 \
     trainer.logger=['console','wandb'] \
     trainer.project_name=TOM_EXP \
-    trainer.experiment_name=ST02-Phase-stability-v2_q25_reward_logprob-dcfg_smoke_mix-Qwen2.5-3B-Instruct-actorRM-nobaseline-log_prob-k2.0-llmin-8.0-lr5e-7-kl0.05-n16-r1 \
+    trainer.experiment_name=s2-ST06-Phase-stability-v2_q25_kl0.01_lr5e-7-dcfg_smoke_mix-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.01-n16-r1 \
     trainer.n_gpus_per_node=8 \
     trainer.nnodes=1 \
     trainer.default_hdfs_dir=null \
@@ -165,33 +148,46 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
     reward_model.micro_batch_size=8 \
     +reward_model.subtract_baseline=False \
     +reward_model.use_actor_as_rm=True \
-    +reward_model.reward_type=log_prob \
-    +reward_model.power_k=2.0 \
-    +reward_model.power_ll_min=-8.0 \
+    +reward_model.reward_type=power \
+    +reward_model.power_k=4 \
+    +reward_model.power_ll_min=-6 \
     reward_model.format_penalty=0.0 \
     reward_model.format_penalty_std_coef=1.0 \
-    +actor_rollout_ref.reward_type=log_prob \
-    +actor_rollout_ref.power_k=2.0 \
-    +actor_rollout_ref.power_ll_min=-8.0 \
+    +actor_rollout_ref.reward_type=power \
+    +actor_rollout_ref.power_k=4 \
+    +actor_rollout_ref.power_ll_min=-6 \
     +reward_model.require_answer_tags=True \
     +actor_rollout_ref.require_answer_tags=True
 ```
 
-**How to rerun:** `EXP_ID=Phase-stability-v2_q25_reward_logprob DATA_NAME=dcfg_smoke_mix MODEL_PATH=Qwen/Qwen2.5-3B-Instruct DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix.parquet RUN_INDEX=1 bash experiments/train_behavior_qwen2.5.sh`
+**How to rerun:** `EXP_ID=Phase-stability-v2_q25_kl0.01_lr5e-7 DATA_NAME=dcfg_smoke_mix MODEL_PATH=Qwen/Qwen2.5-3B-Instruct DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix.parquet RUN_INDEX=1 bash experiments/train_behavior_qwen2.5.sh`
 
 **Findings:** _(fill on completion via log-results skill)_
 
 
-## Findings (r1 — authoritative) — appended 2026-07-19 20:30 by agent on h100-021-003
-Run **Completed** cleanly: reached step 190/190 (train dataloader=190, 1 epoch confirmed), final subsample300 eval logged, PID 1858660 exited normally.
+---
 
-**Config-selection score** (`scripts/score_run.py`, 8 eval iters step 0..190; 24 ToM benchmarks excl gsm8k/mmlu):
-- ToM **HM(last5)=0.4419**, HM(last3)=0.4404 (baseline step0=0.4155) → **+0.026 over baseline**.
-- ToM avg(last5)=0.5043, avg(last3)=0.5054 (baseline 0.5028).
-- gsm8k (separate): 0.5594 (step0 0.657, Δ=-0.098).
-- mmlu (separate): 0.5962 (step0 0.470, Δ=+0.126).
-- HM trajectory: 0:0.416 → 30:0.458 → 60:0.462(peak) → 90:0.453 → 120:0.432 → 150:0.431 → 180:0.440 → 190:0.448.
+### Findings (r1 authoritative) — completed 2026-07-19, owner h100-189-003
 
-**Health (final):** KL=0.275 (stable ~0.23–0.28 throughout), entropy=2.0, response_length≈91, reward/mean≈-4.85, **parseable=1.0**, format_error_ratio=0.0 throughout. No collapse, no KL blowup, no format degradation.
+Run completed a full 1 epoch (189 update steps + end-of-training final validation at step 190),
+process exited cleanly, no traceback/OOM, GPUs freed.
 
-**Verdict:** log_prob reward under the std-gated format gate is **stable** on Qwen2.5-3B (no reward-hacking, format held at 1.0). Modest ToM HM gain (+0.026), peaking early (~step 60) then mild dip/recover — typical. Ready to compare vs power-k4 anchor (ST01) for the reward-family decision.
+`scripts/score_run.py` output:
+```
+eval iters: 8 (step 0..190); ToM benchmarks: 24 (excl gsm8k, mmlu)
+ToM HM(last5)=0.461  HM(last3)=0.4589  (baseline step0=0.4179)
+ToM avg(last5)=0.5187  avg(last3)=0.5175  (baseline step0=0.5027)
+gsm8k (separate): 0.5928 (step0=0.657, delta vs step0=-0.064)
+mmlu (separate): 0.5988 (step0=0.46, delta vs step0=+0.139)
+health(final): kl=0.258 entropy=2.018 resp_len=104.412 reward=39.469 parseable=1.0 max_resp=512
+ToM HM trajectory: 0:0.418 30:0.461 60:0.464 90:0.462 120:0.464 150:0.459 180:0.455 190:0.459
+```
+
+**Verdict:** kl=0.01 (low-KL stress corner) is **stable** under the merged v2 fixes for Qwen2.5-3B.
+ToM HM rose +4.3pp over the step-0 baseline (0.418 -> 0.461), peaked ~0.464 at steps 60-120, then a
+mild settle to 0.459 (stable plateau, **no collapse**). Format perfect throughout (parseable=1.0,
+format_error_ratio=0.0). Reward/mean climbed -23 -> ~+39 (approaching the +40 clip, expected for
+actor-as-RM). KL drifted up to ~0.26 and entropy rose to ~2.0 (low-KL run permits more drift) but
+neither exploded; response_length stable ~100-120 tok. Capability regression modest: gsm8k -6.4pp,
+mmlu +13.9pp. Overall: KL=0.01 remains usable under the fixes; comparable ToM gain to the anchor
+family, no instability observed.

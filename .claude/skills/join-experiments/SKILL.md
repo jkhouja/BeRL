@@ -115,6 +115,13 @@ write.
     stage) **must not be edited or used to pick up work** — you may *consult* it for historical
     config/results context, but never claim, relaunch, or write to a row there.
 
+11. **Never `git commit`, `git add`, `git push`, or otherwise touch git history — the user manages
+    all commits.** Make your edits to the tracker / repro-md / findings files and leave them in the
+    working tree; do **not** stage, commit, push, rebase, stash, or revert anything. The user reviews
+    and commits changes themselves. (This also prevents the shared-filesystem hazard where one
+    agent's `git add -A` sweeps another agent's in-flight edits into the wrong commit.) If you think a
+    change must be committed, flip your row to `Awaiting-input` and ask first.
+
 8. **Keep the header row-count claim in sync.** The `## Experiments (<N> rows; …)` heading states the
    total. When you **add** a new row, bump the count in the same edit — stale counts (they
    drifted 175→275 once in the old tracker) mislead capacity planning and audits.
@@ -184,6 +191,7 @@ the run from it alone.
 - **Never edit or claim rows in `old_BeRL_experiments_tracker.md`** — it is archived history (consult-only); all live work is in the v2 `BeRL_experiments_tracker.md`.
 - **Never pause on a waiting loop, poll, or ask the user without first stating which run you currently own / last finished** (Golden rule #9).
 - Never bulk-rewrite or reorder the tracker table; edit only your own row, and re-read first.
+- **Never `git add`/`commit`/`push`/`rebase`/`stash`/`revert` — the user manages all commits (Golden rule #11). Leave your edits uncommitted in the working tree.**
 - Never claim `Backlog` rows or rows owned by others.
 - Never ask the user without first flipping your row to `Awaiting-input`.
 - Never regenerate/rename shared `dcfg_*` data or edit shared `verl/` code that live runs depend on.
