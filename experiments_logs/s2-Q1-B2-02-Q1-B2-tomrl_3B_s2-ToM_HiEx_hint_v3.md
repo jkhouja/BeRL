@@ -136,3 +136,23 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+
+## Findings (h100-117-001, 2026-07-21)
+
+```
+eval iters: 15 (step 0..400); ToM benchmarks: 24 (excl gsm8k, mmlu)
+ToM HM(last5)=0.4768  HM(last3)=0.4755  (baseline step0=0.4176)
+ToM avg(last5)=0.5511  avg(last3)=0.5513  (baseline step0=0.5034)
+gsm8k (separate): 0.5574 (step0=0.66, delta vs step0=-0.103)
+mmlu (separate): 0.5772 (step0=0.493, delta vs step0=+0.084)
+health(final): kl=0.324 entropy=0.749 resp_len=65.961 reward=1.312 parseable=1.0 max_resp=2048
+ToM HM trajectory: 0:0.418 30:0.432 60:0.455 90:0.465 120:0.452 150:0.446 180:0.434 210:0.449 240:0.453 270:0.462 300:0.478 330:0.477 360:0.488 390:0.471 400:0.466
+```
+
+**Verdict: LABELED ToM-RL baseline (Q1 headline).** Direct rule-based ToM RL (uses ToM labels) on
+Qwen2.5-3B yields **d_avg=+0.048** (avg 0.551 vs step0 0.503) and **HM +5.9pp** (0.477 vs 0.418), a
+steady climb (0.418→~0.49 by step 360) with no collapse (parseable=1.0). Versus the **label-free**
+behavior anchor B1 (=A1 ST01/10/28, d_avg +0.0215), the labeled baseline is **~2.2× the behavior gain** —
+the expected direction for the headline (labeled supervision > label-free). Capabilities: mmlu +8.4pp,
+gsm8k -10.3pp. 400 steps (3200 rows / tb8), KL climbed to 0.324 by end but stable. This is seed-2 of the
+N=3 Q1-B2 set (s1/s3 for variance). WandB: https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/mimho574
