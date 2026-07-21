@@ -7,7 +7,7 @@
 - **Val files:** `[/mnt/home/judekhouja/repo/BeRL/data/cleaned_tom/eval_subsample_300.parquet]`
 - **Knobs:** reward=power power_k=4 ll_min=-6 rm_mode=frozen baseline=False kl=0.1 lr=5e-7 rollout_n=16 epochs=1 max_ctx=2048/4096 cot_var=cot_eval require_answer_tags=True entropy_coeff=0.0 think_only_pg=False format_penalty=0.0 format_penalty_std_coef=0.0
 - **Env:** VLLM_ATTENTION_BACKEND=XFORMERS GPU_MEM_UTIL=0.35 TP=2 n_gpus=8
-- **WandB:** project=TOM_EXP run=s2-SS-02-SS-0.5B_frozen_kl0.1-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.1-n16-r1 _(paste link after launch)_
+- **WandB:** project=TOM_EXP run=s2-SS-02-SS-0.5B_frozen_kl0.1-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.1-n16-r1 — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/wh3jynnk
 - **Log path:** `logs/20260721/s2-SS-02-SS-0.5B_frozen_kl0.1-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.1-n16-r1.log`
 
 **Exact command:**
@@ -90,7 +90,7 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 - **Val files:** `[/mnt/home/judekhouja/repo/BeRL/data/cleaned_tom/eval_subsample_300.parquet]`
 - **Knobs:** reward=power power_k=4 ll_min=-6 rm_mode=frozen baseline=False kl=0.1 lr=5e-7 rollout_n=16 epochs=1 max_ctx=2048/4096 cot_var=cot_eval require_answer_tags=True entropy_coeff=0.0 think_only_pg=False format_penalty=0.0 format_penalty_std_coef=0.0
 - **Env:** VLLM_ATTENTION_BACKEND=XFORMERS GPU_MEM_UTIL=0.35 TP=2 n_gpus=8
-- **WandB:** project=TOM_EXP run=s2-SS-02-SS-0.5B_frozen_kl0.1-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.1-n16-r2 _(paste link after launch)_
+- **WandB:** project=TOM_EXP run=s2-SS-02-SS-0.5B_frozen_kl0.1-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.1-n16-r2 — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/wh3jynnk
 - **Log path:** `logs/20260721/s2-SS-02-SS-0.5B_frozen_kl0.1-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.1-n16-r2.log`
 
 **Exact command:**

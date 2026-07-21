@@ -1,14 +1,14 @@
-### Attempt r1 — 2026-07-21T05:39:55+00:00
+### Attempt r1 — 2026-07-21T05:47:25+00:00
 
-- **RUN_NAME:** `s2-SS-01-SS-0.5B_frozen-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1`
-- **Host:** h100-007-002   **git:** `6be5ff3`   **conda env:** tom
+- **RUN_NAME:** `s2-SS-03-SS-0.5B_frozen_lr2e-7-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr2e-7-kl0.05-n16-r1`
+- **Host:** h100-189-003   **git:** `0672bda`   **conda env:** tom
 - **Model:** `Qwen/Qwen2.5-0.5B-Instruct` (Qwen2.5-0.5B-Instruct)
 - **Data (train):** `/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix.parquet`
 - **Val files:** `[/mnt/home/judekhouja/repo/BeRL/data/cleaned_tom/eval_subsample_300.parquet]`
-- **Knobs:** reward=power power_k=4 ll_min=-6 rm_mode=frozen baseline=False kl=0.05 lr=5e-7 rollout_n=16 epochs=1 max_ctx=2048/4096 cot_var=cot_eval require_answer_tags=True entropy_coeff=0.0 think_only_pg=False format_penalty=0.0 format_penalty_std_coef=0.0
+- **Knobs:** reward=power power_k=4 ll_min=-6 rm_mode=frozen baseline=False kl=0.05 lr=2e-7 rollout_n=16 epochs=1 max_ctx=2048/4096 cot_var=cot_eval require_answer_tags=True entropy_coeff=0.0 think_only_pg=False format_penalty=0.0 format_penalty_std_coef=0.0
 - **Env:** VLLM_ATTENTION_BACKEND=XFORMERS GPU_MEM_UTIL=0.35 TP=2 n_gpus=8
-- **WandB:** project=TOM_EXP run=s2-SS-01-SS-0.5B_frozen-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1 https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/mfslcux7
-- **Log path:** `logs/20260721/s2-SS-01-SS-0.5B_frozen-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1.log`
+- **WandB:** project=TOM_EXP run=s2-SS-03-SS-0.5B_frozen_lr2e-7-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr2e-7-kl0.05-n16-r1 _(paste link after launch)_
+- **Log path:** `logs/20260721/s2-SS-03-SS-0.5B_frozen_lr2e-7-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr2e-7-kl0.05-n16-r1.log`
 
 **Exact command:**
 ```bash
@@ -24,7 +24,7 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
     data.max_prompt_length=2048 \
     data.max_response_length=4096 \
     actor_rollout_ref.model.path=Qwen/Qwen2.5-0.5B-Instruct \
-    actor_rollout_ref.actor.optim.lr=5e-7 \
+    actor_rollout_ref.actor.optim.lr=2e-7 \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.ppo_mini_batch_size=128 \
     actor_rollout_ref.actor.ppo_micro_batch_size=8 \
@@ -52,7 +52,7 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger=['console','wandb'] \
     trainer.project_name=TOM_EXP \
-    trainer.experiment_name=s2-SS-01-SS-0.5B_frozen-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1 \
+    trainer.experiment_name=s2-SS-03-SS-0.5B_frozen_lr2e-7-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr2e-7-kl0.05-n16-r1 \
     trainer.n_gpus_per_node=8 \
     trainer.nnodes=1 \
     trainer.default_hdfs_dir=null \
@@ -77,21 +77,21 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
     +actor_rollout_ref.require_answer_tags=True
 ```
 
-**How to rerun:** `EXP_ID=SS-0.5B_frozen DATA_NAME=dcfg_smoke_mix MODEL_PATH=Qwen/Qwen2.5-0.5B-Instruct DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix.parquet RUN_INDEX=1 bash experiments/train_behavior_qwen2.5.sh`
+**How to rerun:** `EXP_ID=SS-0.5B_frozen_lr2e-7 DATA_NAME=dcfg_smoke_mix MODEL_PATH=Qwen/Qwen2.5-0.5B-Instruct DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix.parquet RUN_INDEX=1 bash experiments/train_behavior_qwen2.5.sh`
 
 **Findings:** _(fill on completion via log-results skill)_
 
-### Attempt r1 — 2026-07-21T05:45:50+00:00
+### Attempt r1 — 2026-07-21T05:47:42+00:00
 
-- **RUN_NAME:** `s2-SS-01-SS-0.5B_frozen-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1`
-- **Host:** h100-021-001   **git:** `6be5ff3`   **conda env:** tom
+- **RUN_NAME:** `s2-SS-03-SS-0.5B_frozen_lr2e-7-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr2e-7-kl0.05-n16-r1`
+- **Host:** h100-189-003   **git:** `0672bda`   **conda env:** tom
 - **Model:** `Qwen/Qwen2.5-0.5B-Instruct` (Qwen2.5-0.5B-Instruct)
 - **Data (train):** `/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix.parquet`
 - **Val files:** `[/mnt/home/judekhouja/repo/BeRL/data/cleaned_tom/eval_subsample_300.parquet]`
-- **Knobs:** reward=power power_k=4 ll_min=-6 rm_mode=frozen baseline=False kl=0.05 lr=5e-7 rollout_n=16 epochs=1 max_ctx=2048/512 cot_var=cot_eval require_answer_tags=True entropy_coeff=0.0 think_only_pg=False format_penalty=0.0 format_penalty_std_coef=1.0
+- **Knobs:** reward=power power_k=4 ll_min=-6 rm_mode=frozen baseline=False kl=0.05 lr=2e-7 rollout_n=16 epochs=1 max_ctx=2048/512 cot_var=cot_eval require_answer_tags=True entropy_coeff=0.0 think_only_pg=False format_penalty=0.0 format_penalty_std_coef=1.0
 - **Env:** VLLM_ATTENTION_BACKEND=XFORMERS GPU_MEM_UTIL=0.35 TP=2 n_gpus=8
-- **WandB:** project=TOM_EXP run=s2-SS-01-SS-0.5B_frozen-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1 https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/mfslcux7
-- **Log path:** `logs/20260721/s2-SS-01-SS-0.5B_frozen-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1.log`
+- **WandB:** project=TOM_EXP run=s2-SS-03-SS-0.5B_frozen_lr2e-7-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr2e-7-kl0.05-n16-r1 _(paste link after launch)_
+- **Log path:** `logs/20260721/s2-SS-03-SS-0.5B_frozen_lr2e-7-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr2e-7-kl0.05-n16-r1.log`
 
 **Exact command:**
 ```bash
@@ -107,7 +107,7 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
     data.max_prompt_length=2048 \
     data.max_response_length=512 \
     actor_rollout_ref.model.path=Qwen/Qwen2.5-0.5B-Instruct \
-    actor_rollout_ref.actor.optim.lr=5e-7 \
+    actor_rollout_ref.actor.optim.lr=2e-7 \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.ppo_mini_batch_size=128 \
     actor_rollout_ref.actor.ppo_micro_batch_size=8 \
@@ -135,7 +135,7 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger=['console','wandb'] \
     trainer.project_name=TOM_EXP \
-    trainer.experiment_name=s2-SS-01-SS-0.5B_frozen-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1 \
+    trainer.experiment_name=s2-SS-03-SS-0.5B_frozen_lr2e-7-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr2e-7-kl0.05-n16-r1 \
     trainer.n_gpus_per_node=8 \
     trainer.nnodes=1 \
     trainer.default_hdfs_dir=null \
@@ -160,21 +160,21 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
     +actor_rollout_ref.require_answer_tags=True
 ```
 
-**How to rerun:** `EXP_ID=SS-0.5B_frozen DATA_NAME=dcfg_smoke_mix MODEL_PATH=Qwen/Qwen2.5-0.5B-Instruct DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix.parquet RUN_INDEX=1 bash experiments/train_behavior_qwen2.5.sh`
+**How to rerun:** `EXP_ID=SS-0.5B_frozen_lr2e-7 DATA_NAME=dcfg_smoke_mix MODEL_PATH=Qwen/Qwen2.5-0.5B-Instruct DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix.parquet RUN_INDEX=1 bash experiments/train_behavior_qwen2.5.sh`
 
 **Findings:** _(fill on completion via log-results skill)_
 
-### Attempt r1 — 2026-07-21T05:46:06+00:00
+### Attempt r1 — 2026-07-21T05:47:55+00:00
 
-- **RUN_NAME:** `s2-SS-01-SS-0.5B_frozen-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1`
-- **Host:** h100-021-001   **git:** `6be5ff3`   **conda env:** tom
+- **RUN_NAME:** `s2-SS-03-SS-0.5B_frozen_lr2e-7-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr2e-7-kl0.05-n16-r1`
+- **Host:** h100-189-003   **git:** `0672bda`   **conda env:** tom
 - **Model:** `Qwen/Qwen2.5-0.5B-Instruct` (Qwen2.5-0.5B-Instruct)
 - **Data (train):** `/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix.parquet`
 - **Val files:** `[/mnt/home/judekhouja/repo/BeRL/data/cleaned_tom/eval_subsample_300.parquet]`
-- **Knobs:** reward=power power_k=4 ll_min=-6 rm_mode=frozen baseline=False kl=0.05 lr=5e-7 rollout_n=16 epochs=1 max_ctx=2048/512 cot_var=cot_eval require_answer_tags=True entropy_coeff=0.0 think_only_pg=False format_penalty=0.0 format_penalty_std_coef=1.0
+- **Knobs:** reward=power power_k=4 ll_min=-6 rm_mode=frozen baseline=False kl=0.05 lr=2e-7 rollout_n=16 epochs=1 max_ctx=2048/512 cot_var=cot_eval require_answer_tags=True entropy_coeff=0.0 think_only_pg=False format_penalty=0.0 format_penalty_std_coef=1.0
 - **Env:** VLLM_ATTENTION_BACKEND=XFORMERS GPU_MEM_UTIL=0.35 TP=2 n_gpus=8
-- **WandB:** project=TOM_EXP run=s2-SS-01-SS-0.5B_frozen-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1 https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/mfslcux7
-- **Log path:** `logs/20260721/s2-SS-01-SS-0.5B_frozen-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1.log`
+- **WandB:** project=TOM_EXP run=s2-SS-03-SS-0.5B_frozen_lr2e-7-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr2e-7-kl0.05-n16-r1 _(paste link after launch)_
+- **Log path:** `logs/20260721/s2-SS-03-SS-0.5B_frozen_lr2e-7-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr2e-7-kl0.05-n16-r1.log`
 
 **Exact command:**
 ```bash
@@ -190,7 +190,7 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
     data.max_prompt_length=2048 \
     data.max_response_length=512 \
     actor_rollout_ref.model.path=Qwen/Qwen2.5-0.5B-Instruct \
-    actor_rollout_ref.actor.optim.lr=5e-7 \
+    actor_rollout_ref.actor.optim.lr=2e-7 \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.ppo_mini_batch_size=128 \
     actor_rollout_ref.actor.ppo_micro_batch_size=8 \
@@ -218,7 +218,7 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger=['console','wandb'] \
     trainer.project_name=TOM_EXP \
-    trainer.experiment_name=s2-SS-01-SS-0.5B_frozen-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1 \
+    trainer.experiment_name=s2-SS-03-SS-0.5B_frozen_lr2e-7-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr2e-7-kl0.05-n16-r1 \
     trainer.n_gpus_per_node=8 \
     trainer.nnodes=1 \
     trainer.default_hdfs_dir=null \
@@ -243,16 +243,7 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
     +actor_rollout_ref.require_answer_tags=True
 ```
 
-**How to rerun:** `EXP_ID=SS-0.5B_frozen DATA_NAME=dcfg_smoke_mix MODEL_PATH=Qwen/Qwen2.5-0.5B-Instruct DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix.parquet RUN_INDEX=1 bash experiments/train_behavior_qwen2.5.sh`
+**How to rerun:** `EXP_ID=SS-0.5B_frozen_lr2e-7 DATA_NAME=dcfg_smoke_mix MODEL_PATH=Qwen/Qwen2.5-0.5B-Instruct DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_smoke_mix.parquet RUN_INDEX=1 bash experiments/train_behavior_qwen2.5.sh`
 
 **Findings:** _(fill on completion via log-results skill)_
 
-
----
-### Hypothesis (r1)
-SS scale-stability at **0.5B with a FROZEN RM** (USE_ACTOR_AS_RM=False). Q3-D6 showed off-3B KL
-blowups under the 3B-locked recipe (Q3-01 0.5B actorRM ran kl~0.24–0.30). Swap to a frozen base RM
-(Qwen2.5-0.5B-Instruct) to re-stabilise per scale on smoke_mix, unblocking a clean D6 scaling curve.
-Recipe otherwise locked (power k4/ll_min−6, kl0.05, lr5e-7, n16, max_resp512, 1 epoch). Rank:
-**KL_max<1.0 & d_cavg**. Expect frozen RM → lower/bounded KL vs Q3-01's actorRM. smoke_mix=6100 rows
-→ ~190 steps. Watch KL trajectory closely (this is the stability signal).
