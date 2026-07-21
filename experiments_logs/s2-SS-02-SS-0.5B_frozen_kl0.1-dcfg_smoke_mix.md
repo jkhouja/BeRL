@@ -164,3 +164,17 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+
+## Findings (r1)
+
+```
+eval iters: 8 (step 0..190); ToM benchmarks: 24 (excl gsm8k, mmlu)
+ToM HM(last5)=0.0146  HM(last3)=0.0121  (baseline step0=0.0032)
+ToM avg(last5)=0.1646  avg(last3)=0.2078  (baseline step0=0.0553)
+gsm8k (separate): 0.1274 (step0=0.0, delta vs step0=+0.127)
+mmlu (separate): 0.2306 (step0=0.03, delta vs step0=+0.201)
+health(final): kl=0.141 entropy=2.016 resp_len=96.711 reward=33.78 parseable=1.0 max_resp=4096
+ToM HM trajectory: 0:0.003 30:0.003 60:0.004 90:0.004 120:0.016 150:0.014 180:0.009 190:0.009
+```
+
+**Verdict:** Completed, 190/190. d_avg=+0.1093 (avg the meaningful signal at 0.5B; HM near-floor since many ToM benches ~0). gsm8k/mmlu both improve (format learning). **KL_max=2.364** observed mid-run (~step 60–70), intermittent self-recovering spikes back to ~0.002–0.07 (final kl=0.141) — NOT a monotonic runaway like Gemma's 2.6, but **exceeds the SS sweep <1.0 target ⇒ frozen RM + kl0.1 does NOT fully stabilize Qwen2.5-0.5B**. Parseable 1.0, no collapse. Note: max_resp=4096 (launcher default, not the 512 Qwen behavior cap).

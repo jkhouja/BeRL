@@ -164,3 +164,30 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+
+---
+## Findings (r1, h100-077-004, 2026-07-21)
+
+`python scripts/score_run.py <log>`:
+```
+eval iters: 8 (step 0..190); ToM benchmarks: 24 (excl gsm8k, mmlu)
+ToM HM(last5)=0.3952  HM(last3)=0.4023  (baseline step0=0.3919)
+ToM avg(last5)=0.5352  avg(last3)=0.5365  (baseline step0=0.5328)
+gsm8k (separate): 0.6804 (step0=0.837, delta vs step0=-0.157)
+mmlu  (separate): 0.7112 (step0=0.743, delta vs step0=-0.032)
+health(final): kl=0.08 entropy=0.709 resp_len=84.561 reward=22.044 parseable=1.0 max_resp=512
+ToM HM trajectory: 0:0.392 30:0.335 60:0.377 90:0.361 120:0.399 150:0.411 180:0.403 190:0.39
+```
+
+**Verdict: STABLE ✅ (primary objective met).** This row is a scale-stability screen — the
+Q3-D6 3B-locked recipe caused off-3B KL blowups (7B/0.5B under actor-RM; Gemma frozen but KL~2.6).
+Swapping the 7B to a **frozen 7B LM RM + KL=0.1** holds KL bounded: **actor/kl_loss max = 0.115
+across the full 190-step run** (mean ~0.08), never approaching the 1.0 blowup threshold. Rank metric
+KL_max<1.0 = PASS. Reward healthy (range −2.7→+30.6, final ~22), entropy stable ~0.71, resp_len ~85,
+parseable=1.0, no collapse, no crash (final val at step 190, then normal Ray shutdown / GPUs→1MiB).
+
+ToM signal near-flat: **d_avg = avg(last5) − step0 = 0.5352 − 0.5328 = +0.0024** (vs 3B smoke_mix
+anchor +0.0215); HM(last5) +0.0033 over baseline. Capability regressions: **gsm8k −0.157** (notable
+math drop), mmlu −0.032. So the frozen-RM/KL=0.1 config **unblocks a clean 7B point for the D6
+scaling curve** (stability achieved) but yields little ToM gain and a math hit at this LR — the
+value here is the stability fix, not a ToM win. max_resp=512.

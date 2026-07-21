@@ -176,3 +176,30 @@ require_answer_tags=False). Recipe: power k4/ll_min−4, lr5e-7, n16, max_resp51
 **KL_max<1.0 & d_cavg**. NOTE (per memory): Gemma format not saturated → judge ToM via d_cond_acc
 (Δ val/answer_acc_cond over 24 ToM), not raw d_avg (raw gains inflated by format-learning). Watch KL
 trajectory (primary stability signal). smoke_mix_gemma=6100 rows → ~190 steps.
+
+## FINAL findings (2026-07-21, run reached step190, node h100-021-001)
+
+Canonical scorer (`scripts/score_run.py`) — 8 eval iters (step 0..190), 24 ToM benchmarks (excl gsm8k/mmlu):
+```
+ToM HM(last5)=0.0539  HM(last3)=0.0631  (baseline step0=0.093)
+ToM avg(last5)=0.3496 avg(last3)=0.3528 (baseline step0=0.3152)  -> raw d_avg=+0.0344
+gsm8k: 0.3128 (step0=0.277, Δ=+0.036)
+mmlu:  0.3974 (step0=0.390, Δ=+0.007)
+health(final): kl=0.01 entropy=1.407 resp_len=142.6 parseable=1.0 max_resp=512
+ToM HM trajectory: 0:0.093 30:0.042 60:0.063 90:0.02 120:0.043 150:0.043 180:0.042 190:0.087
+```
+
+### Gemma ToM signal (d_cond_acc — the real metric, format NOT saturated)
+Mean `val/answer_acc_cond` over the 24 ToM benchmarks (from clean `step:N -` summary lines):
+- step0  = 0.5378
+- step190 = 0.5353
+- **d_cond_acc = -0.0025 (flat / slightly negative → NO real ToM gain)**
+
+Raw d_avg=+0.0344 is FORMAT-learning inflation (Gemma output format not saturated), NOT ToM — consistent with the Gemma caveat (cf. Q3-05 d_cond_acc≈+0.0007).
+
+### KL / stability verdict (SS target KL_max < 1.0)
+- **KL_max = 2.045 → FAIL** (breaches 1.0). Single transient spike ~step90; final kl=0.01; rest of run kl≈0.004–0.04.
+- vs Q3-D6 Gemma actorRM-under-3B-recipe KL~2.6: frozen RM + kl0.1 **lowers peak** (2.6→2.05) but still **does not achieve stability**.
+
+### Verdict
+Frozen RM + kl0.1 on Gemma-2-2B: reduces peak KL vs the 3B-locked actorRM recipe but **fails the <1.0 SS stability target** (one spike) AND yields **no real ToM** (d_cond_acc≈0). Not a clean stabiliser for the D6 Gemma scale point. Needs stronger anchor (higher KL / lower LR) or a different fix for off-3B Gemma.

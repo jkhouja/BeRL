@@ -164,3 +164,17 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+
+## Consolidated Findings (r1, WandB 51o5hwen)
+
+- Ran clean to step 189/190. No OOM, parseable=1.0.
+- **Stability criterion MET**: swapping to frozen RM fixed the off-3B KL blowup — KL_max=0.504 (<1.0), final kl=0.431. No KL divergence at 7B.
+- **BUT recipe fails on science (d_cavg NEGATIVE)** — reward-hacking short-response collapse:
+  - `scripts/score_run.py`:
+    - ToM HM(last5)=0.3367 HM(last3)=0.313 (baseline step0=0.395) → **d_HM=−0.058**
+    - ToM avg(last5)=0.4584 avg(last3)=0.4346 (baseline step0=0.533) → **d_avg=−0.075**
+    - gsm8k=0.6548 (Δ−0.182); mmlu=0.612 (Δ−0.105) — capability regression
+    - health(final): kl=0.431 entropy=0.775 resp_len=60.3 reward=29.633 parseable=1.0 max_resp=512
+    - HM trajectory: 0:0.395 30:0.333 60:0.331 90:0.398 120:0.31 150:0.285 180:0.316 190:0.321
+  - resp_len trajectory declines 93→60 while reward climbs 8→30 ⇒ model maximises per-token LL by emitting shorter completions (reward hacking), degrading ToM + gsm8k/mmlu.
+- **Verdict**: frozen RM alone stabilises KL at 7B (unblocks the KL-blowup failure mode) but does NOT unblock a clean D6 scaling curve — the 7B run still reward-hacks into short responses with ToM/capability regression. Needs an additional anti-hacking control (baseline subtraction / length normalisation / stronger KL or lower LR) before the D6 7B point is usable. Recommend a follow-up SS row with SUBTRACT_BASELINE=True and/or lower LR.
