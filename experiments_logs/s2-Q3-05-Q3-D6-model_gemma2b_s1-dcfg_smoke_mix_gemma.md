@@ -166,3 +166,39 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+
+---
+
+## Findings (Q3-05 Gemma-2-2B model-scale — Completed)
+
+**Attempt:** r1 (WandB h5794s8q). Clean 1-epoch run: dcfg_smoke_mix_gemma = 6100 rows / batch 32 =
+190 steps; test_freq=30 → 8 evals. Gemma recipe: frozen LM RM, power k4 ll_min=-4, entropy_coeff=
+0.001, tag-free corpus, cot_eval_notags, MAX_RESP=512. Normal Ray shutdown at completion.
+
+```
+eval iters: 8 (step 0..190); ToM benchmarks: 24 (excl gsm8k, mmlu)
+ToM HM(last5)=0.1686  HM(last3)=0.2032  (baseline step0=0.093)
+ToM avg(last5)=0.3873  avg(last3)=0.4108 (baseline step0=0.3152)
+gsm8k (separate): 0.3144 (step0=0.277, delta=+0.037)
+mmlu  (separate): 0.416  (step0=0.387, delta=+0.029)
+health(final): kl=0.037 entropy=1.562 resp_len=107.324 reward=-3.748 parseable=1.0 max_resp=512
+ToM HM trajectory: 0:0.093 30:0.074 60:0.02 90:0.11 120:0.101 150:0.143 180:0.229 190:0.224
+d_cond_acc (mean answer_acc_cond over 24 ToM): step0=0.5374 step190=0.5381 => +0.0007
+```
+
+**Phase metric (model-scale D6):**
+- Raw d_avg = avg(last5) − step0 = 0.3873 − 0.3152 = **+0.0721** (looks large vs 3B anchor +0.0215).
+- **BUT d_cond_acc = +0.0007 (≈ 0).** Conditioning on parseable answers, Gemma-2-2B's ToM reasoning
+  accuracy is FLAT. The entire raw gain is the model learning to emit format-parseable answers
+  (Gemma-2-2B's format was not saturated at baseline — format_pass/parseable rose over training),
+  NOT genuine ToM improvement. This is exactly the caveat the tracker row flagged
+  ("Judge d_cavg/d_cond_acc (Gemma format not saturated)").
+
+**Health:** stable, no collapse (kl 0.037, entropy 1.56, parseable 1.0). Frozen-RM reward mildly
+negative (−3.75), not pinned at the floor. gsm8k/mmlu both up slightly (no capability regression).
+
+**Verdict (model-scaling law):** at **Gemma-2-2B**, BeRL yields **no genuine ToM gain**
+(d_cond_acc ≈ 0) once format learning is controlled for; the apparent d_avg +0.0721 is a
+format-saturation artifact of the small/weak base model. Cross-family transfer of the BeRL effect
+does NOT hold at 2B on Gemma-2 by the fair (conditional-accuracy) metric. Seed rep1 of the D6 scan;
+compare against other Q3 model-scale points on d_cond_acc, not raw d_avg.

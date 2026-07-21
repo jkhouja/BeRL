@@ -164,3 +164,20 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+
+## Findings (completed 2026-07-21, h100-189-003)
+
+Scored via `scripts/score_run.py` (12 eval iters, step 0..311; 24 ToM benchmarks excl gsm8k/mmlu):
+
+- **ToM HM(last5)=0.4601  HM(last3)=0.4605**  (baseline step0=0.419)
+- **ToM avg(last5)=0.5206  avg(last3)=0.5206**  (baseline step0=0.5038) → **d_avg=+0.0168**
+- gsm8k (separate): 0.636 (step0=0.66, delta=−0.024)
+- mmlu (separate): 0.6126 (step0=0.47, delta=+0.143)
+- health(final): kl=0.179 entropy=1.536 resp_len=97.9 reward=34.99 parseable=1.0 **max_resp=512**
+- HM trajectory: 0:0.419 30:0.465 60:0.467 90:0.468 120:0.474 150:0.467 180:0.463 210:0.452 240:0.465 270:0.461 300:0.46 311:0.459
+
+**Verdict:** Q3-D5 data-scaling at ~10k rows (composition-controlled subsample of the smoke_mix 9-source
+mix). d_avg=+0.0168 is **slightly BELOW the 6.1k smoke_mix 3B anchor (+0.0215±0.001)** and no collapse
+(stable HM ~0.46–0.47 throughout, kl=0.179). So scaling quantity from 6.1k→10k at fixed composition does
+NOT improve ToM d_avg — consistent with the mix_best3 (P0-13, +0.0187) result that adding data/mixing
+doesn't beat the smoke_mix anchor. Data-scaling curve so far: 6.1k=+0.0215 (peak) > 10k=+0.0168.

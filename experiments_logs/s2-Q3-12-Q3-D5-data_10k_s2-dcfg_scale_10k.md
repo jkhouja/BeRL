@@ -1,20 +1,20 @@
-### Attempt r1 — 2026-07-20T22:26:19+00:00
+### Attempt r1 — 2026-07-20T23:34:07+00:00
 
-- **RUN_NAME:** `s2-Q3-09-Q3-D5-data_5k_s1-dcfg_scale_5k-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1`
-- **Host:** h100-156-003   **git:** `e8eaa86`   **conda env:** tom
+- **RUN_NAME:** `s2-Q3-12-Q3-D5-data_10k_s2-dcfg_scale_10k-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1`
+- **Host:** h100-156-003   **git:** `8588604`   **conda env:** tom
 - **Model:** `Qwen/Qwen2.5-3B-Instruct` (Qwen2.5-3B-Instruct)
-- **Data (train):** `/mnt/home/judekhouja/repo/BeRL/data/dcfg_scale_5k.parquet`
+- **Data (train):** `/mnt/home/judekhouja/repo/BeRL/data/dcfg_scale_10k.parquet`
 - **Val files:** `[/mnt/home/judekhouja/repo/BeRL/data/cleaned_tom/eval_subsample_300.parquet]`
 - **Knobs:** reward=power power_k=4 ll_min=-6 rm_mode=actor baseline=False kl=0.05 lr=5e-7 rollout_n=16 epochs=1 max_ctx=2048/512 cot_var=cot_eval require_answer_tags=True entropy_coeff=0.0 think_only_pg=False format_penalty=0.0 format_penalty_std_coef=1.0
 - **Env:** VLLM_ATTENTION_BACKEND=XFORMERS GPU_MEM_UTIL=0.35 TP=2 n_gpus=8
-- **WandB:** project=TOM_EXP run=s2-Q3-09-Q3-D5-data_5k_s1-dcfg_scale_5k-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1 — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/blz8xk4a
-- **Log path:** `logs/20260720/s2-Q3-09-Q3-D5-data_5k_s1-dcfg_scale_5k-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1.log`
+- **WandB:** project=TOM_EXP run=s2-Q3-12-Q3-D5-data_10k_s2-dcfg_scale_10k-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1 — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/8k4fnuei
+- **Log path:** `logs/20260720/s2-Q3-12-Q3-D5-data_10k_s2-dcfg_scale_10k-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1.log`
 
 **Exact command:**
 ```bash
 HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
-    data.train_files=/mnt/home/judekhouja/repo/BeRL/data/dcfg_scale_5k.parquet \
+    data.train_files=/mnt/home/judekhouja/repo/BeRL/data/dcfg_scale_10k.parquet \
     data.val_files=[/mnt/home/judekhouja/repo/BeRL/data/cleaned_tom/eval_subsample_300.parquet] \
     data.val_metric_suffix=_sub300 \
     data.train_batch_size=32 \
@@ -52,7 +52,7 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger=['console','wandb'] \
     trainer.project_name=TOM_EXP \
-    trainer.experiment_name=s2-Q3-09-Q3-D5-data_5k_s1-dcfg_scale_5k-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1 \
+    trainer.experiment_name=s2-Q3-12-Q3-D5-data_10k_s2-dcfg_scale_10k-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1 \
     trainer.n_gpus_per_node=8 \
     trainer.nnodes=1 \
     trainer.default_hdfs_dir=null \
@@ -77,27 +77,27 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
     +actor_rollout_ref.require_answer_tags=True
 ```
 
-**How to rerun:** `EXP_ID=Q3-D5-data_5k_s1 DATA_NAME=dcfg_scale_5k MODEL_PATH=Qwen/Qwen2.5-3B-Instruct DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_scale_5k.parquet RUN_INDEX=1 bash experiments/train_behavior_qwen2.5.sh`
+**How to rerun:** `EXP_ID=Q3-D5-data_10k_s2 DATA_NAME=dcfg_scale_10k MODEL_PATH=Qwen/Qwen2.5-3B-Instruct DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_scale_10k.parquet RUN_INDEX=1 bash experiments/train_behavior_qwen2.5.sh`
 
 **Findings:** _(fill on completion via log-results skill)_
 
-### Attempt r1 — 2026-07-20T22:26:32+00:00
+### Attempt r1 — 2026-07-20T23:34:21+00:00
 
-- **RUN_NAME:** `s2-Q3-09-Q3-D5-data_5k_s1-dcfg_scale_5k-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1`
-- **Host:** h100-156-003   **git:** `e8eaa86`   **conda env:** tom
+- **RUN_NAME:** `s2-Q3-12-Q3-D5-data_10k_s2-dcfg_scale_10k-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1`
+- **Host:** h100-156-003   **git:** `8588604`   **conda env:** tom
 - **Model:** `Qwen/Qwen2.5-3B-Instruct` (Qwen2.5-3B-Instruct)
-- **Data (train):** `/mnt/home/judekhouja/repo/BeRL/data/dcfg_scale_5k.parquet`
+- **Data (train):** `/mnt/home/judekhouja/repo/BeRL/data/dcfg_scale_10k.parquet`
 - **Val files:** `[/mnt/home/judekhouja/repo/BeRL/data/cleaned_tom/eval_subsample_300.parquet]`
 - **Knobs:** reward=power power_k=4 ll_min=-6 rm_mode=actor baseline=False kl=0.05 lr=5e-7 rollout_n=16 epochs=1 max_ctx=2048/512 cot_var=cot_eval require_answer_tags=True entropy_coeff=0.0 think_only_pg=False format_penalty=0.0 format_penalty_std_coef=1.0
 - **Env:** VLLM_ATTENTION_BACKEND=XFORMERS GPU_MEM_UTIL=0.35 TP=2 n_gpus=8
-- **WandB:** project=TOM_EXP run=s2-Q3-09-Q3-D5-data_5k_s1-dcfg_scale_5k-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1 — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/blz8xk4a
-- **Log path:** `logs/20260720/s2-Q3-09-Q3-D5-data_5k_s1-dcfg_scale_5k-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1.log`
+- **WandB:** project=TOM_EXP run=s2-Q3-12-Q3-D5-data_10k_s2-dcfg_scale_10k-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1 — https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/8k4fnuei
+- **Log path:** `logs/20260720/s2-Q3-12-Q3-D5-data_10k_s2-dcfg_scale_10k-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1.log`
 
 **Exact command:**
 ```bash
 HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
-    data.train_files=/mnt/home/judekhouja/repo/BeRL/data/dcfg_scale_5k.parquet \
+    data.train_files=/mnt/home/judekhouja/repo/BeRL/data/dcfg_scale_10k.parquet \
     data.val_files=[/mnt/home/judekhouja/repo/BeRL/data/cleaned_tom/eval_subsample_300.parquet] \
     data.val_metric_suffix=_sub300 \
     data.train_batch_size=32 \
@@ -135,7 +135,7 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup=0 \
     trainer.logger=['console','wandb'] \
     trainer.project_name=TOM_EXP \
-    trainer.experiment_name=s2-Q3-09-Q3-D5-data_5k_s1-dcfg_scale_5k-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1 \
+    trainer.experiment_name=s2-Q3-12-Q3-D5-data_10k_s2-dcfg_scale_10k-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1 \
     trainer.n_gpus_per_node=8 \
     trainer.nnodes=1 \
     trainer.default_hdfs_dir=null \
@@ -160,32 +160,7 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
     +actor_rollout_ref.require_answer_tags=True
 ```
 
-**How to rerun:** `EXP_ID=Q3-D5-data_5k_s1 DATA_NAME=dcfg_scale_5k MODEL_PATH=Qwen/Qwen2.5-3B-Instruct DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_scale_5k.parquet RUN_INDEX=1 bash experiments/train_behavior_qwen2.5.sh`
+**How to rerun:** `EXP_ID=Q3-D5-data_10k_s2 DATA_NAME=dcfg_scale_10k MODEL_PATH=Qwen/Qwen2.5-3B-Instruct DATA_TRAIN=/mnt/home/judekhouja/repo/BeRL/data/dcfg_scale_10k.parquet RUN_INDEX=1 bash experiments/train_behavior_qwen2.5.sh`
 
 **Findings:** _(fill on completion via log-results skill)_
 
-
----
-
-## Findings (r1) — Completed 2026-07-20
-
-**Run:** Qwen2.5-3B-Instruct · dcfg_scale_5k (5000 rows, composition-controlled subsample of smoke_mix 9-source mix, 156 steps = 1 epoch) · locked Qwen2.5 recipe (power k4, ll_min-6, actor-RM, no-baseline, kl0.05, lr5e-7, n16, fp0, ec0). Q3-D5 data-scaling replicate 1 (s1), 5k point.
-
-```
-eval iters: 7 (step 0..156); ToM benchmarks: 24 (excl gsm8k, mmlu)
-ToM HM(last5)=0.4613  HM(last3)=0.4582  (baseline step0=0.4162)
-ToM avg(last5)=0.5198  avg(last3)=0.5193  (baseline step0=0.5023)
-gsm8k (separate): 0.6286 (step0=0.667, delta vs step0=-0.038)
-mmlu (separate): 0.6026 (step0=0.48, delta vs step0=+0.123)
-health(final): kl=0.119 entropy=1.531 resp_len=110.186 reward=33.426 parseable=1.0 max_resp=512
-ToM HM trajectory: 0:0.416 30:0.462 60:0.465 90:0.465 120:0.459 150:0.458 156:0.457
-```
-
-**d_avg (ranking metric) = avg(last5) − avg(step0) = 0.5198 − 0.5023 = +0.0175** vs 3B/6.1k(smoke_mix) anchor +0.0215 (ST01/10/28, SD0.001).
-
-**Verdict:** Data-scale = 5k point on the D5 data-scaling law. The BeRL delta (d_avg +0.018) sits just **below** the 6.1k smoke_mix anchor (+0.0215) and clearly above the 1k point (Q3-07, +0.008) — the data-scaling curve is clean and monotone: **1k(+0.008) < 5k(+0.018) < 6.1k(+0.0215) < 26k(+0.0265, P0-09)**. HM +0.045 over base, peaks step60-90 (0.465), mild erosion to 0.457 by step156. Health fully clean: kl 0.119, parseable=1.0, no collapse, resp_len 110. mmlu +0.123; small gsm8k regression (−0.038). Pairs with Q3-10 (s2) for the 5k mean±SD.
-
-**Rerun one-liner:**
-```
-setsid bash -c "source ~/.bashrc; conda activate tom; RUN_STAGE=s2 EXP_NUM=Q3-09 EXP_ID=Q3-D5-data_5k_s1 DATA_NAME=dcfg_scale_5k DATA_TRAIN=\$HOME/repo/BeRL/data/dcfg_scale_5k.parquet MODEL_PATH=Qwen/Qwen2.5-3B-Instruct REWARD_TYPE=power POWER_K=4 POWER_LL_MIN=-6 USE_ACTOR_AS_RM=True SUBTRACT_BASELINE=False KL=0.05 LR=5e-7 TRAIN_BATCH=32 MINI_BATCH=128 MICRO_BATCH=8 ROLLOUT_N=16 MAX_PROMPT=2048 MAX_RESP=512 ENTROPY_COEFF=0.0 FORMAT_PENALTY=0.0 FORMAT_PENALTY_STD_COEF=1.0 SEED=1 RUN_INDEX=1 bash experiments/train_behavior_qwen2.5.sh"
-```

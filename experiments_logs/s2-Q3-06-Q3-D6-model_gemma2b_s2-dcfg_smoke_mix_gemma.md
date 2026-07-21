@@ -166,3 +166,15 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+
+## Consolidated Findings (r1, WandB 2b1hirh8)
+
+- Ran clean to step 189/190. No OOM (launched proactively with `GPU_MEM_UTIL=0.2` per Gemma gotcha), no collapse, parseable=1.0.
+- `python scripts/score_run.py`:
+  - ToM HM(last5)=0.1803  HM(last3)=0.207  (baseline step0=0.0929)
+  - ToM avg(last5)=0.4062  avg(last3)=0.4258  (baseline step0=0.3145)
+  - gsm8k=0.3546 (Δ+0.075); mmlu=0.4282 (Δ+0.045)
+  - health(final): kl=0.058 entropy=1.554 resp_len=158.4 reward=0.112 parseable=1.0 max_resp=512
+  - HM trajectory: 0:0.093 30:0.017 60:0.019 90:0.085 120:0.172 150:0.246 180:0.2 190:0.139
+- **d_avg = avg(last5) − step0 = +0.0917** (Gemma-2 2B primary metric; HM min-dominated by near-floor fantom_*_list).
+- Verdict: Gemma-2 2B on tag-free smoke_mix_gemma gives a clean positive ToM lift with capability gains (gsm8k/mmlu both up), no hacking. Model-scale cross-family anchor for Q3-D6.

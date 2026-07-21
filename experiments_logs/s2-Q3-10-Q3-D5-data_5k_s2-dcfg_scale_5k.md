@@ -172,3 +172,18 @@ only QUANTITY varies. Locked Qwen2.5-3B best recipe (power k4/ll_min−6, actorR
 n16, max_resp512, 1 epoch). Metric = **d_avg**; endpoints reused: 6.1k=smoke_mix (+0.0215) &
 26k=mix_all. Interpolates between the 1k point (Q3-08 d_avg=+0.0116) and 6.1k; expect d_avg between
 those if the data-scaling slope is monotone. 5000 rows → ~156 steps (~50min). Watch for collapse.
+
+---
+### FINAL findings (r1) — 2026-07-20
+```
+log: logs/20260720/s2-Q3-10-Q3-D5-data_5k_s2-dcfg_scale_5k-Qwen2.5-3B-Instruct-actorRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1.log
+eval iters: 7 (step 0..156); ToM benchmarks: 24 (excl gsm8k, mmlu)
+ToM HM(last5)=0.4668  HM(last3)=0.4684  (baseline step0=0.4176)
+ToM avg(last5)=0.5222  avg(last3)=0.5241  (baseline step0=0.5026)
+gsm8k (separate): 0.6194 (step0=0.657, delta vs step0=-0.038)
+mmlu (separate): 0.6234 (step0=0.473, delta vs step0=+0.150)
+health(final): kl=0.086 entropy=1.527 resp_len=116.137 reward=34.734 parseable=1.0 max_resp=512
+ToM HM trajectory: 0:0.418 30:0.463 60:0.46 90:0.467 120:0.473 150:0.464 156:0.467
+```
+
+**Verdict:** Q3-D5 5k-row point (seed s2). d_avg = avg(last5)−base = 0.5222−0.5026 = **+0.0196**. Fits a monotone data-scaling curve: 1k=+0.0116 (Q3-08) < 5k=+0.0196 < 6.1k=+0.0215 (smoke_mix) — more BeRL data → larger ToM avg gain, diminishing returns near 6k. Healthy: parseable 1.0, kl 0.086, resp_len 116, no collapse. gsm8k Δ−0.038 (mild math regression), mmlu Δ+0.150.
