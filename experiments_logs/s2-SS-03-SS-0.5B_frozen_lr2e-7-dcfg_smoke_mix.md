@@ -247,3 +247,23 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+
+## Findings (completed 2026-07-21, h100-189-003)
+
+Scored via `scripts/score_run.py` (8 eval iters, step 0..190; 24 ToM benchmarks excl gsm8k/mmlu):
+
+- **ToM HM(last5)=0.0037  HM(last3)=0.0035**  (baseline step0=0.0029)
+- **ToM avg(last5)=0.0628  avg(last3)=0.06**  (baseline step0=0.055) → **d_avg=+0.0078**
+- gsm8k (separate): 0.0232 (step0=0.0, delta=+0.023)
+- mmlu (separate): 0.086 (step0=0.037, delta=+0.049)
+- health(final): kl=0.08 entropy=1.882 resp_len=62.5 reward=−15.48 parseable=1.0 **max_resp=512**
+- **KL_max across run = 0.080** (flat; final=0.08)
+- HM trajectory: flat 0.003 at every eval (0.5B is near-floor on ToM benchmarks)
+
+**Verdict (SS scale-stability probe):** GOAL MET — **KL_max=0.080 < 1.0**. Swapping to a **frozen RM**
++ LR2e-7 keeps the 0.5B policy KL bounded (no blowup), which is exactly what the SS block set out to fix
+after Q3-D6 showed off-3B KL instability under the 3B-locked actor-RM recipe. So the 0.5B point of the
+D6 model-scaling curve can now be run stably with (frozen RM, LR2e-7, KL0.05).
+Caveat: 0.5B is an extremely weak base — absolute ToM is at floor (HM≈0.003, avg≈0.063) with reward
+pinned near the −40 clip (very low LL), so this row is a **stability result, not a ToM-gain result**;
+d_avg=+0.0078 and small +gsm8k/+mmlu are within weak-model noise. parseable=1.0 (format fine).

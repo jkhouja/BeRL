@@ -256,3 +256,19 @@ blowups under the 3B-locked recipe (Q3-01 0.5B actorRM ran kl~0.24–0.30). Swap
 Recipe otherwise locked (power k4/ll_min−6, kl0.05, lr5e-7, n16, max_resp512, 1 epoch). Rank:
 **KL_max<1.0 & d_cavg**. Expect frozen RM → lower/bounded KL vs Q3-01's actorRM. smoke_mix=6100 rows
 → ~190 steps. Watch KL trajectory closely (this is the stability signal).
+
+---
+### FINAL findings (r1) — 2026-07-21
+```
+log: logs/20260721/s2-SS-01-SS-0.5B_frozen-dcfg_smoke_mix-Qwen2.5-0.5B-Instruct-frozenRM-nobaseline-power-k4-llmin-6-lr5e-7-kl0.05-n16-r1.log
+eval iters: 8 (step 0..190); ToM benchmarks: 24 (excl gsm8k, mmlu)
+ToM HM(last5)=0.0097  HM(last3)=0.0044  (baseline step0=0.0032)
+ToM avg(last5)=0.141  avg(last3)=0.154  (baseline step0=0.0552)
+gsm8k (separate): 0.116 (step0=0.0, delta vs step0=+0.116)
+mmlu (separate): 0.2808 (step0=0.03, delta vs step0=+0.251)
+health(final): kl=0.387 entropy=1.636 resp_len=49.756 reward=34.223 parseable=1.0 max_resp=512
+ToM HM trajectory: 0:0.003 30:0.003 60:0.003 90:0.003 120:0.007 150:0.007 180:0.004 190:0.003
+KL_max(kl_loss over run) = 1.186
+```
+
+**Verdict (SS scale-stability, 0.5B frozen RM):** KL_max=**1.186** → **FAILS** the strict KL_max<1.0 target (single transient spike near step ~130; final kl=0.387). d_avg = avg(last5)−base = 0.141−0.0552 = **+0.0858**. **Frozen 0.5B RM did NOT improve 0.5B stability vs actorRM:** Q3-01 (0.5B actorRM) ran kl~0.24–0.30 (no spike >1.0) with d_avg=+0.1259 — so at 0.5B the frozen base RM has a *higher* peak KL AND lower d_avg. Frozen-RM reward starts floored at the −40 clip (degenerate: tiny 0.5B scorer assigns min LL to ~all responses, advantages≈0), then recovers to +34 as the actor adapts — the recovery is what drives the KL spike. Healthy otherwise: parseable 1.0, resp_len ~50, no collapse. gsm8k Δ+0.116, mmlu Δ+0.251. **Implication:** frozen RM is not the fix for the 0.5B point; the off-3B KL concern (per plan) is more relevant at 7B/Gemma — keep actorRM at 0.5B, or try stronger KL/lower LR here.
