@@ -198,17 +198,28 @@ human utterance *via reasoning*, not any-RL-signal or lexical shortcuts.** Model
 
 ---
 
-## Q1 — Generalization vs. direct ToM (headline)
+## Q1 — Generalization vs. direct ToM (headline)  🟡 B2 POPULATED (2026-07-21; Q1-B2-01…03)
 Model: **3B**; repeat B1/B2 at **0.5B & 7B-1M** for a scaling curve.
 
 | Run | Reward | Note |
 | --- | --- | --- |
-| B1 | behavior (= A1) | **no ToM labels** |
-| B2 | rule-based ToM (`train_tom_*.sh`, message-format v3 data) | direct ToM (uses labels) = ToM-RL baseline |
+| B1 | behavior (= A1) | **no ToM labels** — = anchor ST01/10/28 (N=3, already run; reuse) |
+| B2 | rule-based ToM (`train_tom_*.sh`, message-format v3 data) | direct ToM (uses labels) = ToM-RL baseline — **🟡 populated Q1-B2-01…03 (3B ×3 seeds, kl0.001)** |
 | B3 | behavior + rule-based (combined) `[build mixed reward]` | does behavior add on top of labels? |
 
 Headline: OOD/Applied/Robustness vs signal type; ID–OOD gap; **label-efficiency** (B1 uses zero ToM
 labels); **reverse transfer** (behavioral/applied training → explicit & higher-order ToM).
+
+---
+
+## Phase SS — Scale-stability re-derivation (motivated by Q3-D6)  🟡 ACTIVE (2026-07-21; SS-01…09)
+Q3-D6 found **no positive model-scaling** because the 3B-locked recipe **blows up KL off-3B** (0.5B 2.28,
+7B 1.57, Gemma 2.63; 0.5B/7B used **actor RM** = known destabiliser, Gemma frozen but hot). Before any
+headline scaling curve, re-stabilise the recipe **per scale/family** on `smoke_mix`:
+- **0.5B & 7B (Qwen2.5):** swap actor→**frozen RM** (isolate), + a stronger-KL (kl0.1) and lower-LR (2e-7) arm.
+- **Gemma-2B (already frozen):** stronger-KL / lower-LR / both.
+9 rows (3 per scale, 1 seed). **Selection:** KL_max<1.0 (stable) AND honest d_cavg (format not saturated
+off-3B). Winner per scale → re-run a clean D6 curve. Global reward family fixed (power k4).
 
 ---
 
@@ -229,15 +240,15 @@ Global RL HPs (lr, KL β, rollout-N) fixed in Phase −1.
 
 ---
 
-## Q3 — Scale and interaction type / data (hypothesis)  🟡 ACTIVE (D6+D5 populated 2026-07-20; D1 done via Phase-0)
+## Q3 — Scale and interaction type / data (hypothesis)  ✅ D6+D5 DONE (2026-07-20/21); D1 done via Phase-0
 **Hypothesis: ToM transfer scales with the ToM-dependence of the training signal and model size.** Model: **3B**.
 **Metric protocol (from Phase −1 error bar): rank on stable `d_avg` (SD 0.001); d_cavg noise-dominated.**
 
 | Run | Variable | Hypothesis | Status |
 | --- | --- | --- | --- |
 | D1 (×5–6) | domain: Empathetic / CaSiNo+Craigslist / CGA / Diplomacy / P4G / DailyDialog (smalltalk) | info-asymmetric domains > smalltalk | ✅ **DONE via Phase-0 S1 (P0-01…08)** → **hypothesis NOT supported on d_avg**: dailydialog (smalltalk) +0.0209 ties top negotiation domains; diplomacy near bottom (+0.0071). Domain is a **null lever** (see `BeRL_findings.md` Phase 0). |
-| D6 (×3) | model scale: best hypers @ **0.5B / 3B(=A1) / 7B** (Qwen2.5) + **Gemma-2B** | model-scaling law | 🟡 **populated** (Q3-01…06). smoke_mix, per-family recipe. 3B=ST01/10/28 (reuse). 7B needs HF download. Most likely above-noise, headline curve. |
-| D5 (×4) | #conversations ≈ **1k / 5k / 10k** (+ free endpoints **6.1k=smoke_mix**, **26k=mix_all**) | data-scaling law | 🟡 **populated** (Q3-07…12). Composition-controlled ladder (`dcfg_scale_{1k,5k,10k}`, same 9-source ratio as smoke_mix). Endpoints reuse ST01/10/28 (6.1k) + P0-09/10/11 (26k). |
+| D6 (×3) | model scale: best hypers @ **0.5B / 3B(=A1) / 7B** (Qwen2.5) + **Gemma-2B** | model-scaling law | ✅ **DONE (Q3-01…06)** → **NO positive scaling under the 3B-locked recipe**: 3B best (+0.0215 honest); **7B flat/neg** (−0.02, saturated, no headroom); **0.5B & Gemma format-confounded + KL blew up (2.3–2.6)** → recipe is 3B-tuned, must re-stabilise per scale before a scaling claim. |
+| D5 (×4) | #conversations ≈ **1k / 5k / 10k** (+ free endpoints **6.1k=smoke_mix**, **26k=mix_all**) | data-scaling law | ✅ **DONE (Q3-07…12)** → **clean saturating curve on d_avg**: +0.0095(1k)→+0.019(5k)→+0.0215(6.1k)→+0.017(10k)→+0.022(26k). **Gain plateaus by ~5–6k**; smoke_mix well-sized. **Data quantity IS a lever below ~5k** (unlike size/composition). |
 | D2 (×2) | long vs short (`limit_turn`) | context-length effect | ⏸ deferred (interaction-type; Phase-0 suggests within-noise) |
 | D3 (×3) | curriculum `turn_order`: early→late / late→early / random `[build sched]` | expect null → report as negative | ⏸ deferred (`[build]`; expected null) |
 | D4 (×2) | **surprise sampling** vs length-matched random `[build]` | ToM-dependent turns drive gains | ⏸ gated (`[build]`; old-stage null) |

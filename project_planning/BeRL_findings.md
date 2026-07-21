@@ -4,9 +4,11 @@
 `BeRL_experiments_tracker.md`, plan `BeRL_paper_plan.md`). Pre-v2 results (Rounds 1–20, the old
 `PS###`/`E###` stage, Phase 0 S1–S3) are archived in **`old_BeRL_findings.md`** — consult-only.
 
-**Last updated:** 2026-07-20 — **Phase −1 (v2):** Qwen2.5-3B ✅ · Gemma-2-2B (ST13–24) · **Phase 0
-(v2) data ablation ✅ COMPLETE (P0-01…14): data composition is a NULL lever → keep `smoke_mix` for all
-later phases** (see Phase 0 section). **Headline metric =
+**Last updated:** 2026-07-21 — **Phase −1 (v2)** ✅ · **Phase 0 data ablation** ✅ (null → `smoke_mix`
+locked) · **Q3 scale** ✅ (Q3-01…12): **D5 data-quantity matters below ~5k then plateaus** (smoke_mix
+well-sized); **D6 model-size shows NO positive scaling under the 3B-locked recipe** (3B best; 7B
+flat/neg; 0.5B & Gemma format-confounded + KL-unstable → recipe needs per-scale re-tuning). **Headline
+metric =
 `d_cavg`, not HM** — the HM ranking was overturned once format was controlled (see Qwen2.5).
 **⚠️ See §0 (read first):** the std-gated format gate was INACTIVE all stage (fp=0 no-op); ST01≡ST10
 is an accidental replicate giving SD(d_cavg)≈0.057 → most Qwen2.5 gaps are within noise. First active
@@ -254,6 +256,63 @@ this is a **null**, and additionally shows v1's single-seed d_cavg mixture ranki
 
 ---
 
+# Q3 (v2): scale & interaction type (Q3-01…Q3-12) ✅ COMPLETE
+
+**Design:** locked per-family recipe, fixed `smoke_mix` corpus (data = null lever, Phase 0), 2 seeds
+each. **Metric per model = whichever is honest given format saturation:** `d_avg` where format is
+~100% (3B, 7B — not format-confounded), `d_cavg`/`d_cond_acc` where format is NOT saturated (0.5B,
+Gemma). D1 (domain) already answered by Phase-0 S1 (null). Reassessment CSVs: `/tmp/q3reassess/*`.
+
+## D6 — model-scaling law → **NO positive scaling; honest gain is a 3B-family phenomenon (recipe is 3B-tuned)**
+
+| model | fmt early→late | metric used | Δ (mean±SD, n=2) | kl_max | verdict |
+|---|---|---|---|---|---|
+| **0.5B** (Q3-01/02) | 0.14→0.45 / 0.18→0.31 | d_cavg (format NOT sat.) | **+0.082 ± 0.137** | 2.28 / 0.62 | **format-limited + unstable**; d_avg +0.085 is format-confounded; honest cavg inconsistent (0.29→0.51 vs 0.50→0.44) → **inconclusive** |
+| **3B** (ST01/10/28) | ~1.0 (saturated) | **d_avg** | **+0.0215 ± 0.001** | ~0.1 | **clean, stable, honest small gain ✅ (the anchor)** |
+| **7B** (Q3-03/04) | 0.96→1.0 (saturated) | **d_avg** | **−0.021 ± 0.005** | 1.57 / 0.33 | format saturated; honest conditional flat/down (0.53→0.49) → **NO gain (slightly negative)** |
+| **Gemma-2B** (Q3-05/06) | 0.55→0.68 (NOT sat.) | d_cavg (honest) | **−0.079 ± 0.0002** | 2.63 / 2.13 | d_avg +0.10 is format-confounded; **honest d_cavg NEGATIVE + KL blew up** → unstable + honest-negative |
+
+**🔴 Findings:**
+1. **The honest BeRL gain does NOT follow a positive model-scaling law.** Only **3B** shows a clean,
+   stable, format-saturated positive gain (+0.0215). **7B** (also saturated) shows **no gain**
+   (−0.02, conditional accuracy flat-to-down) — the strong 7B base has little headroom and RL only
+   perturbs it. **0.5B** and **Gemma-2B** are **format-unsaturated**, so their large positive **d_avg
+   is format-confounded** (learned to emit parseable answers), while the honest metric is flat (0.5B,
+   noisy) or **negative** (Gemma −0.079).
+2. **⚠️ Confound — the recipe was locked at 3B.** KL **blew up at every non-3B scale** (0.5B 2.28,
+   7B 1.57, Gemma 2.6) → the 3B-tuned `lr=5e-7 · kl=0.05 · actor-RM` (Qwen) / ST13 recipe (Gemma) is
+   **mis-calibrated off-3B**. So D6 currently measures *"the 3B recipe does not transfer across scale"*
+   as much as *"the effect doesn't scale."* **A clean model-scaling claim requires re-stabilising the
+   recipe per scale first** (Phase −1-style mini-sweep) — this is the motivation for the next phase.
+3. **Practical takeaway:** 3B is the sweet spot for the Qwen2.5 family under the current recipe; do
+   **not** assume the effect grows with size, and **re-tune before** running headline scale points.
+
+## D5 — data-scaling law → **clean saturating curve; gain plateaus by ~5–6k (smoke_mix is well-sized)**
+
+Qwen2.5-3B, format ~100% throughout (d_avg honest). Composition-controlled ladder (same 9-source ratio):
+
+| #examples | d_avg (mean±SD) | note |
+|---|---|---|
+| 1k (Q3-07/08) | **+0.0095 ± 0.002** | clearly below plateau |
+| 5k (Q3-09/10) | **+0.0192 ± 0.002** | near plateau |
+| **6.1k = smoke_mix** (ST01/10/28) | **+0.0215 ± 0.001** | plateau knee (baseline) |
+| 10k (Q3-11/12) | **+0.0169 ± 0.0002** | plateau (KL a touch hot 1.15/1.25) |
+| 26k = mix_all (P0-09/10/11) | **~+0.022** | plateau |
+
+**Finding:** a **real, above-noise data-scaling effect** — the honest gain **rises steeply 1k→5k
+then saturates by ~5–6k**; more data (10k, 26k) gives **no further gain**. `smoke_mix` (6.1k) sits
+right at the knee → **well-sized; no reason to enlarge the corpus.** (Contrast with D6: data quantity
+*is* a lever below ~5k, whereas model size and data composition are not.)
+
+## Q3 summary
+- **D1 domain:** null (Phase-0 S1). **D5 data-quantity:** matters below ~5k, plateaus at ~6k.
+  **D6 model-size:** no positive scaling under the 3B-locked recipe (3B best; 7B flat/neg; 0.5B &
+  Gemma format-confounded + KL-unstable).
+- **The one actionable lever found = data quantity (need ≥5k).** Model scale and data composition are
+  **not** levers; recipe stability off-3B is an open problem gating the scale story.
+
+---
+
 ## Open TODOs
 - ✅ **Done:** format-controlled `d_cavg` reassessment of the 11 completed Qwen2.5 runs
   (`analysis/reassess_v2_q25.csv`; rerun: `python scripts/reassess_runs.py --logs logs/20260719/*ST0*q25*.log logs/20260719/*ST1[012]*q25*.log --out analysis/reassess_v2_q25.csv`).
@@ -261,4 +320,10 @@ this is a **null**, and additionally shows v1's single-seed d_cavg mixture ranki
 - Re-run reassess including ST08 (kl0.01/lr1e-6) once it completes.
 - Complete Gemma-2-2B ST13–ST24; reassess on `d_cavg` and lock the Gemma stable default.
 - ✅ **Done:** Phase 0 (v2) data ablation (P0-01…14) — **null; `smoke_mix` locked** for later phases.
-- **Next:** Q0 causal controls (the spine) on `smoke_mix` + locked recipe — see plan.
+- ✅ **Done:** Q3 (v2) scale (Q3-01…12) — D5 data-scale saturating curve (plateau ~5–6k); D6
+  model-scale no positive scaling under 3B recipe (KL blowups off-3B).
+- **Next (ACTIVE, populated 2026-07-21):**
+  - **Phase SS** (SS-01…09) — per-scale recipe re-stabilisation on smoke_mix (frozen RM + KL/LR tune
+    for 0.5B/7B/Gemma) to fix the off-3B KL blowups **before** a clean D6 model-scaling curve.
+  - **Q1-B2** (Q1-B2-01…03) — direct rule-based ToM-RL at 3B (×3 seeds) = the labeled baseline for the
+    headline label-free (B1=anchor) vs labeled comparison.
