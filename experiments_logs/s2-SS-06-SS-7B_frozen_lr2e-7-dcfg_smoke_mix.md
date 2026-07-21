@@ -247,3 +247,24 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+
+## Findings (h100-117-001, 2026-07-21)
+
+```
+eval iters: 8 (step 0..190); ToM benchmarks: 24 (excl gsm8k, mmlu)
+ToM HM(last5)=0.3456  HM(last3)=0.3403  (baseline step0=0.3918)
+ToM avg(last5)=0.5295  avg(last3)=0.5272  (baseline step0=0.5334)
+gsm8k (separate): 0.6066 (step0=0.833, delta vs step0=-0.226)
+mmlu (separate): 0.7094 (step0=0.72, delta vs step0=-0.011)
+health(final): kl=0.135 entropy=0.825 resp_len=82.049 reward=23.907 parseable=1.0 max_resp=512
+KL_max over run = 0.135
+ToM HM trajectory: 0:0.392 30:0.35 60:0.309 90:0.373 120:0.326 150:0.32 180:0.342 190:0.354
+```
+
+**Verdict: STABILISED (KL_max=0.135 < 1.0).** Swapping to a **frozen RM + LR 2e-7** (from Q3-04's
+actor-RM + LR 5e-7) controls the 7B KL cleanly — KL_max 0.135 vs Q3-04's final 0.329, no runaway. ToM
+avg is **flat** (0.530 vs base 0.533, -0.4pp) and HM dips only -4.6pp (vs Q3-04's -7.7pp), so the run is
+stable but yields **no positive ToM lift** at 7B under this recipe. Capability regression persists on
+gsm8k (-22.6pp) while mmlu is flat (-1.1pp). No format collapse (parseable=1.0). Meets the SS ranking
+gate (KL_max<1.0) but d_cavg ≈ 0 ⇒ 7B needs further recipe work (or the fixed-recipe D6 scaling point at
+7B is genuinely neutral, not positive). WandB: https://wandb.ai/jkhouja-oxford/TOM_EXP/runs/zlj2073s
