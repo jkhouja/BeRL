@@ -4,10 +4,10 @@
 `BeRL_experiments_tracker.md`, plan `BeRL_paper_plan.md`). Pre-v2 results (Rounds 1–20, the old
 `PS###`/`E###` stage, Phase 0 S1–S3) are archived in **`old_BeRL_findings.md`** — consult-only.
 
-**Last updated:** 2026-07-21 — **Phase −1 (v2)** ✅ · **Phase 0 data ablation** ✅ (null → `smoke_mix`
-locked) · **Q3 scale** ✅ (Q3-01…12): **D5 data-quantity matters below ~5k then plateaus** (smoke_mix
-well-sized); **D6 model-size shows NO positive scaling under the 3B-locked recipe** (3B best; 7B
-flat/neg; 0.5B & Gemma format-confounded + KL-unstable → recipe needs per-scale re-tuning). **Headline
+**Last updated:** 2026-07-21 — **Phase −1 (v2)** ✅ · **Phase 0** ✅ (null → `smoke_mix`) · **Q3 scale**
+✅ · **Phase SS** ✅ (off-3B re-stabilisation: frozen RM fixes Qwen KL, lr2e-7 stabilises all but trades
+learning; **D6 no-scaling survives**; Gemma honest-negative regardless) · **Q1-B2** ✅ (labeled ToM-RL
++0.036±0.011 vs **label-free B1 +0.0215±0.001 → BeRL competitive + more stable, zero labels**). **Headline
 metric =
 `d_cavg`, not HM** — the HM ranking was overturned once format was controlled (see Qwen2.5).
 **⚠️ See §0 (read first):** the std-gated format gate was INACTIVE all stage (fp=0 no-op); ST01≡ST10
@@ -263,7 +263,7 @@ each. **Metric per model = whichever is honest given format saturation:** `d_avg
 ~100% (3B, 7B — not format-confounded), `d_cavg`/`d_cond_acc` where format is NOT saturated (0.5B,
 Gemma). D1 (domain) already answered by Phase-0 S1 (null). Reassessment CSVs: `/tmp/q3reassess/*`.
 
-## D6 — model-scaling law → **NO positive scaling; honest gain is a 3B-family phenomenon (recipe is 3B-tuned)**
+## D6 — model-scaling law → **NO positive scaling; not even a *stable* positive at any single scale (D6c replication: 3B "anchor" is within seed noise)**
 
 | model | fmt early→late | metric used | Δ (mean±SD, n=2) | kl_max | verdict |
 |---|---|---|---|---|---|
@@ -286,6 +286,28 @@ Gemma). D1 (domain) already answered by Phase-0 S1 (null). Reassessment CSVs: `/
    recipe per scale first** (Phase −1-style mini-sweep) — this is the motivation for the next phase.
 3. **Practical takeaway:** 3B is the sweet spot for the Qwen2.5 family under the current recipe; do
    **not** assume the effect grows with size, and **re-tune before** running headline scale points.
+
+**✅ D6c replicate curve — COMPLETE (2026-07-30, h100-077-004).** 2 extra seeds per scale on the
+stabilised per-scale recipes (**frozen RM**): 0.5B (D6c-01/02), 3B (D6c-03/04), 7B kl0.1 (D6c-05/06),
+Gemma-2-2B llmin−4 lr2e-7 ec0.001 (D6c-07/08). Sequential on one node. Honest **d_cavg** per rep
+(reassess debug-block metric — reliable as a *delta ranking* only when fmt≈100%; noisy at fmt<100%):
+
+| scale | rep A (d_cavg / fmt) | rep B (d_cavg / fmt) | mean ± SD | verdict |
+|---|---|---|---|---|
+| **0.5B** | D6c-01 −0.10 / 13.5% | D6c-02 −0.064 / 58.3% | **−0.082 ± 0.018** | honest-negative (both fmt-unsaturated → d_cavg unreliable, but no positive) |
+| **3B** | D6c-03 **+0.069** / 100% | D6c-04 **−0.142** / 100% | **−0.037 ± 0.106** | **huge seed variance** — even at fmt100% reps disagree by 0.21 → no *stable* positive |
+| **7B** | D6c-05 −0.063 / 99% | D6c-06 **+0.031** / 100% | **−0.016 ± 0.047** | flat, straddles 0 → no gain |
+| **Gemma-2-2B** | D6c-07 −0.044 / 62.5% | D6c-08 −0.018 / 61.5% | **−0.031 ± 0.013** | honest-negative (both reps), fmt-unsaturated |
+
+**🔴 D6c verdict — confirms & strengthens the null: NO positive model-scaling, and no *stable*
+positive at any single scale.** Every scale's replicate mean is **negative** (0.5B −0.082, 3B −0.037,
+7B −0.016, Gemma −0.031). Critically, the earlier "3B is the clean positive anchor" no longer holds
+under replication: the two fmt-100% 3B reps land at **+0.069 and −0.142** (SD ±0.11) — the 3B honest
+gain is **within seed noise**, not a reliable effect. 7B straddles zero (one rep each sign). 0.5B and
+Gemma stay negative. **The honest BeRL cavg gain is not robust to seed at any model size** — consistent
+with the Q4 NULL and the metric-reliability caveat (small debug-block cavg is noisy; the only
+format-saturated scales, 3B & 7B, still show sign-flipping reps). Net: **D6 model-scaling law = flat/
+negative across 0.5B→7B and Gemma; no size is a reliable positive.**
 
 ## D5 — data-scaling law → **clean saturating curve; gain plateaus by ~5–6k (smoke_mix is well-sized)**
 
@@ -313,6 +335,149 @@ right at the knee → **well-sized; no reason to enlarge the corpus.** (Contrast
 
 ---
 
+## Phase SS — per-scale recipe re-stabilisation (SS-01…09, 2026-07-21) ✅ COMPLETE
+Motivated by Q3-D6 (off-3B KL blowups: 0.5B 2.28, 7B 1.57, Gemma 2.63; 0.5B/7B used **actor RM**).
+Swapped to **frozen RM** (Qwen) and swept a stronger-KL (kl0.1) + lower-LR (lr2e-7) arm on smoke_mix.
+
+| Scale | Arm | KL_max (was) | fmt early→late | honest d_cavg (d_cond) | Verdict |
+|---|---|---|---|---|---|
+| **0.5B** | SS-01 frozen kl0.05 | **1.19** (2.28) | 0.16→0.35 (unsat) | **+0.158 (+0.116)** | frozen RM tamed KL; **honest positive** but KL still borderline hot |
+| 0.5B | SS-02 frozen kl0.1 | 3.70 (spike) | 0.16→0.54 | +0.200 (+0.090) | higher KL coef **backfired** (spike) |
+| 0.5B | SS-03 frozen lr2e-7 | **0.08** stable | 0.15→0.13 flat | 0.000 (−0.155) | fully stable but **no learning** (LR too low) |
+| **7B** | SS-04 frozen kl0.05 | 0.50 (1.57) | sat 0.95 | −0.056 (−0.054) | stable but negative |
+| 7B | **SS-05 frozen kl0.1** | **0.12** stable | sat 0.98 | **+0.063 (+0.047)** | **best 7B: stable + small honest gain** (little headroom) |
+| 7B | SS-06 frozen lr2e-7 | 0.14 stable | sat 0.98 | +0.017 (+0.021) | stable, ~flat |
+| **Gemma** | SS-07 kl0.1 lr5e-7 | 2.04 (still blew up) | 0.57→0.59 | −0.044 | KL coef alone insufficient |
+| Gemma | SS-08 lr2e-7 | **0.04** stable | 0.52→0.61 | −0.054 (−0.061) | stable but **honest-negative** |
+| Gemma | SS-09 kl0.1 lr2e-7 | **0.01** stable | 0.48→0.57 | −0.064 (−0.020) | stable but **honest-negative** |
+
+**Findings:**
+- **Frozen RM is the key KL fix for Qwen** — 0.5B 2.28→1.19, 7B 1.57→0.50 just by swapping actor→frozen.
+- **Lowering LR to 2e-7 fully stabilises every scale** (KL 0.01–0.14) but **trades away learning** (0.5B
+  stops learning format; effect shrinks) — a stability/plasticity tradeoff.
+- **7B: SS-05 (frozen, kl0.1)** is the clean off-3B recipe — stable + tiny honest positive; but 7B has
+  little BeRL headroom (strong base), so the model-scaling curve stays flat-to-slightly-positive even
+  when stabilised. **The D6 "no positive scaling" conclusion survives re-stabilisation.**
+- **Gemma: stability is fixable (lr2e-7) but the honest effect stays negative at every stable setting**
+  → BeRL does not induce honest ToM gains in Gemma-2-2B (family-specific null, not a recipe artifact).
+- **Net:** re-stabilisation removes the KL confound but does **not** reveal a positive model-scaling
+  law — it confirms it is absent. Data quantity remains the only lever.
+
+## Q1-B2 — labeled ToM-RL baseline (Q1-B2-01…03, 3B ×3 seeds, 2026-07-21) ✅ COMPLETE
+Direct rule-based ToM RL (uses ToM labels), format saturated → d_avg honest.
+
+| Seed | d_avg | d_cavg | d_cond | kl_max |
+|---|---|---|---|---|
+| s1 | +0.034 | +0.024 | +0.021 | 0.18 (stable) |
+| s2 | +0.048 | +0.006 | −0.003 | 1.52 (spike) |
+| s3 | +0.026 | −0.075 | −0.081 | 1.60 (spike) |
+| **mean** | **+0.036 ± 0.011** | ≈−0.015 (noisy) | — | 2/3 seeds KL-spiked |
+
+**Headline (B1 vs B2):** label-free behavior **B1** (anchor ST01/10/28) = d_avg **+0.0215 ± 0.001**;
+labeled ToM-RL **B2** = **+0.036 ± 0.011**. B2 is ~1.5pp higher on d_avg **but noisier and less stable**
+(2/3 seeds KL-spiked; honest d_cavg inconsistent, mean ≈ 0). **⇒ label-free BeRL is competitive with —
+and more stable than — label-supervised ToM-RL, with ZERO ToM labels.** This is the paper's core
+label-efficiency claim; a clean head-to-head still needs the OOD/robustness eval axes (Q1 B-suite).
+
+---
+
+## Q0-A3 — shuffled-target causal control (Q0-A3-01…03, 3B ×3 seeds, 2026-07-24) ✅ COMPLETE
+**RQ:** Is the B1 behavior-prediction gain *caused* by predicting the **correct** next human utterance,
+or is it a generic format/fluency effect of RL-on-any-text-reward? **Design:** identical B1 anchor recipe
+(actor RM, power k4 ll_min−6, kl0.05, lr5e-7, fp0, ec0, smoke_mix) but the reward target is **deranged** —
+each [context+CoT] is scored against a *wrong* human utterance (`dcfg_smoke_mix_shuffled`, `scripts/build_shuffled_control.py --seed 42`; context intact, targets guaranteed text-distinct).
+
+| Seed | d_avg | d_hm (raw) | d_cavg | d_cond_acc | kl_max |
+|---|---|---|---|---|---|
+| s1 | −0.0075 | +0.0115 | −0.042 | −0.026 | 3.77 |
+| s2 | −0.0096 | +0.0033 | −0.146 | −0.138 | 1.04 |
+| s3 | −0.0022 | +0.0137 | +0.035 | +0.037 | 4.92 |
+| **mean** | **−0.0064 ± 0.0031** | **+0.0095 ± 0.0045** | −0.051 ± 0.074 | −0.043 ± 0.072 | 2/3 KL-spiked |
+
+**Verdict — the causal claim HOLDS.** Breaking the target pairing collapses the gain: A3 d_avg
+**−0.0064 ± 0.0031** vs B1 anchor **+0.0215 ± 0.001** (a ~2.8pp drop, ≫ SDs). Even the format-confounded
+raw HM halves (d_hm +0.0095 vs B1 ≈ +0.02) and the format-controlled honest metrics go **negative**
+(d_cavg −0.051, d_cond_acc −0.043). ⇒ **the ToM gain requires reinforcing the likelihood of the
+*correct* human utterance — it is not a generic format/fluency artifact of any-text RL.** This is the
+Q0 causal spine of the paper. (Caveat: shuffled reward is noisier/less stable — 2/3 seeds KL-spiked —
+consistent with rewarding an inconsistent/mismatched target.)
+
+---
+
+## Q4 — thinking-style / CoT scaffold (Q4-E1c/E2/E3/E4-01, 3B N=1 screen, 2026-07-25) 🔴 NULL — no honest gain (prompt-swap disproved it, 2026-07-29)
+**RQ:** Does an **explicit ToM thinking structure** in the CoT beat freeform reasoning? Vary only the
+reasoning scaffold via an Option-A system-prompt override (`+data.system_prompt`, which replaces the
+system message in **both** train and val loaders), holding the B1 anchor recipe fixed (actor RM, power
+k4 ll_min−6, kl0.05, lr5e-7, fp0, ec0, smoke_mix, 3B). Four arms: **E1c** `cot_eval` (freeform control),
+**E2** `cot_persp` (think each person's perspective), **E3** `cot_epistemic` (each person's
+knowledge/belief/thoughts about the other), **E4** `cot_struct` (structured per-person scaffold).
+
+**Validity note:** the global override strips the ToMi-family eval hint (tomi/hi_tom/explore_tom
+room-witness note + "output ONLY the key noun") **equally across all 4 arms**, so arms are ranked
+**within-phase vs the E1c control**, NOT vs the headline B1 (+0.0215). Training data is unaffected.
+
+**⚠️ Metric caveat (read first):** the `d_cavg`/`d_cond_acc` numbers in the *original* screen were
+computed by `scripts/reassess_runs.py` from the tiny per-step `[val sample | step=…]` **debug blocks**
+(~24 samples/step) — far too noisy for *absolute* honest scores. The authoritative metric is the
+**full-eval** `val/answer_acc_cond/<bench>_sub300` summary (300/subtype × 24 ToM benches = 7,200 samples,
+excl. gsm8k+mmlu). **On the reliable metric the Q4 result is NULL** (below). The original "E4 crossover to
+0.542" was a debug-block noise artifact.
+
+| Arm | scaffold | d_avg (raw, delta ok) | fmt% | kl_max | WandB |
+|---|---|---|---|---|---|
+| E1c | cot_eval (control) | +0.004 | 99% | 1.82 | i5ggi2dc |
+| E2 | cot_persp | +0.035 | 100% | 0.09 | 9iha5o85 |
+| E3 | cot_epistemic | +0.129 | 95% | 2.74 | 6up3r1d3 |
+| E4 | cot_struct | +0.094 | 99% | 2.40 | 0ekrqk4u |
+
+**Reliable full-eval honest cavg (mean answer_acc_cond over 24 ToM benches), start → final:**
+
+| Arm | raw avg start→final (Δ) | honest cavg start→final (Δ) | verdict |
+|---|---|---|---|
+| E1c control | 0.497 → 0.501 (+0.004) | 0.507 → 0.502 (**−0.005**) | flat |
+| E2 persp | 0.454 → 0.490 (+0.035) | 0.502 → 0.495 (**−0.007**) | flat |
+| E3 epistemic | 0.345 → 0.474 (+0.129) | 0.490 → 0.486 (**−0.003**) | flat |
+| E4 struct | 0.389 → 0.484 (+0.094) | 0.498 → 0.488 (**−0.011**) | flat |
+
+**All 4 arms end at ~0.49–0.50 honest cavg — no arm gains, the control is marginally highest.** The big
+raw `d_avg` for E3/E4 (+0.13/+0.09) is **pure format-recovery from a scaffold-depressed zero-shot start**
+(the complex scaffolds crater the untrained model — e.g. E4 gsm8k 0.72→0.26→0.71 — so training just claws
+back what the scaffold broke). No honest ToM is built.
+
+**Prompt-swap cross-eval (decisive control, 2026-07-29) — CONFIRMS null.** Re-evaluated all 4 *final*
+checkpoints (`global_step_190`) under one **common `cot_eval` prompt** (`+data.system_prompt`, val_only),
+removing the own-scaffold test-time confound:
+
+| Final ckpt | honest cavg under **own** scaffold | honest cavg under **common cot_eval** prompt |
+|---|---|---|
+| E1c (control) | 0.502 | 0.502 |
+| E2 persp | 0.495 | 0.509 |
+| E3 epistemic | 0.486 | 0.510 |
+| E4 struct | 0.488 | 0.502 |
+
+- Under the common prompt **all 4 are tied at ~0.50–0.51** (spread 0.008 = noise); the E4 "winner" is in
+  fact **marginally lowest** (0.502, = control). No checkpoint carries a weight-level ToM advantage.
+- E3/E4 score *slightly higher* under the common prompt than under their own scaffold ⇒ the complex
+  scaffold, if anything, **hurts** at test time.
+- Sanity: E1c own == E1c swap = 0.502 (identical, 24 benches) ✔.
+
+**Verdict — NULL. No CoT scaffold (perspective / epistemic / structured) produces an honest ToM gain
+over freeform `cot_eval`.** The apparent Stage-1 "wins" were two stacked artifacts: (1) a
+**lower-starting-point** effect — complex scaffolds depress the untrained model, so raw `d_avg` measures
+format-recovery, not ToM; and (2) a **noisy debug-block metric** (`reassess d_cavg`) that manufactured a
+fake honest crossover. The user's lower-start suspicion was correct — and stronger than first thought.
+
+**Metric-reliability lesson (repo-wide):** never read `reassess_runs.py`'s `cavg`/`cond_acc` as an
+*absolute* honest score — it's a ~24-sample debug estimate (SD large). It is fine as a *delta ranking* for
+format-saturated Qwen2.5 runs (where cavg≈avg), but any finding that leans on absolute `d_cavg` to compare
+arms should be re-checked against the full-eval `val/answer_acc_cond/*_sub300` summary.
+
+**Stage-2 (previously proposed N=3 seeds of E1c/E4/E3) is MOOT** — the prompt-swap already shows no
+weight-level effect to error-bar. Recommendation: do **not** port any scaffold into the headline recipe;
+freeform `cot_eval` is as good as (marginally better than) all structured variants.
+
+---
+
 ## Open TODOs
 - ✅ **Done:** format-controlled `d_cavg` reassessment of the 11 completed Qwen2.5 runs
   (`analysis/reassess_v2_q25.csv`; rerun: `python scripts/reassess_runs.py --logs logs/20260719/*ST0*q25*.log logs/20260719/*ST1[012]*q25*.log --out analysis/reassess_v2_q25.csv`).
@@ -322,8 +487,15 @@ right at the knee → **well-sized; no reason to enlarge the corpus.** (Contrast
 - ✅ **Done:** Phase 0 (v2) data ablation (P0-01…14) — **null; `smoke_mix` locked** for later phases.
 - ✅ **Done:** Q3 (v2) scale (Q3-01…12) — D5 data-scale saturating curve (plateau ~5–6k); D6
   model-scale no positive scaling under 3B recipe (KL blowups off-3B).
-- **Next (ACTIVE, populated 2026-07-21):**
-  - **Phase SS** (SS-01…09) — per-scale recipe re-stabilisation on smoke_mix (frozen RM + KL/LR tune
-    for 0.5B/7B/Gemma) to fix the off-3B KL blowups **before** a clean D6 model-scaling curve.
-  - **Q1-B2** (Q1-B2-01…03) — direct rule-based ToM-RL at 3B (×3 seeds) = the labeled baseline for the
-    headline label-free (B1=anchor) vs labeled comparison.
+- ✅ **Done (2026-07-21):** Phase SS (SS-01…09) — frozen RM fixes Qwen KL; lr2e-7 stabilises all but
+  trades learning; **D6 no-scaling survives re-stabilisation**; Gemma honest-negative regardless.
+- ✅ **Done (2026-07-21):** Q1-B2 (Q1-B2-01…03) — labeled ToM-RL +0.036±0.011 vs label-free B1
+  +0.0215±0.001 → **label-free BeRL competitive + more stable** (core label-efficiency result).
+- ✅ **Done (2026-07-24):** Q0-A3 (Q0-A3-01…03) — shuffled-target causal control: A3 d_avg −0.0064±0.0031
+  ≪ B1 +0.0215 → gain requires the **correct** human target, not generic format (Q0 causal spine holds).
+- ✅ **Done (2026-07-25):** Q4 thinking-style Stage-1 (Q4-E1c/E2/E3/E4-01, N=1) — explicit ToM scaffolds
+  beat freeform CoT: E4 `cot_struct` honest d_cavg **+0.146** & E3 `cot_epistemic` +0.035 vs E1c control
+  **−0.066**; E2 `cot_persp` is a format-only decoy (honest −0.111). Winner E4. **Stage-2 (N=3 seeds for
+  E1c+E4+E3) pending user OK.**
+- **Next:** decide between (a) Q1 OOD/robustness/reverse-transfer eval axes for the headline B1-vs-B2
+  claim, and (b) using the SS-05 (7B) / SS-01 (0.5B) stabilised recipes for a final clean D6 curve.

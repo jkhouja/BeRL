@@ -166,3 +166,16 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+
+## Consolidated Findings (r1, WandB hepdxdx3)
+
+- Ran clean to step 189/190. No OOM (GPU_MEM_UTIL=0.2), parseable=1.0.
+- **Stability criterion MET (strongly)**: KL=0.1 + LR=2e-7 crushes the Gemma KL blowup — KL_max=0.003, final kl=0.003. No reward hacking: resp_len stays ~140–185 (no collapse), reward flat near 0/−2 (no explosion).
+- **BUT over-regularised → near-zero learning signal**:
+  - `scripts/score_run.py`:
+    - ToM HM(last5)=0.0726 HM(last3)=0.083 (baseline step0=0.0929) → d_HM=−0.020
+    - ToM avg(last5)=0.3297 avg(last3)=0.3334 (baseline step0=0.3147) → **d_avg=+0.015**
+    - gsm8k=0.2926 (Δ+0.016); mmlu=0.384 (Δ−0.003) — capabilities preserved
+    - health(final): kl=0.003 entropy=1.358 resp_len=136.7 reward=−2.415 parseable=1.0 max_resp=512
+    - HM trajectory: 0:0.093 30:0.032 60:0.076 90:0.02 120:0.072 150:0.073 180:0.098 190:0.073
+- **Verdict**: KL=0.1 + LR=2e-7 is TOO conservative for Gemma-2 2B — KL≈0 means the policy barely departs from base, so ToM gain (d_avg=+0.015) is far below the KL=0.05/LR=5e-7 point (Q3-06 d_avg=+0.092). Stable but under-trained. The Gemma stability sweet-spot lies between this and the blowup config — recommend an intermediate SS row (e.g. KL=0.05 + LR=2e-7, or KL=0.1 + LR=5e-7) to recover learning signal while keeping KL bounded.

@@ -136,3 +136,30 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+
+---
+## Findings (r1, h100-077-004, 2026-07-21)
+
+`python scripts/score_run.py <log>`:
+```
+eval iters: 15 (step 0..400); ToM benchmarks: 24 (excl gsm8k, mmlu)
+ToM HM(last5)=0.4343  HM(last3)=0.4103  (baseline step0=0.4221)
+ToM avg(last5)=0.5314  avg(last3)=0.5311  (baseline step0=0.5049)
+gsm8k (separate): 0.7888 (step0=0.66, delta vs step0=+0.129)
+mmlu  (separate): 0.5806 (step0=0.48, delta vs step0=+0.101)
+health(final): kl=0.148 entropy=1.261 resp_len=239.906 reward=0.719 parseable=1.0 max_resp=2048
+ToM HM trajectory: 0:0.422 30:0.426 60:0.434 90:0.427 120:0.427 150:0.437 180:0.427 210:0.444 240:0.443 270:0.437 300:0.458 330:0.43 360:0.431 390:0.399 400:0.374
+```
+
+**Verdict: LABELED headline baseline, seed 3 — d_avg = +0.0265, LABEL-COMPETITIVE with label-free BeRL.**
+This is the Q1-B2 direct rule-based ToM RL comparator (uses ToM labels). d_avg = avg(last5) − step0
+= 0.5314 − 0.5049 = **+0.0265**; HM(last5) = 0.4343 (+0.0122 over base 0.4221). Compared to the
+**label-free BeRL anchor B1 (=A1 ST01/10/28, N=3) d_avg = +0.0215**, the label-supervised baseline is
+only **marginally ahead (+0.0265 vs +0.0215, single seed)** — supporting the thesis that label-free
+behavior-prediction RL is competitive with label-supervised ToM-RL. Unlike behavior runs (which
+regress on capability), the labeled ToM-RL **improves** general capability: **gsm8k +0.129, mmlu +0.101**.
+Healthy training (KL≈0.15 final, entropy≈1.26, reward≈0.72 rule-based accuracy, parseable=1.0,
+no collapse/crash, final val at step 400). **Caveat:** clear late-run HM degradation (step 300 peak
+0.458 → 390:0.399 → 400:0.374) drags last3 (0.4103) below last5 (0.4343) — the endpoint is past peak,
+so last5 is the fairer summary. Seeds s1/s2 (Q1-B2-01/02, other hosts) needed for the N=3 mean.
+max_resp=2048.

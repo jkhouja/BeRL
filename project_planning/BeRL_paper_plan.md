@@ -182,23 +182,34 @@ strictly-later turns (no leakage).
 
 ---
 
-## Q0 — Identifiability / causal controls (the spine — front-load)
+## Q0 — Identifiability / causal controls (the spine — front-load)  🟢 A3 COMPLETE (2026-07-24; A3 ≪ B1 → causal claim holds)
 **Reviewers will attack "accuracy up ≠ ToM." Prove the gain comes from predicting the *correct*
 human utterance *via reasoning*, not any-RL-signal or lexical shortcuts.** Model: **3B**, ≥3 seeds on A1.
 
-| Run | Setup | Isolates |
-| --- | --- | --- |
-| A0 | base, no training. Run all evals | reference |
-| A1 | **BeRL**: best v2 config on the v2 recipe | main effect |
-| A2 | SFT on gold utterances (no RL) `[build SFT entrypoint]` | RL vs SFT |
-| A3 | reward = likelihood of shuffled/mismatched utterance `[build]` | correct human vs any sentence? |
-| A4 | no-CoT (generation_prefix off) | does the CoT carry it? |
+| Run | Setup | Isolates | Status |
+| --- | --- | --- | --- |
+| A0 | base, no training. Run all evals | reference | ✅ = step0 of every run |
+| A1 | **BeRL**: best v2 config on the v2 recipe | main effect | ✅ = anchor ST01/10/28 (N=3, +0.0215 d_avg) |
+| A2 | SFT on gold utterances (no RL) `[build SFT entrypoint]` | RL vs SFT | ⏸ deferred (launcher stub) |
+| A3 | reward = likelihood of shuffled/mismatched utterance | correct human vs any sentence? | 🟢 **COMPLETE Q0-A3-01…03 (3B ×3): d_avg −0.0064±0.0031 ≪ B1 +0.0215** via `dcfg_smoke_mix_shuffled` (data-prep derangement, `scripts/build_shuffled_control.py`; identical B1 recipe, only target pairing broken) |
+| A4 | no-CoT (generation_prefix off) | does the CoT carry it? | ⏸ dropped for now (user) |
+
+**A3 = the core falsification test.** Same recipe as B1; only the target human utterance is replaced by
+a random other conversation's utterance (context + CoT intact). **Read:** if A3 d_avg ≈ B1 (+0.0215) →
+the "ToM" lift is generic format/fluency, NOT correct-human prediction (thesis in trouble, esp. given
+honest d_cavg is noise-dominated at 3B); if A3 ≪ B1 → the causal claim holds. Rank d_avg + d_cavg vs B1.
+
+**✅ RESULT (2026-07-24, N=3):** A3 d_avg **−0.0064 ± 0.0031** ≪ B1 anchor **+0.0215 ± 0.001** (raw d_hm
++0.0095, half of B1; format-controlled d_cavg −0.051 / d_cond_acc −0.043, both negative). **Breaking the
+target pairing collapses the gain → the ToM lift requires reinforcing the *correct* human utterance, not
+generic format/fluency. Q0 causal spine holds.** (Shuffled reward noisier: 2/3 seeds KL-spiked.) See
+`BeRL_findings.md` → Q0-A3 section.
 
 **Gate:** if A1 does not clearly beat A2/A3/A4 on honest `d_cavg`, the thesis is unsupported — stop.
 
 ---
 
-## Q1 — Generalization vs. direct ToM (headline)  🟡 B2 POPULATED (2026-07-21; Q1-B2-01…03)
+## Q1 — Generalization vs. direct ToM (headline)  🟡 B2 DONE @3B (2026-07-21; Q1-B2-01…03: +0.036±0.011 vs B1 +0.0215)
 Model: **3B**; repeat B1/B2 at **0.5B & 7B-1M** for a scaling curve.
 
 | Run | Reward | Note |
@@ -212,7 +223,7 @@ labels); **reverse transfer** (behavioral/applied training → explicit & higher
 
 ---
 
-## Phase SS — Scale-stability re-derivation (motivated by Q3-D6)  🟡 ACTIVE (2026-07-21; SS-01…09)
+## Phase SS — Scale-stability re-derivation (motivated by Q3-D6)  ✅ COMPLETE (2026-07-21; SS-01…09)
 Q3-D6 found **no positive model-scaling** because the 3B-locked recipe **blows up KL off-3B** (0.5B 2.28,
 7B 1.57, Gemma 2.63; 0.5B/7B used **actor RM** = known destabiliser, Gemma frozen but hot). Before any
 headline scaling curve, re-stabilise the recipe **per scale/family** on `smoke_mix`:
@@ -220,6 +231,27 @@ headline scaling curve, re-stabilise the recipe **per scale/family** on `smoke_m
 - **Gemma-2B (already frozen):** stronger-KL / lower-LR / both.
 9 rows (3 per scale, 1 seed). **Selection:** KL_max<1.0 (stable) AND honest d_cavg (format not saturated
 off-3B). Winner per scale → re-run a clean D6 curve. Global reward family fixed (power k4).
+
+**SS outcome (stabilised recipes per scale, frozen RM everywhere):** 0.5B `kl0.05 lr5e-7` (SS-01; honest
++ but KL~1.19), 3B `kl0.05 lr5e-7` (ST05 rm_frozen), 7B `kl0.1 lr5e-7` (SS-05; stable + small +),
+Gemma-2B `kl0.05 lr2e-7` (SS-08; stable but honest-**negative**). lr2e-7 stabilises all scales but trades
+learning. **These feed the D6 curve below.**
+
+---
+
+## Phase D6c — Clean model-scaling curve  🟡 POPULATED (2026-07-21; D6c-01…08)
+Using the **per-scale stabilised frozen-RM recipes** from Phase SS, run a clean Qwen2.5 model-size curve
+(0.5B / 3B / 7B) + a separate Gemma-2B family point, **N=3 replicates each** for error bars (seed-1
+reused: 0.5B=SS-01, 3B=ST05, 7B=SS-05, Gemma=SS-08; add 2 nondeterminism reps each = **8 new runs**).
+- **Recipe per point:** frozen RM, power k4, llmin-6, lr5e-7, smoke_mix; **KL per-scale** (0.5B/3B=0.05,
+  7B=0.1) — a single fixed KL is not stable at all scales (0.5B spikes at kl0.1). Gemma: k4 llmin-4
+  kl0.05 **lr2e-7**, tag-free data.
+- **Primary metric: format-controlled `d_cavg` / `d_cond_acc` ± SD vs model size** (comparable across
+  format saturation; d_avg secondary — only honest where format ~1.0, i.e. 3B/7B). Gemma reported as a
+  separate-family robustness point, **not** on the Qwen x-axis.
+- **Seed-1 snapshot (non-monotonic, within noise → needs N=3):** d_cavg 0.5B +0.158 / 3B −0.035 /
+  7B +0.063 / Gemma −0.054. **Expected verdict: no clean positive scaling** (confirms Q3-D6 with error
+  bars), but let the replicates decide.
 
 ---
 
@@ -255,8 +287,74 @@ Global RL HPs (lr, KL β, rollout-N) fixed in Phase −1.
 
 ---
 
-## Q4 — Thinking style (mechanism)
-Model: **3B**.
+## Q3b — Narrative domain for ToM (non-conversational behavior prediction)  🟡 NEW (2026-08-09)
+**Question:** does the BeRL behavior-prediction reward induce ToM transfer when the training signal is
+**narrative continuation** (predict the real next sentence/line of a human-written story or screenplay)
+instead of **two-party dialogue**? Q3-D1 showed *domain within dialogue* is a null lever; Q3b asks the
+stronger question — whether the ToM lift survives dropping conversational structure entirely.
+
+**Why it matters.** The conversational anchor (`smoke_mix`) reinforces `log P(next human turn | context+CoT)`.
+If the same reward on **narration** (no speaker turns, no dialogue-act structure) still transfers, the
+effect is a general "predict the human's next production" signal, not something specific to dialogue.
+A **null** here bounds the claim (ToM transfer needs interactive/agentic text); a **positive** broadens it
+to any label-free human-authored text — a much larger, cheaper training pool.
+
+Recipe = the **exact ST01/B1 anchor** (actor-RM, power k4 ll_min−6, kl0.05, lr5e-7, batch32, n16, ec0,
+max_resp512, Qwen2.5-3B, subsample300). **Only the training corpus changes**; evals are the identical ToM
+subsample300. Both corpora are label-free own parquets built on the shared narrative converter base
+(`scripts/narrative_converter_base.py`) via `build_dataset.py`.
+
+| Run | Corpus | What's predicted | ToM signal strength | Status |
+| --- | --- | --- | --- | --- |
+| Q3b-N1 (×1) | `dcfg_narrative_mix` (ROCStories 2.5k + WritingPrompts 2k + TinyStories 1.5k = 6k) | real next **sentence** of a story given prior sentences + premise | weakest — pure third-person narration, no named agents | ✅ DONE (WandB `dbxjlwhh`) |
+| Q3b-M1 (×1) | `dcfg_moviesum` (3k scene-level exchanges, 101 films / `rohitsaxena/MovieSum`) | real next **character line** given prior scene turns (named speakers) | strongest narrative analog — explicit characters; predict a *named* agent's utterance | ▶ LAUNCHING (2026-08-09) |
+
+**Metric protocol** (as Q3): rank on stable `d_avg` (SD≈0.001) vs the B1 dialogue anchor (+0.0215); then
+honest `d_cavg`/`d_cond_acc` on any positive arm. **Interpretation ladder:** M1 (character lines, closest
+to dialogue) is the primary narrative test; N1 (pure narration) is the lower bound. Expected d_avg ordering
+if target ToM-dependence drives transfer: **dialogue (B1) ≥ M1 (screenplay) ≥ N1 (narration)**.
+
+**Datasets** (converters + configs already merged):
+- `narrative_mix` — `scripts/convert_{rocstories,writingprompts,tinystories}.py`; predict next prose sentence.
+- `moviesum` — `scripts/convert_moviesum.py`; scene-level multi-party dialogue with named speakers, predict
+  the next character's line (`script` prompt style). Screenplays are the highest-ToM-value narrative source
+  (explicit `<character>`/`<dialogue>` structure) — the closest narrative-scale analog to the dialogue anchor.
+
+**Plan:** N=1 exploratory screen (both runs). If **M1** beats N1 and approaches B1 on `d_avg`, promote to
+N=3 + honest reassessment and fold into a "domain-generality" story; else report as a bound on the claim.
+
+---
+
+## Q4 — Thinking style (mechanism)  🟡 POPULATED (2026-07-24; Q4-E1c/E2/E3/E4, 3B, Stage-1 N=1 screen)
+Model: **3B**. **Question:** does an explicit ToM thinking scaffold beat freeform CoT at inducing ToM?
+**Mechanism:** vary only the CoT reasoning instruction via **Option-A** `+data.system_prompt` override
+(replaces the system prompt in **both** train and val loaders → matched train/eval, per launch skill §4a).
+Identical B1 anchor recipe otherwise (actor RM, power k4 ll_min−6, kl0.05, lr5e-7, fp0, ec0, `dcfg_smoke_mix`,
+subsample300). New prompt styles live in `scripts/prompt_templates.py` (`cot_persp`, `cot_epistemic`,
+`cot_struct`), each = the identical `cot_eval` tag preamble + answer-tag closing, differing only in the
+middle thinking scaffold (isolates the thinking-style variable; single-line for safe Hydra override).
+
+| Run | Style key | Variable |
+| --- | --- | --- |
+| **E1c** (control) | `cot_eval` | freeform CoT via the **same override** — in-phase baseline |
+| **E2** | `cot_persp` | perspective-taking: take each person's viewpoint in turn (user opt 1) |
+| **E3** | `cot_epistemic` | nested belief: each person's knowledge + belief + belief-about-other (user opt 2) |
+| **E4** | `cot_struct` | structured template: emotion + belief + intention + strategy (user opt 3) |
+
+**⚠️ Validity note — why E1c is required.** The subsample300 eval bakes a special system prompt for the
+ToMi-family (tomi / hi_tom / explore_tom = 900/7800 rows): a room-witness hint **and** an "output ONLY the
+key noun" instruction. A global `+data.system_prompt` override **replaces** those too, so all Q4 arms lose
+that hint/format **equally**. → compare Q4 arms **within-phase against E1c** (which absorbs the same
+offset), **not** against the headline B1 (+0.0215). Training is unaffected (its data carries no ToMi hint).
+
+**Metric:** rank on `d_avg` (format-saturated at 3B, SD≈0.001) for the screen; then honest
+`d_cavg`/`d_cond_acc` (SD≈0.08 → needs N≥3) on the winner. **Plus trace analysis:** probe / LLM-judge
+whether the CoTs actually contain the requested belief/perspective content — explains any template
+regression (likely format-tax / over-constraint), and confirms the scaffold is *used*, not ignored.
+
+**Plan:** **Stage-1 (populated, Not-started):** Q4-E1c-01 / E2-01 / E3-01 / E4-01 — N=1 screen (4 runs,
+~2h each, single node). **Stage-2 (conditional, add after screen):** +2 seeds for **E1c** and the top-1
+(or top-2) arm(s) → N=3 error bars for the headline "structured-thinking vs freeform" claim.
 
 | Run | Variable |
 | --- | --- |

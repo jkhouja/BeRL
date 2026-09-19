@@ -274,3 +274,17 @@ HYDRA_FULL_ERROR=1 python3 -m verl.trainer.main_ppo \
 
 **Findings:** _(fill on completion via log-results skill)_
 
+
+## Findings (r1)
+
+```
+eval iters: 15 (step 0..400); ToM benchmarks: 24 (excl gsm8k, mmlu)
+ToM HM(last5)=0.4725  HM(last3)=0.4727  (baseline step0=0.418)
+ToM avg(last5)=0.5393  avg(last3)=0.5374  (baseline step0=0.5035)
+gsm8k (separate): 0.7346 (step0=0.66, delta vs step0=+0.075)
+mmlu (separate): 0.5934 (step0=0.49, delta vs step0=+0.103)
+health(final): kl=0.148 entropy=0.82 resp_len=129.516 reward=1.219 parseable=1.0 max_resp=2048
+ToM HM trajectory: 0:0.418 30:0.396 60:0.439 90:0.447 120:0.442 150:0.437 180:0.425 210:0.433 240:0.449 270:0.454 300:0.478 330:0.464 360:0.465 390:0.48 400:0.472
+```
+
+**Verdict:** Completed, 400/400. Label-supervised (rule-based ToM labels) RL headline baseline, seed 1. d_avg=+0.0358 (HM 0.418→0.4725, +5.45pp). Clean monotone-ish HM climb, no collapse; kl stayed <0.16 throughout, parseable 1.0. gsm8k/mmlu both improve (no capability regression). Compares against label-free BeRL B1 anchor (ST01/10/28, d_avg=+0.0215): **label-supervised ToM-RL is stronger at 3B**, as expected — establishes the labeled ceiling for the Q1 label-free-vs-labeled headline. Awaits seeds 2/3 (Q1-B2-02/03) for N=3.
