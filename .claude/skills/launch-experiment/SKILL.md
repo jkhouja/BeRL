@@ -86,7 +86,15 @@ The row must already be **claimed** (`Status=Processing`, `Owner_host` set) — 
    `data.prompt_is_text=False` (message-format parquets — all current ones; the legacy
    `merge_tom.py` text-prefix format bypasses it); (2) it overwrites eval-specific system content
    **including** the tomi `hint_v3` room-witness note, so if that hint matters, append it to your
-   override text. When the prompt is *not* varied (the default `cot_eval`), do **not** set
+   override text. **The subsample300 tomi-family rows (tomi / hi_tom / explore_tom, 900/7800) carry
+   BOTH a room-witness hint AND an "output ONLY the key noun" instruction; a global override strips
+   both, so ToM-scaffold sweeps must include an in-phase `cot_eval`-via-override control and compare
+   within-phase, not against the headline baked-`cot_eval` runs.** (3) **Hydra quoting — the
+   `common.sh` `SYSTEM_PROMPT` env path emits `+data.system_prompt="<text>"` with LITERAL double
+   quotes** (`ARGS+=( "+data.system_prompt=\"$SYSTEM_PROMPT\"" )`); this is REQUIRED — Hydra's override
+   parser throws `OverrideParseException: LexerNoViableAltException` on any value containing `.`, `()`,
+   `<>`, `/` (i.e. every real system prompt). Keep prompt text free of double quotes; single-line is
+   safest. When the prompt is *not* varied (the default `cot_eval`), do **not** set
    `+data.system_prompt` — the baked prompts already match.
 
    **4b. Answer-tag alignment (MANDATORY — tag-free CoTs for Qwen3 / Gemma).** The scorer's

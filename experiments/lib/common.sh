@@ -383,8 +383,10 @@ berl::run() {
 
   # Prompt-alignment Option A: when the CoT/system prompt varies from cot_eval, force the
   # identical system prompt into BOTH train and val loaders (see launch-experiment §4a).
+  # The value must carry literal double quotes so Hydra's override parser accepts special
+  # characters (., (), <>, /, :) in the prompt text; the text itself contains no double quotes.
   if [ -n "${SYSTEM_PROMPT:-}" ]; then
-    ARGS+=( +data.system_prompt="$SYSTEM_PROMPT" )
+    ARGS+=( "+data.system_prompt=\"$SYSTEM_PROMPT\"" )
   fi
 
   # Answer-tag expectation is authoritative via model-type parser; these flags are

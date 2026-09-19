@@ -76,6 +76,59 @@ COT_EVAL_NOTAGS_SYSTEM_PROMPT = (
     "Please reason step by step, and then clearly state your final answer."
 )
 
+# ---------------------------------------------------------------------------
+# Q4 thinking-style variants (mechanism sweep).
+# All share the *identical* ``cot_eval`` tag preamble + answer-tag closing so the
+# only variable vs the ``cot_eval`` freeform baseline is the ToM thinking
+# scaffold in the middle sentence. Kept single-line for safe Hydra
+# ``+data.system_prompt`` overrides (Option A). Paired with tagged data
+# (``dcfg_smoke_mix``) for Qwen2/2.5 (parser requires <answer>).
+_COT_EVAL_PREAMBLE = (
+    "You are a helpful assistant. The assistant first thinks about the "
+    "reasoning process in the mind and then provides the user with the answer. "
+    "The reasoning process and answer are enclosed within <think> </think> and "
+    "<answer> </answer> tags, respectively, i.e., "
+    "<think> reasoning process here </think><answer> answer here </answer>. "
+    "Now the user asks you to solve a theory of mind reasoning problem. "
+)
+_COT_EVAL_CLOSING = (
+    " clearly state your answer within <answer> </answer> tags."
+)
+
+# E2 — perspective-taking: take each person's viewpoint in turn.
+COT_PERSP_SYSTEM_PROMPT = (
+    _COT_EVAL_PREAMBLE
+    + "In your thinking, take each person's perspective in turn: for every "
+    "participant, describe the situation as that person sees it, what they are "
+    "trying to achieve, and how they are likely to interpret what the others "
+    "have said and done. After considering every person's perspective,"
+    + _COT_EVAL_CLOSING
+)
+
+# E3 — epistemic / nested-belief: knowledge, belief, and belief-about-other.
+COT_EPISTEMIC_SYSTEM_PROMPT = (
+    _COT_EVAL_PREAMBLE
+    + "In your thinking, build an explicit mental-state model for each person: "
+    "(1) what that person knows (the facts actually available to them), "
+    "(2) what that person believes or feels, which may be uncertain or mistaken, "
+    "and (3) what that person thinks the other people know, believe, and want. "
+    "Note carefully where these mental states differ between people or where "
+    "someone is unaware of something. After building each person's mental-state model,"
+    + _COT_EVAL_CLOSING
+)
+
+# E4 — structured template: emotion, belief, intention, strategy.
+COT_STRUCT_SYSTEM_PROMPT = (
+    _COT_EVAL_PREAMBLE
+    + "In your thinking, work through four aspects for the people involved: "
+    "(1) Emotions - how each person is feeling; "
+    "(2) Beliefs - what each person holds to be true about the situation and about each other; "
+    "(3) Intentions - what each person is trying to do; "
+    "(4) Strategy - given the above, what response or outcome is most consistent. "
+    "After working through these four aspects,"
+    + _COT_EVAL_CLOSING
+)
+
 SYSTEM_PROMPT_STYLES = {
     "default": DEFAULT_SYSTEM_PROMPT,
     "research": RESEARCH_SYSTEM_PROMPT,
@@ -85,6 +138,10 @@ SYSTEM_PROMPT_STYLES = {
     "cot_eval": COT_EVAL_SYSTEM_PROMPT,
     "cot_tom2": COT_TOM2_SYSTEM_PROMPT,
     "cot_eval_notags": COT_EVAL_NOTAGS_SYSTEM_PROMPT,
+    # Q4 thinking-style sweep (override-only; not baked into any dcfg):
+    "cot_persp": COT_PERSP_SYSTEM_PROMPT,
+    "cot_epistemic": COT_EPISTEMIC_SYSTEM_PROMPT,
+    "cot_struct": COT_STRUCT_SYSTEM_PROMPT,
 }
 
 # ---------------------------------------------------------------------------
