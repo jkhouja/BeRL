@@ -29,6 +29,11 @@ allowed-tools: Bash Read Grep Glob Edit
    - Degenerate CoT: spot-check sampled generations for repetition, empty `<think>`, format drift,
      or answers copied from the prompt. Note reward-vs-eval divergence (reward up but eval flat/down
      ⇒ possible hacking).
+   - **Tag-free direct-ToM collapse can remain 100% parseable.** Watch `response_length/mean`,
+     `response_length/clip_ratio`, and sampled text even when `format_error_ratio=0`. A sudden jump
+     from single-digit answers to hundreds of tokens, repeated answer/location tokens, or a literal
+     `<eos>` followed by generated `<pad>` runs is degeneration; stop the run rather than trusting
+     the saturated rule reward (observed QG-B2g-02 r1 at steps 133-136).
 
 5. **Process alive?** If it should be running, check GPU:
    `nvidia-smi --query-gpu=index,utilization.gpu,memory.used --format=csv,noheader`.

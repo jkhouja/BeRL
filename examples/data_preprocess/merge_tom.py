@@ -35,11 +35,16 @@ COT_EVAL_SYSTEM = (
     "<answer> </answer> tags."
 )
 
-# cot_eval variant without the tag-format instruction (used when --wo_think).
+# cot_eval variant without ANY <answer>-tag instruction (used when --wo_think), for
+# tag-free models (Qwen3 / Gemma / Gemma2) whose parser does not require <answer> tags.
+# Byte-for-byte identical to scripts/prompt_templates.py::COT_EVAL_NOTAGS_SYSTEM_PROMPT
+# (the ``cot_eval_notags`` style baked into all tag-free training parquets, e.g.
+# dcfg_smoke_mix_gemma), so a reformatted rule parquet matches the Gemma training
+# convention exactly.
 COT_EVAL_SYSTEM_WO_THINK = (
     "You are a helpful assistant. The assistant first thinks about the reasoning process in the mind "
     "and then provides the user with the answer. Now the user asks you to solve a theory of mind "
-    "reasoning problem. Please reason step by step, and put your final answer within <answer> </answer> tags."
+    "reasoning problem. Please reason step by step, and then clearly state your final answer."
 )
 
 HINT_NOTE = (
@@ -54,6 +59,13 @@ CONCISE_NOTE = (
     '(e.g., "kitchen", "red_box", "yes"), not a full sentence.'
 )
 
+# Tag-free concise note (paired with COT_EVAL_SYSTEM_WO_THINK): same "key noun only"
+# instruction but without referencing <answer> tags, for tag-free models.
+CONCISE_NOTE_WO_THINK = (
+    "\nImportant: State ONLY the key noun or object "
+    '(e.g., "kitchen", "red_box", "yes") as your final answer, not a full sentence.'
+)
+
 
 def make_system_prompt(add_hint=False, wo_think=False, concise_answer=False):
     """Build the system prompt string for the requested variant."""
@@ -61,7 +73,7 @@ def make_system_prompt(add_hint=False, wo_think=False, concise_answer=False):
     if add_hint:
         system += HINT_NOTE
     if concise_answer:
-        system += CONCISE_NOTE
+        system += CONCISE_NOTE_WO_THINK if wo_think else CONCISE_NOTE
     return system
 
 

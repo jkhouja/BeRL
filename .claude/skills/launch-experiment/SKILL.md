@@ -105,6 +105,13 @@ The row must already be **claimed** (`Status=Processing`, `Owner_host` set) — 
    pipeline (`build_dataset.py`) now **fails fast** if `system_prompt_style`, `add_response_tags`,
    and `generation_prefix` disagree (`validate_prompt_tag_consistency`).
 
+   For `tom_rulebased` on Qwen3/Gemma, the rule scorer must receive the model-aware parser.
+   Tag-free native prose is valid without `<think>`/`</think>`; `extract_answer()` scores the full
+   EOS-stripped response when no closing think tag exists. If a run shows
+   `format_error_ratio=1.0`, `reward=-3`, and zero advantages, stop it immediately: this indicates
+   a parser/scorer regression, not a learnable format failure. Regression coverage lives in
+   `tests/reward_score/test_response_parser.py`.
+
    **4c. Eval suite (default `VAL_SUITE=subsample300`).** Launchers eval on the stratified
    representative subset `data/cleaned_tom/eval_subsample_300.parquet` by default (25 subtypes ×
    300 = 7,500 prompts; ~1.6 min/eval on Qwen2.5-3B/8×H100). **Use this for all standard

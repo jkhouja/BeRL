@@ -44,7 +44,8 @@ class ModelResponseParser:
         """Extract the final answer from the assistant's response.
 
         If REQUIRE_ANSWER_TAGS is True, extracts from <answer>...</answer> tags.
-        Otherwise, extracts text after </think>, optionally using <answer> tags if present.
+        Otherwise, extracts text after </think> when present, or the full native
+        tag-free response, optionally using <answer> tags if present.
         """
         if self.REQUIRE_ANSWER_TAGS:
             answer_pattern = r'<answer>(.*?)</answer>'
@@ -53,23 +54,25 @@ class ModelResponseParser:
                 print("[Error] No valid answer tags found")
                 return None
             return matches[-1].group(1).strip()
+        if self.THINK_CLOSE in processed_str:
+            answer_text = processed_str.split(self.THINK_CLOSE, 1)[1].strip()
         else:
-            # Extract text after </think>
-            if self.THINK_CLOSE in processed_str:
-                answer_text = processed_str.split(self.THINK_CLOSE, 1)[1].strip()
-                answer_text = self.strip_special_tokens(answer_text)
-                # If <answer> tags are present, use them
-                answer_match = re.search(r'<answer>(.*?)</answer>', answer_text, re.DOTALL)
-                if answer_match:
-                    answer_text = answer_match.group(1).strip()
-                return answer_text if answer_text else None
-            else:
-                print("[Error] No </think> tag found")
-                return None
+            answer_text = processed_str.strip()
+        answer_text = self.strip_special_tokens(answer_text)
+        answer_match = re.search(r'<answer>(.*?)</answer>', answer_text, re.DOTALL)
+        if answer_match:
+            answer_text = answer_match.group(1).strip()
+        return answer_text if answer_text else None
 
     def validate_structure(self, processed_str: str) -> bool:
         """Check if the response has valid thinking+answer structure."""
         print("\n[Structure Validation]")
+        if not self.REQUIRE_ANSWER_TAGS:
+            validation_passed = not self.has_format_violation(processed_str)
+            print("  Native tag-free response validation "
+                  f"{'passed' if validation_passed else 'failed'}")
+            return validation_passed
+
         validation_passed = True
 
         tags = {
@@ -91,20 +94,13 @@ class ModelResponseParser:
                 print(f"  [Error] {tag_str} appears {count} times (expected {expected_count})")
                 validation_passed = False
 
-        if self.REQUIRE_ANSWER_TAGS:
-            if (positions['think_start'] > positions['think_end'] or
-                positions['think_end'] > positions['answer_start'] or
-                positions['answer_start'] > positions['answer_end']):
-                print("  [Error] Incorrect tag order: Expected <think>...</think><answer>...</answer>")
-                validation_passed = False
-            else:
-                print("  Tag sequence validation passed")
+        if (positions['think_start'] > positions['think_end'] or
+            positions['think_end'] > positions['answer_start'] or
+            positions['answer_start'] > positions['answer_end']):
+            print("  [Error] Incorrect tag order: Expected <think>...</think><answer>...</answer>")
+            validation_passed = False
         else:
-            if positions['think_start'] > positions['think_end']:
-                print("  [Error] Incorrect tag order: Expected <think>...</think>")
-                validation_passed = False
-            else:
-                print("  Tag sequence validation passed")
+            print("  Tag sequence validation passed")
 
         return validation_passed
 
@@ -152,7 +148,7 @@ class ModelResponseParser:
         """
         if self.REQUIRE_ANSWER_TAGS:
             return self.THINK_CLOSE not in response
-        return len(response.strip()) == 0
+        return len(self.strip_special_tokens(response)) == 0
 
     def has_format_violation(self, response: str) -> bool:
         """True if the model's OWN response is malformed.
@@ -170,7 +166,7 @@ class ModelResponseParser:
         <think>/</think>, or a present-but-empty answer after </think> counts.
         """
         if not self.REQUIRE_ANSWER_TAGS:
-            if len(response.strip()) == 0:
+            if len(self.strip_special_tokens(response)) == 0:
                 return True
             if response.count(self.THINK_OPEN) > 1 or response.count(self.THINK_CLOSE) > 1:
                 return True

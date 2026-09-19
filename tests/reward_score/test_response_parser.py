@@ -102,6 +102,7 @@ VIOLATION_CASES = [
     ("gemma", "<think>r</think></answer>", True, "gemma answer only stray tag -> empty"),
     ("qwen3", "<think>r</think>free text answer", False, "qwen3 answer tags optional"),
     ("qwen3", "<think>r</think>", True, "qwen3 empty answer"),
+    ("gemma", "<end_of_turn>", True, "gemma EOS-only response"),
 ]
 
 
@@ -115,6 +116,50 @@ def run_format_violation():
         print(f"[{status}] violation/{ptype}: {note} (got={got} exp={expect})")
         if not ok:
             failures.append(note)
+    return failures
+
+
+# ---------------------------------------------------------------------------
+# Tag-free rule scoring — native Gemma/Qwen3 prose must be parseable
+# ---------------------------------------------------------------------------
+TAG_FREE_RULE_CASES = [
+    ("gemma", "The object is in the green box.<end_of_turn>",
+     "The object is in the green box.", True, "gemma bare prose"),
+    ("qwen3", "<think>Reasoning without a close tag. Final answer: kitchen<|im_end|>",
+     "<think>Reasoning without a close tag. Final answer: kitchen", True,
+     "qwen3 native open-think prose"),
+    ("gemma", "<think>reasoning</think><answer>basket</answer><end_of_turn>",
+     "basket", True, "gemma optional answer tags"),
+    ("gemma", "   <end_of_turn>", None, False, "gemma empty after EOS"),
+]
+
+
+def run_tag_free_rule_parsing():
+    failures = []
+    for ptype, response, expected_answer, expected_valid, note in TAG_FREE_RULE_CASES:
+        parser = get_parser(ptype)
+        answer = parser.extract_answer(response)
+        valid = parser.validate_structure(response)
+        ok = answer == expected_answer and valid == expected_valid
+        status = "PASS" if ok else "FAIL"
+        print(f"[{status}] tag-free-rule/{ptype}: {note}")
+        if not ok:
+            print(f"        answer got={answer!r} exp={expected_answer!r}")
+            print(f"        valid  got={valid!r} exp={expected_valid!r}")
+            failures.append(note)
+
+    from verl.utils.reward_score import explore_tom
+    parser = get_parser("gemma2")
+    prefix = "<start_of_turn>model\nReasoning. Final answer: "
+    correct = explore_tom.compute_score(
+        prefix + "green box<end_of_turn>", "green box", parser=parser)
+    wrong = explore_tom.compute_score(
+        prefix + "blue box<end_of_turn>", "green box", parser=parser)
+    scorer_ok = correct == 3 and wrong == -1
+    print(f"[{'PASS' if scorer_ok else 'FAIL'}] tag-free-rule/gemma2: "
+          f"end-to-end scores correct={correct} wrong={wrong}")
+    if not scorer_ok:
+        failures.append("gemma2 end-to-end rule scores")
     return failures
 
 
@@ -346,6 +391,8 @@ def run():
     all_failures += run_split_thinking()
     print("\n== Issue 2 companion: has_format_violation ==")
     all_failures += run_format_violation()
+    print("\n== Tag-free direct-ToM rule parsing ==")
+    all_failures += run_tag_free_rule_parsing()
     print("\n== Issue 5: relative invalid sentinel ==")
     all_failures += run_invalid_sentinel()
     print("\n== Options 3+2: std-gated format penalty ==")
@@ -353,7 +400,7 @@ def run():
     print("\n== Issue 6: exact answer-region boundary (offset mapping) ==")
     all_failures += run_issue6_mask()
 
-    total = len(SPLIT_CASES) + len(VIOLATION_CASES)
+    total = len(SPLIT_CASES) + len(VIOLATION_CASES) + len(TAG_FREE_RULE_CASES)
     string_fail = len([f for f in all_failures
                        if not f.startswith(("issue6/", "issue6-", "sentinel/", "gate/"))])
     print(f"\n{total - string_fail}/{total} string checks passed")
