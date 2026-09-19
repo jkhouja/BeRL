@@ -39,6 +39,11 @@ def _select_rm_score_fn(data_source):
         return countdown.compute_score, False
     elif "fantom" in data_source:
         return fantom.compute_score, True
+    elif "convmc" in data_source:
+        # BeRL 4-way multiple-choice "pick the real next turn" task: LLM-generated
+        # distractors + the true human utterance, scored with the shared rule-based
+        # MC scorer so it can be compared head-to-head against the behaviour-LL reward.
+        return tom_mc.compute_score, True
     elif any(b in data_source for b in ("simpletom", "tombench", "bigtom", "opentom", "mmlu", "dyntom", "ullman", "exploretom_infilled")):
         return tom_mc.compute_score, True
     elif "explore_tom" in data_source or "hi_tom" in data_source or 'tomi' in data_source:

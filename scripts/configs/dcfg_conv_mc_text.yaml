@@ -1,0 +1,19 @@
+# dcfg_conv_mc_text — 4-way multiple-choice "pick the real next turn" (TEXT answer).
+#
+# Identical items/options/gold layout as dcfg_conv_mc_letter (same per-row shuffle
+# seed) — the ONLY difference is the answer format and how it is scored:
+#   * the model must reproduce the full TEXT of the chosen option, and
+#   * scoring skips letter-matching (ground_truth.answer = "") and matches the
+#     gold option TEXT via tom_mc's answer-text matcher (with the built-in
+#     distractor-substring ambiguity guard).
+#
+# NOT built by build_dataset.py — SYNTHETIC. See dcfg_conv_mc_letter.yaml for full
+# provenance / rebuild steps (both parquets are emitted by one run of
+# scripts/build_conv_mc_dataset.py).
+#
+# data_source: convmc_text (routes to tom_mc.compute_score via _select_rm_score_fn).
+# Recipe: Qwen2.5 tagged (cot_eval system prompt, <think>/<answer> tags).
+base_on: dcfg_smoke_mix
+output_parquet: data/dcfg_conv_mc_text.parquet
+answer_mode: text
+data_source: convmc_text

@@ -1,0 +1,28 @@
+# dcfg_conv_mc_letter — 4-way multiple-choice "pick the real next turn" (LETTER answer).
+#
+# NOT built by build_dataset.py (converter registry). This dataset is SYNTHETIC:
+# it reuses the smoke-mix conversations (dcfg_smoke_mix) but converts each
+# behaviour-prediction example into a 4-way MC item — the real next human turn
+# plus 3 LLM-generated distractors (matched length/vocabulary, differing
+# intention/belief/desire). Used to train BeRL with the rule-based `tom_mc`
+# reward, as a controlled comparison against the behaviour-log-likelihood reward
+# on the SAME conversations.
+#
+# Provenance / rebuild:
+#   1. Extract rows from the smoke parquet:
+#        data/conv_mc_build/rows.jsonl  (built inline from data/dcfg_smoke_mix.parquet)
+#   2. Generate 3 distractors per row via papyrus/bus LLM (gpt-5.4):
+#        yolo/notebooks/berl_conv_mc/generate_distractors.py -> data/conv_mc_build/distractors.jsonl
+#   3. Assemble both parquets:
+#        python scripts/build_conv_mc_dataset.py
+#        -> data/dcfg_conv_mc_letter.parquet  (this config)
+#        -> data/dcfg_conv_mc_text.parquet    (dcfg_conv_mc_text)
+#
+# Answer format: the model answers with the option LETTER (A/B/C/D).
+# data_source: convmc_letter (routes to tom_mc.compute_score via _select_rm_score_fn).
+# Recipe: Qwen2.5 tagged (cot_eval system prompt, <think>/<answer> tags) — matches
+#   the baked cot_eval evals, identical system prompt to dcfg_smoke_mix.
+base_on: dcfg_smoke_mix
+output_parquet: data/dcfg_conv_mc_letter.parquet
+answer_mode: letter
+data_source: convmc_letter
