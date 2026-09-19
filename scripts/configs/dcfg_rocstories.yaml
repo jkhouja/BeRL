@@ -1,0 +1,21 @@
+extends: dcfg_base.yaml
+
+# ROCStories — 5-sentence commonsense causal stories. Predict a later sentence
+# (index >= min_context_sentences) from the earlier ones. Narrative behaviour
+# source (non-conversational): same ll_loss reward path as the conversational
+# smoke_mix, only the domain (narration) differs.
+pipeline:
+  output_name: "dcfg_rocstories"
+
+dataset_defaults:
+  prompt_style: "narrative"
+  ability: "narrative_generation"
+
+datasets:
+  - source: "rocstories"
+    premise_label: "Title"
+    min_turns: 3
+    min_context_sentences: 2
+    min_response_words: 3
+    max_response_words: 60
+    sample_size: 2500

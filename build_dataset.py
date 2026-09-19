@@ -40,6 +40,11 @@ CONVERTERS = {
     "diplomacy": ("scripts.convert_diplomacy", "DiplomacyConverter"),
     "persuasionforgood": ("scripts.convert_persuasionforgood", "PersuasionForGoodConverter"),
     "thoughttrace": ("scripts.convert_thoughttrace", "ThoughtTraceConverter"),
+    # Narrative (non-conversational) next-sentence prediction sources:
+    "rocstories": ("scripts.convert_rocstories", "ROCStoriesConverter"),
+    "tinystories": ("scripts.convert_tinystories", "TinyStoriesConverter"),
+    "writingprompts": ("scripts.convert_writingprompts", "WritingPromptsConverter"),
+    "moviesum": ("scripts.convert_moviesum", "MovieSumConverter"),
 }
 
 # ---------------------------------------------------------------------------

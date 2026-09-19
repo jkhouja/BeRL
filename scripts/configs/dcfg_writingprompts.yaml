@@ -1,0 +1,22 @@
+extends: dcfg_base.yaml
+
+# WritingPrompts (human) — creative long-form stories written to a community
+# writing prompt (used here as the narrative premise). Predict a later sentence
+# from the premise + earlier sentences; a sliding context window bounds prompt
+# length. High-variance narrative behaviour source.
+pipeline:
+  output_name: "dcfg_writingprompts"
+
+dataset_defaults:
+  prompt_style: "narrative"
+  ability: "narrative_generation"
+
+datasets:
+  - source: "writingprompts"
+    premise_label: "Writing prompt"
+    min_turns: 3
+    min_context_sentences: 2
+    max_context_sentences: 12
+    min_response_words: 4
+    max_response_words: 60
+    sample_size: 2000

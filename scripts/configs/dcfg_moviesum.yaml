@@ -1,0 +1,25 @@
+extends: dcfg_base.yaml
+
+# MovieSum (rohitsaxena/MovieSum) — its own parquet. Non-conversational *screenplay*
+# behaviour-prediction with NAMED SPEAKERS: each <scene> becomes a coherent
+# multi-party exchange and the model predicts the next character's line given the
+# prior turns in that scene (character intent = a real ToM signal at narrative
+# scale). Scored with the identical behaviour (ll_loss) reward as the ST01 anchor.
+pipeline:
+  output_name: "dcfg_moviesum"
+
+dataset_defaults:
+  prompt_style: "script"
+  ability: "narrative_generation"
+
+datasets:
+  - source: "moviesum"
+    premise_label: "Scene"
+    min_turns: 3
+    min_context_sentences: 2
+    max_context_sentences: 12
+    min_response_words: 3
+    max_response_words: 60
+    include_scene_description: true
+    max_premise_words: 60
+    sample_size: 3000

@@ -1,0 +1,37 @@
+extends: dcfg_base.yaml
+
+# Narrative mix (~6k rows) — the non-conversational counterpart to
+# dcfg_smoke_mix. Three English narrative sources; each example predicts the
+# real next sentence/line from the preceding narrative context, scored with the
+# identical behaviour (ll_loss) reward. Used for the ll_loss baseline that
+# mirrors the ST01 anchor on narrative (rather than conversational) data.
+pipeline:
+  output_name: "dcfg_narrative_mix"
+
+dataset_defaults:
+  prompt_style: "narrative"
+  ability: "narrative_generation"
+
+datasets:
+  - source: "rocstories"
+    premise_label: "Title"
+    min_turns: 3
+    min_context_sentences: 2
+    min_response_words: 3
+    max_response_words: 60
+    sample_size: 2500
+  - source: "writingprompts"
+    premise_label: "Writing prompt"
+    min_turns: 3
+    min_context_sentences: 2
+    max_context_sentences: 12
+    min_response_words: 4
+    max_response_words: 60
+    sample_size: 2000
+  - source: "tinystories"
+    min_turns: 3
+    min_context_sentences: 2
+    max_context_sentences: 8
+    min_response_words: 3
+    max_response_words: 60
+    sample_size: 1500

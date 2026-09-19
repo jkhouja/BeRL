@@ -167,9 +167,29 @@ CONVERSATION:
 
 
 
+USER_TEMPLATE_NARRATIVE = """Below is the beginning of a real narrative (a story or script).
+Based on the narrative so far, predict the next line exactly as it really continues.
+
+Narrative so far:
+{dialogue_history}
+
+Now write the next line of the narrative, without any speaker prefix."""
+
+
+USER_TEMPLATE_SCRIPT = """Below is an excerpt from a real movie script.
+Based on the script so far, predict what {responding_speaker} says next.
+
+Script so far:
+{dialogue_history}
+
+Now write {responding_speaker}'s next line, without the speaker prefix."""
+
+
 PROMPT_STYLES = {
     "simple": USER_TEMPLATE_SIMPLE,
     "prefix_hint": USER_TEMPLATE_HINT,
+    "narrative": USER_TEMPLATE_NARRATIVE,
+    "script": USER_TEMPLATE_SCRIPT,
 }
 
 

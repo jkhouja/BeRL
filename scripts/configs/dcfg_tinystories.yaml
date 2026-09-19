@@ -1,0 +1,20 @@
+extends: dcfg_base.yaml
+
+# TinyStories — simple synthetic short narration (restricted vocabulary).
+# Sentence-split; predict a later sentence from earlier ones. Low-complexity
+# narrative point contrasting with the richer ROCStories / WritingPrompts.
+pipeline:
+  output_name: "dcfg_tinystories"
+
+dataset_defaults:
+  prompt_style: "narrative"
+  ability: "narrative_generation"
+
+datasets:
+  - source: "tinystories"
+    min_turns: 3
+    min_context_sentences: 2
+    max_context_sentences: 8
+    min_response_words: 3
+    max_response_words: 60
+    sample_size: 1500
