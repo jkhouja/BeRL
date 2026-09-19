@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BeRL Data Inspector</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f1117; color: #e1e4e8; min-height: 100vh;
+    display: flex; flex-direction: column;
+  }
+  header {
+    background: #161b22; border-bottom: 1px solid #30363d; padding: 12px 20px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  header h1 { font-size: 17px; font-weight: 600; color: #f0f6fc; letter-spacing: -0.3px; }
+  .badge {
+    background: #21262d; border: 1px solid #30363d; border-radius: 20px;
+    padding: 2px 10px; font-size: 12px; color: #8b949e;
+  }
+  .btn {
+    background: #238636; color: #fff; border: none; border-radius: 6px;
+    padding: 6px 14px; font-size: 13px; font-weight: 500; cursor: pointer;
+  }
+  .btn:hover { background: #2ea043; }
+  .btn.secondary { background: #21262d; border: 1px solid #30363d; color: #c9d1d9; }
+  .btn.secondary:hover { background: #30363d; }
+  .btn.ghost { background: transparent; border: 1px solid #30363d; color: #c9d1d9; }
+  .btn.ghost:hover { background: #21262d; }
+  input[type="file"] { display: none; }
+
+  /* Upload */
+  #upload-area { flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px; }
+  .drop-zone {
+    border: 2px dashed #30363d; border-radius: 12px; padding: 60px 80px;
+    text-align: center; cursor: pointer; transition: all .15s;
+  }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: #238636; background: #0d1f13; }
+  .drop-zone svg { width: 48px; height: 48px; color: #8b949e; margin-bottom: 16px; }
+  .drop-zone h2 { font-size: 18px; color: #f0f6fc; margin-bottom: 6px; }
+  .drop-zone p { color: #8b949e; font-size: 13px; }
+
+  /* App */
+  #app { display: none; flex-direction: column; flex: 1; min-height: 0; }
+  .toolbar {
+    background: #161b22; border-bottom: 1px solid #30363d; padding: 10px 20px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .toolbar .file-name { color: #8b949e; font-size: 13px; }
+  .ctrl { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #8b949e; }
+  .ctrl input[type="text"], .ctrl input[type="number"], .ctrl select {
+    background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+    color: #e1e4e8; padding: 5px 9px; font-size: 13px;
+  }
+  .ctrl input[type="text"] { width: 240px; }
+  .ctrl input[type="number"] { width: 80px; }
+  .ctrl select { min-width: 120px; }
+  .grow { flex: 1; }
+
+  .list-wrap { flex: 1; overflow-y: auto; padding: 16px 20px 60px; }
+  .card {
+    background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+    margin-bottom: 10px; overflow: hidden;
+  }
+  .card-head {
+    display: flex; align-items: center; gap: 10px; padding: 11px 14px; cursor: pointer;
+    user-select: none;
+  }
+  .card-head:hover { background: #1c2230; }
+  .card-head .idx { color: #6e7681; font-size: 12px; font-variant-numeric: tabular-nums; min-width: 54px; }
+  .src-tag {
+    background: #1f6feb22; border: 1px solid #1f6feb55; color: #79c0ff;
+    border-radius: 12px; padding: 1px 9px; font-size: 11px; font-weight: 600; white-space: nowrap;
+  }
+  .card-head .preview {
+    color: #adbac7; font-size: 13px; flex: 1; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+  .card-head .chev { color: #6e7681; font-size: 12px; transition: transform .15s; }
+  .card.open .card-head .chev { transform: rotate(90deg); }
+  .card-body { display: none; padding: 0 14px 12px; }
+  .card.open .card-body { display: block; }
+
+  .section { border-top: 1px solid #21262d; padding-top: 8px; margin-top: 8px; }
+  .section:first-child { border-top: none; }
+  .sec-head {
+    display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;
+    padding: 4px 0; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  }
+  .sec-head .lbl-system { color: #d2a8ff; }
+  .sec-head .lbl-message { color: #7ee787; }
+  .sec-head .lbl-pred { color: #ffa657; }
+  .sec-head .lbl-meta { color: #8b949e; }
+  .sec-head .chev { color: #6e7681; font-size: 11px; transition: transform .15s; }
+  .section.open .sec-head .chev { transform: rotate(90deg); }
+  .sec-body {
+    display: none; white-space: pre-wrap; word-break: break-word;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px;
+    line-height: 1.55; color: #d1d5da; background: #0d1117; border: 1px solid #21262d;
+    border-radius: 6px; padding: 10px 12px; margin-top: 6px; max-height: 420px; overflow: auto;
+  }
+  .section.open .sec-body { display: block; }
+  .pred-body { color: #ffd7a8; }
+
+  .stats-bar {
+    background: #161b22; border-top: 1px solid #30363d; padding: 7px 20px;
+    display: flex; gap: 22px; font-size: 12px; color: #8b949e;
+  }
+  .stats-bar strong { color: #e1e4e8; font-variant-numeric: tabular-nums; }
+  .empty { text-align: center; color: #6e7681; padding: 60px; font-size: 14px; }
+  .error-msg { color: #f85149; padding: 20px; white-space: pre-wrap; font-family: monospace; font-size: 12px; }
+  .spinner {
+    display: inline-block; width: 16px; height: 16px; border: 2px solid #30363d;
+    border-top-color: #238636; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading { text-align: center; color: #8b949e; padding: 40px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>BeRL Data Inspector</h1>
+  <span class="badge" id="row-count-badge" style="display:none"></span>
+  <label for="file-input" class="btn secondary" style="margin-left:auto">Open .parquet</label>
+  <input type="file" id="file-input" accept=".parquet">
+</header>
+
+<div id="upload-area">
+  <div class="drop-zone" id="drop-zone">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+    </svg>
+    <h2>Drop a Parquet file here</h2>
+    <p>Conversations shown as System / Message / Predicted utterance &mdash; collapsed, click to expand.</p>
+  </div>
+</div>
+
+<div id="app">
+  <div class="toolbar">
+    <span class="file-name"><strong id="tb-filename"></strong></span>
+    <div class="ctrl">
+      <span>Source</span>
+      <select id="f-source"><option value="">all</option></select>
+    </div>
+    <div class="ctrl">
+      <span>Search</span>
+      <input type="text" id="f-search" placeholder="text in msg / prediction / system…">
+    </div>
+    <div class="ctrl">
+      <span>Show</span>
+      <input type="number" id="f-limit" value="100" min="1" step="50" title="max cards rendered">
+    </div>
+    <button class="btn ghost" id="btn-sample" title="Random sample (r)">&#9860; Sample</button>
+    <button class="btn ghost" id="btn-order" title="Toggle sequential / sampled">Sequential</button>
+    <div class="grow"></div>
+    <button class="btn ghost" id="btn-expandall">Expand all</button>
+    <button class="btn ghost" id="btn-collapseall">Collapse all</button>
+  </div>
+
+  <div class="list-wrap" id="list-wrap">
+    <div class="loading"><span class="spinner"></span> Parsing…</div>
+  </div>
+
+  <div class="stats-bar">
+    <span>Showing <strong id="stat-shown">—</strong></span>
+    <span>Matched <strong id="stat-matched">—</strong></span>
+    <span>Total rows <strong id="stat-total">—</strong></span>
+    <span>Sources <strong id="stat-sources">—</strong></span>
+  </div>
+</div>
+
+<script type="module">
+import { parquetRead } from 'https://esm.sh/hyparquet@1';
+
+// ── State ───────────────────────────────────────────────────────────────────
+let rows = [];            // parsed {source, system, message, predicted, raw}
+let sampled = false;      // sampled vs sequential order
+let order = [];           // current index order into rows
+
+// ── DOM ─────────────────────────────────────────────────────────────────────
+const uploadArea = document.getElementById('upload-area');
+const app        = document.getElementById('app');
+const dropZone   = document.getElementById('drop-zone');
+const fileInput  = document.getElementById('file-input');
+const listWrap   = document.getElementById('list-wrap');
+const tbFilename = document.getElementById('tb-filename');
+const rowBadge   = document.getElementById('row-count-badge');
+const fSource    = document.getElementById('f-source');
+const fSearch    = document.getElementById('f-search');
+const fLimit     = document.getElementById('f-limit');
+const statShown  = document.getElementById('stat-shown');
+const statMatched= document.getElementById('stat-matched');
+const statTotal  = document.getElementById('stat-total');
+const statSources= document.getElementById('stat-sources');
+
+// ── File loading ────────────────────────────────────────────────────────────
+fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+
+async function loadFile(file) {
+  uploadArea.style.display = 'none';
+  app.style.display = 'flex';
+  tbFilename.textContent = file.name;
+  listWrap.innerHTML = '<div class="loading"><span class="spinner"></span> Parsing…</div>';
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const asyncBuffer = {
+      byteLength: arrayBuffer.byteLength,
+      slice: (start, end) => arrayBuffer.slice(start, end),
+    };
+    const loaded = [];
+    await parquetRead({
+      file: asyncBuffer,
+      rowFormat: 'object',
+      onComplete: data => { if (Array.isArray(data)) loaded.push(...data); },
+    });
+    rows = loaded.map(parseRow);
+    buildSourceFilter();
+    order = rows.map((_, i) => i);
+    sampled = false;
+    document.getElementById('btn-order').textContent = 'Sequential';
+    statTotal.textContent = rows.length.toLocaleString();
+    rowBadge.style.display = 'inline-block';
+    rowBadge.textContent = rows.length.toLocaleString() + ' rows';
+    render();
+  } catch (err) {
+    listWrap.innerHTML = '<div class="error-msg">Failed to load: ' + esc(err.message) + '\n\n' + esc(err.stack || '') + '</div>';
+  }
+}
+
+// ── Row parsing (BeRL schema, defensive) ────────────────────────────────────
+function asList(v) {
+  if (v == null) return [];
+  if (Array.isArray(v)) return v;
+  if (typeof v === 'object' && typeof v.length === 'number') return Array.from(v);
+  return [v];
+}
+function msgContent(m) {
+  if (m == null) return '';
+  if (typeof m === 'string') return m;
+  return m.content ?? m.value ?? '';
+}
+function parseRow(r) {
+  const promptArr = asList(r.prompt).length ? asList(r.prompt) : asList(r.raw_prompt);
+  let system = '', message = '';
+  if (promptArr.length) {
+    for (const m of promptArr) {
+      const role = (m && m.role) || '';
+      if (role === 'system' && !system) system = msgContent(m);
+      else if (role === 'user') message = msgContent(m); // last user msg wins
+    }
+    if (!system && r.raw_system_prompt) system = r.raw_system_prompt;
+    if (!message && r.raw_user_prompt) message = r.raw_user_prompt;
+  } else {
+    system = r.raw_system_prompt || '';
+    message = r.raw_user_prompt || r.prompt_for_pp || '';
+  }
+  // predicted utterance / ground truth
+  let predicted = '';
+  const rm = r.reward_model;
+  if (rm && typeof rm === 'object') predicted = rm.ground_truth ?? '';
+  if (!predicted && r.response_with_tags) predicted = r.response_with_tags;
+  const source = r.data_source ?? (r.metadata && r.metadata.conv_id ? String(r.metadata.conv_id).split('_')[0] : '') ?? '';
+  return { source: source || '(none)', system: String(system || ''), message: String(message || ''),
+           predicted: String(predicted || ''), raw: r };
+}
+
+function buildSourceFilter() {
+  const srcs = [...new Set(rows.map(r => r.source))].sort();
+  fSource.innerHTML = '<option value="">all (' + rows.length + ')</option>';
+  for (const s of srcs) {
+    const n = rows.filter(r => r.source === s).length;
+    const o = document.createElement('option');
+    o.value = s; o.textContent = s + ' (' + n + ')';
+    fSource.appendChild(o);
+  }
+  statSources.textContent = srcs.length;
+}
+
+// ── Filtering + render ──────────────────────────────────────────────────────
+function currentMatches() {
+  const src = fSource.value;
+  const q = fSearch.value.trim().toLowerCase();
+  const out = [];
+  for (const i of order) {
+    const r = rows[i];
+    if (src && r.source !== src) continue;
+    if (q && !(r.message.toLowerCase().includes(q) ||
+               r.predicted.toLowerCase().includes(q) ||
+               r.system.toLowerCase().includes(q))) continue;
+    out.push(i);
+  }
+  return out;
+}
+
+function render() {
+  const matches = currentMatches();
+  const limit = Math.max(1, parseInt(fLimit.value) || 100);
+  const shown = matches.slice(0, limit);
+  statMatched.textContent = matches.length.toLocaleString();
+  statShown.textContent = shown.length.toLocaleString();
+  if (!shown.length) { listWrap.innerHTML = '<div class="empty">No rows match the current filters.</div>'; return; }
+  const frag = document.createDocumentFragment();
+  for (const i of shown) frag.appendChild(makeCard(i, rows[i]));
+  listWrap.innerHTML = '';
+  listWrap.appendChild(frag);
+}
+
+function makeSection(labelClass, label, text, open, extraBodyClass) {
+  const sec = document.createElement('div');
+  sec.className = 'section' + (open ? ' open' : '');
+  const head = document.createElement('div');
+  head.className = 'sec-head';
+  head.innerHTML = '<span class="chev">&#9654;</span><span class="' + labelClass + '">' + label + '</span>';
+  head.addEventListener('click', () => sec.classList.toggle('open'));
+  const body = document.createElement('div');
+  body.className = 'sec-body' + (extraBodyClass ? ' ' + extraBodyClass : '');
+  body.textContent = text || '(empty)';
+  sec.appendChild(head); sec.appendChild(body);
+  return sec;
+}
+
+function makeCard(idx, r) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  const head = document.createElement('div');
+  head.className = 'card-head';
+  head.innerHTML =
+    '<span class="chev">&#9654;</span>' +
+    '<span class="idx">#' + idx + '</span>' +
+    '<span class="src-tag">' + esc(r.source) + '</span>' +
+    '<span class="preview">' + esc(r.predicted || r.message) + '</span>';
+  head.addEventListener('click', () => card.classList.toggle('open'));
+  const body = document.createElement('div');
+  body.className = 'card-body';
+  body.appendChild(makeSection('lbl-system', 'System', r.system, false));
+  body.appendChild(makeSection('lbl-message', 'Message', r.message, true));
+  body.appendChild(makeSection('lbl-pred', 'Predicted utterance', r.predicted, true, 'pred-body'));
+  body.appendChild(makeSection('lbl-meta', 'All fields (JSON)', safeJson(r.raw), false));
+  card.appendChild(head); card.appendChild(body);
+  return card;
+}
+
+function safeJson(o) {
+  try {
+    return JSON.stringify(o, (k, v) => {
+      if (v && typeof v === 'object' && typeof v.length === 'number' && !Array.isArray(v))
+        return Array.from(v);
+      return v;
+    }, 2);
+  } catch (e) { return String(o); }
+}
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+}
+
+// ── Controls ────────────────────────────────────────────────────────────────
+fSource.addEventListener('change', render);
+fLimit.addEventListener('change', render);
+let searchTimer;
+fSearch.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(render, 180); });
+
+document.getElementById('btn-sample').addEventListener('click', () => {
+  order = rows.map((_, i) => i);
+  for (let i = order.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [order[i], order[j]] = [order[j], order[i]]; }
+  sampled = true;
+  document.getElementById('btn-order').textContent = 'Sampled';
+  render();
+});
+document.getElementById('btn-order').addEventListener('click', () => {
+  if (sampled) { order = rows.map((_, i) => i); sampled = false; document.getElementById('btn-order').textContent = 'Sequential'; }
+  else { document.getElementById('btn-sample').click(); }
+  render();
+});
+document.getElementById('btn-expandall').addEventListener('click', () =>
+  listWrap.querySelectorAll('.card').forEach(c => c.classList.add('open')));
+document.getElementById('btn-collapseall').addEventListener('click', () =>
+  listWrap.querySelectorAll('.card').forEach(c => c.classList.remove('open')));
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.key === 'r') document.getElementById('btn-sample').click();
+});
+</script>
+</body>
+</html>
